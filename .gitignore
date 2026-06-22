@@ -1,0 +1,10 @@
+.venv/
+outputs/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.csv
+metadata.json
+.cleanup_state.json
+config.toml

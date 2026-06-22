@@ -1,0 +1,34 @@
+{
+  "name": "anchises-stock-qa",
+  "version": "0.1.0+codex.20260622101703",
+  "description": "Safe read-only Stocks_Tracker SQL exports for Codex CSV analysis.",
+  "author": {
+    "name": "Anchises"
+  },
+  "license": "MIT",
+  "keywords": [
+    "stocks",
+    "mysql",
+    "csv",
+    "analysis",
+    "read-only"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Anchises Stock QA",
+    "shortDescription": "Read-only stock SQL exports to CSV.",
+    "longDescription": "Anchises Stock QA lets Codex inspect a user-configured read-only Stocks_Tracker MySQL database, validate SELECT-only SQL, export query results to CSV, and analyze those CSV files with pandas. Database URL, output cleanup, and prompt overrides are configured locally after installation.",
+    "developerName": "Anchises",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Answer my stock question from configured Stocks_Tracker data.",
+      "Find the strongest momentum stocks from the latest data.",
+      "Which mining stocks had unusual volume recently?"
+    ]
+  }
+}

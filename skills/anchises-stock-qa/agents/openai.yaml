@@ -1,0 +1,4 @@
+interface:
+  display_name: "Anchises Stock QA"
+  short_description: "Answer stocks from local DB."
+  default_prompt: "Answer my stock question from local Stocks_Tracker data. Export CSV, analyze it, and cite the CSV path."
