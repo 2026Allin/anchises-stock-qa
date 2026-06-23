@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "init_config.sh"
+PLUGIN_ROOT = ROOT / "plugins" / "anchises-stock-qa"
+SCRIPT = PLUGIN_ROOT / "scripts" / "init_config.sh"
 API_TOKEN = 'tk_test_p"a\\ss'
 DEFAULT_API_URL = "https://anchisesdata.com/anchises-stock-qa"
 

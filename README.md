@@ -1,4 +1,8 @@
-# Anchises Stock QA
+# Anchises Stock QA Marketplace
+
+This repository is a Codex marketplace root for the Anchises Stock QA plugin.
+Its marketplace manifest lives at `.agents/plugins/marketplace.json` and points
+to the plugin package at `plugins/anchises-stock-qa`.
 
 Anchises Stock QA is a Codex plugin for asking questions about stock market
 data.
@@ -17,10 +21,11 @@ QA API URL and your personal API token.
 
 ## Install
 
-Open the shared plugin link in the Codex app and click **Install**.
+Add this repository URL as a Codex marketplace URL, then install
+**Anchises Stock QA** from the Anchises marketplace.
 
-If you are updating an existing install, open the same plugin link again and
-install the latest version.
+If you are updating an existing install, refresh or re-add the same marketplace
+URL and install the latest plugin version.
 
 After installing or updating, open a new Codex thread so Codex can load the
 latest plugin tools and instructions.
@@ -114,6 +119,7 @@ Check the Anchises Stock QA connection.
 You can also run this from the plugin folder:
 
 ```bash
+cd plugins/anchises-stock-qa
 python3 scripts/ask_stock.py --verify-db
 ```
 
@@ -155,7 +161,7 @@ You can override the built-in prompts without editing the plugin:
 
 ```bash
 mkdir -p ~/.config/anchises-stock-qa/prompts
-cp prompts/*.md ~/.config/anchises-stock-qa/prompts/
+cp plugins/anchises-stock-qa/prompts/*.md ~/.config/anchises-stock-qa/prompts/
 ```
 
 Then set this in `config.toml`:

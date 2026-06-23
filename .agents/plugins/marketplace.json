@@ -1,0 +1,20 @@
+{
+  "name": "anchises",
+  "interface": {
+    "displayName": "Anchises"
+  },
+  "plugins": [
+    {
+      "name": "anchises-stock-qa",
+      "source": {
+        "source": "local",
+        "path": "./plugins/anchises-stock-qa"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
