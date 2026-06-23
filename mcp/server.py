@@ -21,6 +21,7 @@ from ask_stock import (  # noqa: E402
     get_latest_dates as run_get_latest_dates,
     get_prompt_bundle as run_get_prompt_bundle,
     get_schema_snapshot as run_get_schema_snapshot,
+    get_setup_instructions as run_get_setup_instructions,
     get_stock_qa_config as run_get_stock_qa_config,
     get_stock_schema as run_get_stock_schema,
     get_table_schema as run_get_table_schema,
@@ -39,20 +40,28 @@ mcp = FastMCP(
     instructions=(
         "Anchises Stock QA exposes read-only Stocks_Tracker tools. "
         "Configuration is loaded from ~/.config/anchises-stock-qa/config.toml "
-        "or ANCHISES_STOCK_QA_CONFIG. The database URL must be configured by "
-        "the user and is always treated as secret. For natural-language stock "
-        "questions, Codex should call get_prompt_bundle, discover exchanges with "
+        "or ANCHISES_STOCK_QA_CONFIG. Shared users configure remote_api with "
+        "an API URL and token; all secrets are treated as private. For setup "
+        "or token reset requests, Codex should call get_setup_instructions and "
+        "show the returned setup_or_reset_token command. For natural-language "
+        "stock questions, Codex should call get_prompt_bundle, discover exchanges with "
         "get_available_exchanges, inspect latest dates/schema, use list_stock_tables "
         "and get_table_schema for date ranges, interpret query dimensions, write "
         "safe SELECT/WITH SQL, call run_readonly_sql, "
         "read the exported CSV with pandas using the returned analysis_python, perform "
         "at least one relevant web search for current/external context, and return "
-        "markdown using the prompt bundle. The MCP server validates SQL, runs it in "
-        "START TRANSACTION READ ONLY, exports CSV files, and may clean old outputs "
-        "according to config. It does not call OpenAI APIs or perform the final "
-        "pandas analysis itself."
+        "markdown using the prompt bundle. The MCP server validates SQL, uses the "
+        "configured backend, exports CSV files, and may clean old outputs according "
+        "to config. It does not call OpenAI APIs or perform the final pandas "
+        "analysis itself."
     ),
 )
+
+
+@mcp.tool()
+def get_setup_instructions() -> Dict[str, Any]:
+    """Return first-time setup and API token reset instructions for this plugin install."""
+    return run_get_setup_instructions()
 
 
 @mcp.tool()

@@ -4,12 +4,15 @@ Configuration:
 - Default config path: `~/.config/anchises-stock-qa/config.toml`
 - Override config path: `ANCHISES_STOCK_QA_CONFIG`
 - Example config: `config.example.toml`
-- Database URL setting: `[database].url`
+- Backend setting: `[backend].mode` (`local_mysql` or `remote_api`)
+- Remote API settings: `[backend].api_base_url` and `[backend].api_token`
+- Local database URL setting: `[database].url`
 - Required database mode: `[database].access_mode = "readonly"`
 - Output root setting: `[outputs].dir`
 - Prompt override setting: `[prompts].override_dir`
 
 MCP tools:
+- `get_setup_instructions`
 - `get_stock_qa_config`
 - `get_prompt_bundle`
 - `cleanup_outputs`
@@ -30,11 +33,18 @@ Codex-owned analysis:
 - Codex interprets user intent.
 - Codex calls `get_prompt_bundle` and follows the returned prompt markdown.
 - Codex writes SQL.
-- The MCP server validates SQL, runs it in a read-only transaction, and exports CSV only.
+- The MCP server validates SQL, uses the configured local or remote backend, and exports CSV only.
 - Codex reads CSV and performs analysis with pandas or other local tools using the returned `analysis_python` when needed.
 - Codex must perform at least one relevant web search before the final stock answer for external/current context, company/background checks, or validation.
 - Numeric probabilities, rankings, and filters from `Stocks_Tracker` must remain grounded in the exported CSV.
 - The user should be able to ask in natural language. Do not require the user to say `run_readonly_sql`, provide `conversation_id`, or request CSV explicitly.
+
+Setup and token reset:
+- If the user says "Set up Anchises Stock QA", asks for configuration help, asks where the README is, or wants to reset/replace the API token, call `get_setup_instructions`.
+- Show `commands.setup_or_reset_token` as the command to run in Terminal.
+- The same command creates the config on first run and updates the API token on later runs.
+- `commands.force_recreate_config` is only for rebuilding the whole config from defaults.
+- Never ask the user to paste an API token into chat.
 
 Default prompt handling:
 - Discover exchange codes from the configured database with `get_available_exchanges`.
@@ -53,7 +63,7 @@ SQL safety:
 - The validator allows only one `SELECT` or `WITH ... SELECT` statement.
 - The validator rejects write/DDL/admin/session/procedure/file/lock/time-wasting constructs.
 - The validator rejects system schemas and non-stock tables.
-- The executor wraps accepted SQL with `LIMIT max_rows`, starts `START TRANSACTION READ ONLY`, and then rolls back.
+- The executor wraps accepted SQL with `LIMIT max_rows`, starts `START TRANSACTION READ ONLY`, and then rolls back when using the local MySQL backend. Remote API mode must enforce equivalent read-only behavior on the server.
 
 Allowed table patterns:
 - `daily_YYYYMMDD_<exchange>`
@@ -87,7 +97,8 @@ Final answer format:
 
 Common failures:
 - The config file is missing.
-- `[database].url` is missing or points at the wrong MySQL host/socket.
+- `[backend].mode = "remote_api"` is missing `[backend].api_base_url` or `[backend].api_token`.
+- `[backend].mode = "local_mysql"` is missing `[database].url` or points at the wrong MySQL host/socket.
 - `[database].access_mode` is not `readonly`.
 - MySQL is not listening on the configured host/socket.
 - SQL references a blocked table or includes blocked constructs.

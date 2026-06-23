@@ -13,6 +13,7 @@ import hashlib
 import json
 import re
 import secrets
+import shlex
 import sys
 import uuid
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from config import (
     ConfigError,
     StockQAConfig,
     config_as_dict,
+    config_path,
     load_config,
     redact_url,
     sanitize_error_text,
@@ -34,9 +36,12 @@ from config import (
 from output_cleanup import cleanup_outputs as run_cleanup_outputs
 from output_cleanup import maybe_cleanup_outputs
 from prompts import get_prompt_bundle as load_prompt_bundle
+import remote_api
 
 
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 EXCHANGE_CODE_PATTERN = r"[a-z0-9]+"
+DEFAULT_REMOTE_API_URL = "https://anchisesdata.com/anchises-stock-qa"
 BUILTIN_EXCHANGE_ALIASES = {
     "asx": "asx",
     "asxexchange": "asx",
@@ -169,6 +174,130 @@ def _config_for_database() -> StockQAConfig:
         return load_config(require_database_url=True)
     except ConfigError as exc:
         raise StockQAError(str(exc)) from exc
+
+
+def _setup_command(extra_args: List[str] | None = None) -> str:
+    init_script = PLUGIN_ROOT / "scripts" / "init_config.sh"
+    parts = ["bash", str(init_script)]
+    parts.extend(extra_args or [])
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def get_setup_instructions() -> Dict[str, Any]:
+    """Return first-time setup and token-reset instructions for the installed plugin."""
+    init_script = PLUGIN_ROOT / "scripts" / "init_config.sh"
+    readme_path = PLUGIN_ROOT / "README.md"
+    config_exists = False
+    api_token_configured = False
+    api_base_url = ""
+    backend_mode = "remote_api"
+    errors: List[str] = []
+
+    try:
+        config = load_config(require_database_url=False)
+        config_exists = config.config_exists
+        api_base_url = (
+            config_as_dict(config)["backend"]["api_base_url"]
+            or DEFAULT_REMOTE_API_URL
+        )
+        api_token_configured = bool(config.backend.api_token)
+        if not config.config_exists:
+            errors.append(config.missing_config_message)
+        if _is_remote(config):
+            errors.extend(_remote_config_errors(config))
+    except ConfigError as exc:
+            errors.append(str(exc))
+    if not api_base_url:
+        api_base_url = DEFAULT_REMOTE_API_URL
+
+    configured = config_exists and api_token_configured and not errors
+    setup_command = _setup_command()
+    force_recreate_command = _setup_command(["--force"])
+    action = "reset_token" if api_token_configured else "first_time_setup"
+    title = (
+        "Anchises Stock QA is already configured"
+        if configured
+        else "Set up Anchises Stock QA"
+    )
+    summary = (
+        "Run the reset command if you received a new API token."
+        if api_token_configured
+        else "Run the setup command and paste your API token when prompted."
+    )
+
+    return {
+        "ok": True,
+        "trigger_phrases": [
+            "Set up Anchises Stock QA",
+            "Reset Anchises Stock QA token",
+            "Check the Anchises Stock QA connection",
+        ],
+        "title": title,
+        "summary": summary,
+        "action": action,
+        "plugin_root": str(PLUGIN_ROOT),
+        "readme_path": str(readme_path),
+        "init_script": str(init_script),
+        "config_path": str(config_path()),
+        "config_exists": config_exists,
+        "configured": configured,
+        "backend": {
+            "mode": backend_mode or "remote_api",
+            "api_base_url": api_base_url,
+            "api_token_configured": api_token_configured,
+            "secrets_redacted": True,
+        },
+        "commands": {
+            "setup_or_reset_token": setup_command,
+            "force_recreate_config": force_recreate_command,
+        },
+        "instructions": [
+            "Open Terminal.",
+            "Run the setup_or_reset_token command exactly as shown.",
+            "Paste your Anchises Stock QA API token when prompted; the token is hidden while typing.",
+            "Run the same command again later to replace the token while keeping other settings.",
+            "After setup, ask Codex: Check the Anchises Stock QA connection.",
+        ],
+        "errors": errors,
+        "notes": [
+            "Users do not need a database URL.",
+            "The config file is outside the plugin install and is kept across plugin updates.",
+            "Do not paste the API token into chat; enter it only in Terminal when the script prompts.",
+        ],
+    }
+
+
+def _is_remote(config: StockQAConfig) -> bool:
+    return config.backend.mode == "remote_api"
+
+
+def _remote_config_errors(config: StockQAConfig) -> List[str]:
+    errors: List[str] = []
+    if not config.backend.api_base_url:
+        errors.append("[backend].api_base_url is required for remote_api mode")
+    if not config.backend.api_token:
+        errors.append("[backend].api_token is required for remote_api mode")
+    return errors
+
+
+def _remote_request(
+    config: StockQAConfig,
+    method: str,
+    path: str,
+    payload: Dict[str, Any] | None = None,
+    *,
+    allow_ok_false: bool = False,
+) -> Dict[str, Any]:
+    try:
+        return remote_api.request_json(
+            config,
+            method,
+            path,
+            payload,
+            allow_ok_false=allow_ok_false,
+        )
+    except remote_api.RemoteAPIError as exc:
+        raise StockQAError(sanitize_error_text(str(exc), config)) from exc
 
 
 def _engine(config: StockQAConfig) -> Any:
@@ -384,6 +513,8 @@ def _discover_exchange_codes(config: StockQAConfig) -> List[str]:
 
 def get_available_exchanges() -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_request(config, "GET", "/v1/exchanges")
     inventory = _discover_exchange_inventory(config)
     return {
         "ok": True,
@@ -409,7 +540,9 @@ def get_stock_qa_config(redact_secrets: bool = True) -> Dict[str, Any]:
         errors = []
         if not config.config_exists:
             errors.append(config.missing_config_message)
-        if not config.database.url:
+        if _is_remote(config):
+            errors.extend(_remote_config_errors(config))
+        elif not config.database.url:
             errors.append("[database].url is required")
         data["ok"] = not errors
         data["errors"] = errors
@@ -418,6 +551,7 @@ def get_stock_qa_config(redact_secrets: bool = True) -> Dict[str, Any]:
         return {
             "ok": False,
             "errors": [str(exc)],
+            "backend": {"mode": "", "api_token_configured": False, "secrets_redacted": True},
             "database": {"url": "", "secrets_redacted": True},
         }
 
@@ -442,6 +576,18 @@ def verify_environment() -> Dict[str, Any]:
 
 def verify_database() -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        health = _remote_request(config, "GET", "/v1/health")
+        return {
+            "ok": bool(health.get("ok", True)),
+            "backend": {
+                "mode": "remote_api",
+                "api_base_url": config_as_dict(config)["backend"]["api_base_url"],
+                "api_token_configured": bool(config.backend.api_token),
+                "secrets_redacted": True,
+            },
+            "remote_health": health,
+        }
     engine = _engine(config)
     try:
         with engine.connect() as conn:
@@ -601,6 +747,27 @@ def _clean_sql(sql: str) -> str:
 
 
 def validate_readonly_sql(sql: str) -> Dict[str, Any]:
+    try:
+        config = load_config(require_database_url=False)
+        if config.config_exists and _is_remote(config):
+            errors = _remote_config_errors(config)
+            if errors:
+                return {
+                    "ok": False,
+                    "normalized_sql": _clean_sql(sql or ""),
+                    "errors": errors,
+                    "warnings": [],
+                    "referenced_tables": [],
+                }
+            return _remote_request(
+                config,
+                "POST",
+                "/v1/validate-sql",
+                {"sql": sql},
+                allow_ok_false=True,
+            )
+    except ConfigError:
+        pass
     result = _validate_readonly_sql(sql)
     return result.as_dict()
 
@@ -695,6 +862,136 @@ def _new_output_dir(
     return run_id, out_dir, safe_conv, requested_conv
 
 
+def _bounded_max_rows(max_rows: Any, default: int = 200_000) -> int:
+    if max_rows is None:
+        parsed = default
+    else:
+        try:
+            parsed = int(max_rows)
+        except (TypeError, ValueError) as exc:
+            raise StockQAError("max_rows must be an integer") from exc
+    return max(1, min(parsed, 1_000_000))
+
+
+def _remote_run_readonly_sql(
+    config: StockQAConfig,
+    sql: str,
+    *,
+    conversation_id: str = "",
+    output_name: str = "query_result",
+    max_rows: int = 200_000,
+) -> Dict[str, Any]:
+    cleanup_summary = maybe_cleanup_outputs(config.outputs)
+    max_rows = _bounded_max_rows(max_rows)
+    response = _remote_request(
+        config,
+        "POST",
+        "/v1/run-sql",
+        {
+            "sql": sql,
+            "output_name": output_name,
+            "max_rows": max_rows,
+        },
+    )
+    try:
+        csv_bytes = remote_api.csv_bytes_from_response(response)
+    except remote_api.RemoteAPIError as exc:
+        raise StockQAError(sanitize_error_text(str(exc), config)) from exc
+    run_id, out_dir, output_conversation_id, requested_conversation_id = _new_output_dir(
+        config.outputs.dir,
+        conversation_id,
+        output_name,
+    )
+    csv_path = out_dir / f"{_safe_name(output_name, 'query_result')}.csv"
+    sql_path = out_dir / "query.sql"
+    metadata_path = out_dir / "metadata.json"
+    csv_path.write_bytes(csv_bytes)
+
+    remote_metadata = dict(response.get("metadata") or {})
+    remote_columns = remote_metadata.get("columns") or response.get("columns") or []
+    row_count = remote_metadata.get("row_count", response.get("row_count", 0))
+    column_count = remote_metadata.get("column_count", len(remote_columns))
+    metadata = {
+        "run_id": run_id,
+        "conversation_id": output_conversation_id,
+        "requested_conversation_id": requested_conversation_id,
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "row_count": int(row_count or 0),
+        "column_count": int(column_count or 0),
+        "columns": list(remote_columns),
+        "max_rows": max_rows,
+        "possibly_truncated": bool(
+            remote_metadata.get("possibly_truncated", response.get("possibly_truncated", False))
+        ),
+        "output_csv": str(csv_path),
+        "output_dir": str(out_dir),
+        "query_sql": str(sql_path),
+        "metadata_json": str(metadata_path),
+        "analysis_python": sys.executable,
+        "analysis_workdir": str(out_dir),
+        "config": {
+            "config_path": str(config.config_path),
+            "backend_mode": config.backend.mode,
+            "api_base_url": config_as_dict(config)["backend"]["api_base_url"],
+            "api_token_configured": bool(config.backend.api_token),
+            "outputs_root": str(config.outputs.dir),
+            "secrets_redacted": True,
+        },
+        "cleanup": cleanup_summary,
+        "validation": response.get("validation") or remote_metadata.get("validation") or {},
+        "remote": {
+            "request_id": response.get("request_id") or remote_metadata.get("request_id", ""),
+            "metadata": remote_metadata,
+        },
+        "response_contract": {
+            "prompt_bundle_tool": "get_prompt_bundle",
+            "filtered_csv_required": True,
+            "filtered_csv_filename": "filtered_results.csv",
+            "filtered_csv_directory": str(out_dir),
+            "primary_csv_path_rule": (
+                "Save and cite filtered_results.csv under filtered_csv_directory; "
+                "workspace copies are secondary only."
+            ),
+            "top_30_required_for_probability_rate_screening": True,
+            "interpretation_must_include": [
+                "Codex-derived screening/query rules",
+                "exchange scope",
+                "actual database date window",
+                "event/filter definition",
+                "financial filters and timing",
+                "deduplication rule",
+                "comparison and numerator/denominator logic",
+                "missing-data handling",
+                "output scoring/sorting rule",
+            ],
+            "required_sections": [
+                "Interpretation",
+                "Result",
+                "Summary",
+                "By exchange when more than one exchange is in scope",
+                "Top 30 qualifying stocks",
+                "Shell Risk Verification Notes",
+                "Files",
+                "Caveats",
+                "Quick takeaways",
+            ],
+        },
+        "analysis_instruction": (
+            "Codex should read output_csv with analysis_python, use pandas as needed, "
+            "perform required web searches, save final filtered/ranked/evidence rows as "
+            "filtered_results.csv in analysis_workdir, and write the final answer using "
+            "the prompt bundle returned by get_prompt_bundle. This tool does not call "
+            "OpenAI APIs."
+        ),
+    }
+    sql_path.write_text(_clean_sql(sql) + "\n", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2, default=_json_default),
+        encoding="utf-8",
+    )
+    return metadata
+
+
 def run_readonly_sql(
     sql: str,
     *,
@@ -703,13 +1000,21 @@ def run_readonly_sql(
     max_rows: int = 200_000,
 ) -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_run_readonly_sql(
+            config,
+            sql,
+            conversation_id=conversation_id,
+            output_name=output_name,
+            max_rows=max_rows,
+        )
     available_exchanges = _discover_exchange_codes(config)
     validation = _validate_readonly_sql(sql, available_exchanges=available_exchanges)
     if not validation.ok:
         raise StockQAError("SQL safety validation failed: " + "; ".join(validation.errors))
 
     cleanup_summary = maybe_cleanup_outputs(config.outputs)
-    max_rows = max(1, min(int(max_rows or 200_000), 1_000_000))
+    max_rows = _bounded_max_rows(max_rows)
     engine = _engine(config)
     wrapped_sql = (
         f"SELECT * FROM ({validation.normalized_sql}) AS _anchises_safe_query "
@@ -812,6 +1117,13 @@ def run_readonly_sql(
 
 def get_latest_dates(exchanges: Optional[List[str]] = None) -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_request(
+            config,
+            "POST",
+            "/v1/latest-dates",
+            {"exchanges": exchanges or []},
+        )
     inventory = _discover_exchange_inventory(config)
     requested = _normalize_exchanges(exchanges, inventory, config)
     engine = _engine(config)
@@ -853,6 +1165,17 @@ def list_stock_tables(
         raise StockQAError("date_start must be on or before date_end")
 
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_request(
+            config,
+            "POST",
+            "/v1/list-stock-tables",
+            {
+                "exchanges": exchanges or [],
+                "date_start": date_start,
+                "date_end": date_end,
+            },
+        )
     inventory = _discover_exchange_inventory(config)
     requested = _normalize_exchanges(exchanges, inventory, config)
     engine = _engine(config)
@@ -910,6 +1233,13 @@ def get_table_schema(table_names: List[str]) -> Dict[str, Any]:
         raise StockQAError("table_names is limited to 250 tables per call")
 
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_request(
+            config,
+            "POST",
+            "/v1/table-schema",
+            {"table_names": requested_names},
+        )
     available_exchanges = _discover_exchange_codes(config)
     engine = _engine(config)
     out: Dict[str, Any] = {"ok": True, "tables": {}, "errors": []}
@@ -954,6 +1284,23 @@ def get_table_schema(table_names: List[str]) -> Dict[str, Any]:
 
 def get_stock_schema(exchanges: Optional[List[str]] = None) -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        latest = get_latest_dates(exchanges)
+        table_names: List[str] = []
+        for exchange, info in latest.items():
+            if isinstance(info, dict):
+                daily_table = info.get("latest_table")
+                if daily_table:
+                    table_names.append(str(daily_table))
+                table_names.append(f"exchange_{str(exchange).lower()}_master")
+        table_names.append("metals")
+        schema_response = get_table_schema(table_names)
+        tables = {
+            table_name: {"columns": table_info.get("columns", [])}
+            for table_name, table_info in schema_response.get("tables", {}).items()
+            if table_info.get("exists", True)
+        }
+        return {"latest_dates": latest, "tables": tables}
     latest = get_latest_dates(exchanges)
     engine = _engine(config)
     schema: Dict[str, Any] = {"latest_dates": latest, "tables": {}}
@@ -1198,6 +1545,16 @@ def get_schema_snapshot(
     save_snapshot: bool = True,
 ) -> Dict[str, Any]:
     config = _config_for_database()
+    if _is_remote(config):
+        return _remote_request(
+            config,
+            "POST",
+            "/v1/schema-snapshot",
+            {
+                "compare_to_last": compare_to_last,
+                "save_snapshot": save_snapshot,
+            },
+        )
     snapshot = _build_schema_snapshot(config)
     snapshot_path = _schema_snapshot_path(config)
     diff: Dict[str, Any] = {
@@ -1329,6 +1686,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Anchises Stock QA local DB tools")
     parser.add_argument("--verify-env", action="store_true")
     parser.add_argument("--verify-db", action="store_true")
+    parser.add_argument("--setup-instructions", action="store_true")
     parser.add_argument("--get-config", action="store_true")
     parser.add_argument("--get-prompts", action="store_true")
     parser.add_argument("--cleanup-outputs", action="store_true")
@@ -1358,6 +1716,8 @@ def main() -> int:
             result = verify_environment()
         elif args.verify_db:
             result = verify_database()
+        elif args.setup_instructions:
+            result = get_setup_instructions()
         elif args.get_config:
             result = get_stock_qa_config(redact_secrets=True)
         elif args.get_prompts:

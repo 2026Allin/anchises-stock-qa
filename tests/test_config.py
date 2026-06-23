@@ -61,6 +61,7 @@ class ConfigTest(unittest.TestCase):
             config = load_config()
             data = config_as_dict(config)
 
+        self.assertEqual(config.backend.mode, "local_mysql")
         self.assertEqual(config.database.access_mode, "readonly")
         self.assertFalse(config.outputs.cleanup_enabled)
         self.assertEqual(config.outputs.cleanup_interval_days, 3)
@@ -69,6 +70,57 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(data["exchanges"]["aliases"]["伦敦"], "lse")
         self.assertIn("reader:***@db.example.com", data["database"]["url"])
         self.assertNotIn("secret", data["database"]["url"])
+
+    def test_remote_api_config_does_not_require_database_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[backend]",
+                        'mode = "remote_api"',
+                        'api_base_url = "https://api.example.com/anchises-stock-qa"',
+                        'api_token = "secret-token"',
+                        "[database]",
+                        'url = ""',
+                        'access_mode = "readonly"',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            os.environ["ANCHISES_STOCK_QA_CONFIG"] = str(config_path)
+
+            config = load_config(require_database_url=True)
+            data = config_as_dict(config)
+
+        self.assertEqual(config.backend.mode, "remote_api")
+        self.assertEqual(
+            config.backend.api_base_url,
+            "https://api.example.com/anchises-stock-qa",
+        )
+        self.assertTrue(data["backend"]["api_token_configured"])
+        self.assertEqual(data["backend"]["api_token"], "***")
+        self.assertNotIn("secret-token", str(data))
+
+    def test_remote_api_requires_url_and_token_when_used(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[backend]",
+                        'mode = "remote_api"',
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            os.environ["ANCHISES_STOCK_QA_CONFIG"] = str(config_path)
+
+            with self.assertRaises(ConfigError) as ctx:
+                load_config(require_database_url=True)
+
+        self.assertIn("api_base_url", str(ctx.exception))
+        self.assertIn("api_token", str(ctx.exception))
 
     def test_invalid_access_mode_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

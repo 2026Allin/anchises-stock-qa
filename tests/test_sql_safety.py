@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,6 +15,20 @@ from ask_stock import validate_readonly_sql
 
 
 class SqlSafetyTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._old_config = os.environ.get("ANCHISES_STOCK_QA_CONFIG")
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["ANCHISES_STOCK_QA_CONFIG"] = str(
+            Path(self._tmp.name) / "missing.toml"
+        )
+
+    def tearDown(self) -> None:
+        if self._old_config is None:
+            os.environ.pop("ANCHISES_STOCK_QA_CONFIG", None)
+        else:
+            os.environ["ANCHISES_STOCK_QA_CONFIG"] = self._old_config
+        self._tmp.cleanup()
+
     def test_valid_select_is_allowed(self) -> None:
         result = validate_readonly_sql(
             "SELECT TICKER, Price_Close FROM daily_20260612_asx LIMIT 10"

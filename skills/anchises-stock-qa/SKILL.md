@@ -1,13 +1,21 @@
 ---
 name: anchises-stock-qa
-description: Use when Codex needs to answer stock screening, ranking, probability, momentum, mining-stock, or exchange-scoped questions from a configured read-only Stocks_Tracker MySQL database by writing safe SQL, exporting CSV, and analyzing the CSV with pandas.
+description: Use when Codex needs to answer stock screening, ranking, probability, momentum, mining-stock, or exchange-scoped questions from a configured read-only Stocks_Tracker data source by writing safe SQL, exporting CSV, and analyzing the CSV with pandas.
 ---
 
 # Anchises Stock QA
 
 Use this skill to answer stock-data questions from the user's configured
-`Stocks_Tracker` database. The user should not need to name tools, provide SQL,
+`Stocks_Tracker` data source. The user should not need to name tools, provide SQL,
 mention CSV, or describe the analysis process.
+
+Setup workflow:
+1. If the user says "Set up Anchises Stock QA", asks how to configure the plugin, asks to reset or replace the API token, or configuration is missing, call `get_setup_instructions`.
+2. Show the returned `commands.setup_or_reset_token` command as the primary command to run in Terminal.
+3. Explain that the same command works for first-time setup and later token reset, and that it keeps existing settings unless the user runs the force command.
+4. Do not ask the user to find the README or browse the plugin cache directory.
+5. Do not ask the user to paste the API token into chat.
+6. After setup, suggest asking "Check the Anchises Stock QA connection".
 
 Automatic workflow:
 1. Call `get_stock_qa_config` if configuration status is unclear.

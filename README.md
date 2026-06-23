@@ -1,20 +1,19 @@
 # Anchises Stock QA
 
-Anchises Stock QA is a Codex plugin for asking questions about a local
-`Stocks_Tracker` MySQL database.
+Anchises Stock QA is a Codex plugin for asking questions about stock market
+data.
 
-Codex writes safe read-only SQL, the plugin exports the result to CSV, and
-Codex then uses pandas to analyze the CSV and answer your question.
+Codex writes safe read-only SQL, the plugin exports the result to a local CSV,
+and Codex then uses pandas to analyze the CSV and answer your question.
 
-The plugin does not include a database connection. Each user configures their
-own read-only database URL after installing the plugin.
+Users do not need a database URL. Access is provided through the Anchises Stock
+QA API URL and your personal API token.
 
 ## What You Need
 
 - Codex with plugin support.
 - Python 3 on your machine.
-- Access to a MySQL `Stocks_Tracker` database.
-- A read-only MySQL account.
+- Your Anchises Stock QA API token.
 
 ## Install
 
@@ -26,27 +25,36 @@ install the latest version.
 After installing or updating, open a new Codex thread so Codex can load the
 latest plugin tools and instructions.
 
-## Configure The Database
-
-Open Terminal, switch to the plugin folder, then create the local config file:
-
-```bash
-cd <path-to-anchises-stock-qa>
-bash scripts/init_config.sh
-```
-
-For example, if you downloaded the plugin to `~/Downloads`:
-
-```bash
-cd ~/Downloads/anchises-stock-qa
-bash scripts/init_config.sh
-```
-
-The script will ask for your read-only MySQL URL. Example:
+Then ask Codex:
 
 ```text
-mysql+pymysql://stock_reader:password@127.0.0.1:3306/Stocks_Tracker?charset=utf8mb4
+Set up Anchises Stock QA
 ```
+
+Codex will show a Terminal command that matches your installed plugin path.
+
+## Configure Database Access
+
+The plugin connects through the Anchises Stock QA API:
+
+```text
+https://anchisesdata.com/anchises-stock-qa
+```
+
+The easiest setup path is to ask Codex:
+
+```text
+Set up Anchises Stock QA
+```
+
+Codex will return a command like this:
+
+```bash
+bash "/Users/you/.codex/plugins/cache/.../anchises-stock-qa/.../scripts/init_config.sh"
+```
+
+Run that command in Terminal. The script will ask for your API token and hide it
+while you type.
 
 The config is saved here:
 
@@ -54,13 +62,27 @@ The config is saved here:
 ~/.config/anchises-stock-qa/config.toml
 ```
 
-Keep this file private. It contains your database URL.
+Keep this file private because it contains your API token.
+
+To replace your API token later, ask Codex again:
+
+```text
+Set up Anchises Stock QA
+```
+
+The same command updates the token and keeps your other settings. Use the force
+command only if you want to rebuild the whole config from defaults.
 
 ## Example Config
 
 ```toml
+[backend]
+mode = "remote_api"
+api_base_url = "https://anchisesdata.com/anchises-stock-qa"
+api_token = "paste_your_api_token_here"
+
 [database]
-url = "mysql+pymysql://stock_reader:password@127.0.0.1:3306/Stocks_Tracker?charset=utf8mb4"
+url = ""
 access_mode = "readonly"
 
 [outputs]
@@ -77,50 +99,20 @@ override_dir = ""
 # "London" = "lse"
 ```
 
-The `access_mode` value must stay `"readonly"`.
-
-## Database URL Examples
-
-Local MySQL over TCP:
-
-```text
-mysql+pymysql://stock_reader:password@127.0.0.1:3306/Stocks_Tracker?charset=utf8mb4
-```
-
-Remote MySQL:
-
-```text
-mysql+pymysql://stock_reader:password@db.example.com:3306/Stocks_Tracker?charset=utf8mb4
-```
-
-Local MySQL socket:
-
-```text
-mysql+pymysql://stock_reader:password@localhost/Stocks_Tracker?unix_socket=/tmp/mysql.sock&charset=utf8mb4
-```
+You normally only need to fill in `api_token`.
 
 ## Check That It Works
 
 In Codex, ask:
 
 ```text
-Check the Anchises Stock QA database connection.
+Check the Anchises Stock QA connection.
 ```
 
-Or run:
+You can also run this from the plugin folder:
 
 ```bash
-python3 scripts/ask_stock.py --get-config
 python3 scripts/ask_stock.py --verify-db
-```
-
-If you run the scripts directly from a clean source checkout, install the Python
-dependencies first:
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python scripts/ask_stock.py --verify-db
 ```
 
 ## How To Use It
@@ -139,8 +131,8 @@ Which mining stocks had unusual volume recently?
 Show the best performers over the past month.
 ```
 
-The plugin discovers available exchanges from your database table names, so new
-exchanges can be added to the database without editing the prompt files.
+The plugin discovers available exchanges from the remote data service, so new
+exchanges can be added without editing the prompt files.
 
 ## Outputs
 
@@ -151,8 +143,9 @@ By default:
 ~/.local/share/anchises-stock-qa/outputs
 ```
 
-Old output folders are cleaned lazily when the plugin runs. By default, cleanup
-checks once every 7 days and removes plugin-generated runs older than 30 days.
+Old output folders are cleaned automatically when the plugin runs. By default,
+cleanup checks once every 7 days and removes plugin-generated runs older than 30
+days.
 
 ## Custom Prompts
 
@@ -182,12 +175,12 @@ reinstalling the plugin will not delete:
 ~/.config/anchises-stock-qa/config.toml
 ```
 
-You only need to configure again if you delete that file or change your database
-account.
+You only need to configure again if you delete that file or receive a new API
+token.
 
 ## Safety
 
-- The database account should be read-only.
-- The plugin only accepts safe `SELECT` queries.
-- Queries run in a read-only transaction.
-- Database URLs are redacted in plugin output and metadata.
+- Users do not receive the database URL.
+- The plugin only accepts safe read-only queries.
+- API tokens are redacted in plugin output and metadata.
+- The database remains behind the remote API service.

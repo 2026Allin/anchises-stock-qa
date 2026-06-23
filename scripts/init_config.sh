@@ -3,9 +3,12 @@ set -euo pipefail
 
 DEFAULT_CONFIG_PATH="${HOME}/.config/anchises-stock-qa/config.toml"
 DEFAULT_OUTPUTS_DIR="~/.local/share/anchises-stock-qa/outputs"
+DEFAULT_REMOTE_API_URL="https://anchisesdata.com/anchises-stock-qa"
 
 CONFIG_PATH="${DEFAULT_CONFIG_PATH}"
-DB_URL=""
+REMOTE_API_URL="${DEFAULT_REMOTE_API_URL}"
+REMOTE_API_URL_SET="false"
+API_TOKEN=""
 OUTPUTS_DIR="${DEFAULT_OUTPUTS_DIR}"
 CLEANUP_ENABLED="true"
 CLEANUP_INTERVAL_DAYS="7"
@@ -24,7 +27,9 @@ Usage:
 Options:
   --config PATH                 Config file to create.
                                 Defaults to ~/.config/anchises-stock-qa/config.toml
-  --db-url URL                  Read-only MySQL URL. If omitted, prompts for it.
+  --remote-api-url URL          Anchises Stock QA API URL.
+                                Defaults to https://anchisesdata.com/anchises-stock-qa
+  --api-token TOKEN             Your Anchises Stock QA API token. If omitted, prompts for it.
   --outputs-dir PATH            Directory for exported CSV files.
                                 Defaults to ~/.local/share/anchises-stock-qa/outputs
   --cleanup-enabled true|false  Enable automatic lazy cleanup. Defaults to true.
@@ -37,8 +42,9 @@ Options:
 
 Examples:
   bash scripts/init_config.sh
-  bash scripts/init_config.sh --force
-  bash scripts/init_config.sh --db-url 'mysql+pymysql://stock_reader:password@127.0.0.1:3306/Stocks_Tracker?charset=utf8mb4'
+  bash scripts/init_config.sh --api-token 'your_token_here'
+  bash scripts/init_config.sh --api-token 'new_token_here'
+  bash scripts/init_config.sh --remote-api-url 'https://example.com/anchises-stock-qa'
 EOF
 }
 
@@ -79,8 +85,13 @@ is_positive_int() {
 
 build_config() {
   cat <<EOF
+[backend]
+mode = "remote_api"
+api_base_url = $(toml_string "${REMOTE_API_URL}")
+api_token = $(toml_string "${API_TOKEN}")
+
 [database]
-url = $(toml_string "${DB_URL}")
+url = ""
 access_mode = "readonly"
 
 [outputs]
@@ -100,6 +111,117 @@ override_dir = $(toml_string "${PROMPT_OVERRIDE_DIR}")
 EOF
 }
 
+update_existing_config_token() {
+  python3 - "${CONFIG_PATH}" "${API_TOKEN}" "${REMOTE_API_URL}" "${REMOTE_API_URL_SET}" <<'PY'
+from __future__ import annotations
+
+import os
+import re
+import sys
+import tempfile
+
+path, api_token, remote_api_url, remote_api_url_set = sys.argv[1:5]
+remote_api_url_was_set = remote_api_url_set == "true"
+
+
+def toml_string(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def parse_toml_string(raw: str) -> str:
+    raw = raw.strip()
+    try:
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            import tomli as tomllib  # type: ignore[no-redef]
+        parsed = tomllib.loads(f"value = {raw}\n")["value"]
+        return str(parsed)
+    except Exception:
+        return raw.strip('"')
+
+
+def section_bounds(lines: list[str], name: str) -> tuple[int, int] | None:
+    header = re.compile(r"^\s*\[" + re.escape(name) + r"\]\s*(?:#.*)?$")
+    any_header = re.compile(r"^\s*\[[^\]]+\]\s*(?:#.*)?$")
+    start = None
+    for index, line in enumerate(lines):
+        if header.match(line):
+            start = index
+            break
+    if start is None:
+        return None
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if any_header.match(lines[index]):
+            end = index
+            break
+    return start, end
+
+
+def ensure_section(lines: list[str], name: str) -> tuple[int, int]:
+    bounds = section_bounds(lines, name)
+    if bounds is not None:
+        return bounds
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    if lines and lines[-1].strip():
+        lines.append("\n")
+    lines.append(f"[{name}]\n")
+    return len(lines) - 1, len(lines)
+
+
+def get_key(lines: list[str], bounds: tuple[int, int], key: str) -> str:
+    key_pattern = re.compile(r"^\s*" + re.escape(key) + r"\s*=\s*(.*?)\s*(?:#.*)?$")
+    start, end = bounds
+    for line in lines[start + 1 : end]:
+        match = key_pattern.match(line)
+        if match:
+            return parse_toml_string(match.group(1))
+    return ""
+
+
+def set_key(lines: list[str], section: str, key: str, value: str) -> None:
+    bounds = ensure_section(lines, section)
+    start, end = bounds
+    key_pattern = re.compile(r"^\s*" + re.escape(key) + r"\s*=")
+    replacement = f"{key} = {toml_string(value)}\n"
+    for index in range(start + 1, end):
+        if key_pattern.match(lines[index]):
+            lines[index] = replacement
+            return
+    lines.insert(end, replacement)
+
+
+with open(path, "r", encoding="utf-8") as handle:
+    lines = handle.readlines()
+
+backend_bounds = ensure_section(lines, "backend")
+existing_api_url = get_key(lines, backend_bounds, "api_base_url")
+api_url = remote_api_url if remote_api_url_was_set or not existing_api_url else existing_api_url
+
+set_key(lines, "backend", "mode", "remote_api")
+set_key(lines, "backend", "api_base_url", api_url)
+set_key(lines, "backend", "api_token", api_token)
+set_key(lines, "database", "url", "")
+set_key(lines, "database", "access_mode", "readonly")
+
+directory = os.path.dirname(path) or "."
+fd, tmp_path = tempfile.mkstemp(prefix=".config.", suffix=".tmp", dir=directory)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.writelines(lines)
+    os.chmod(tmp_path, 0o600)
+    os.replace(tmp_path, path)
+except Exception:
+    try:
+        os.unlink(tmp_path)
+    except FileNotFoundError:
+        pass
+    raise
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
@@ -107,9 +229,15 @@ while [[ $# -gt 0 ]]; do
       CONFIG_PATH="$2"
       shift 2
       ;;
-    --db-url)
+    --remote-api-url)
       need_value "$1" "${2-}"
-      DB_URL="$2"
+      REMOTE_API_URL="$2"
+      REMOTE_API_URL_SET="true"
+      shift 2
+      ;;
+    --api-token)
+      need_value "$1" "${2-}"
+      API_TOKEN="$2"
       shift 2
       ;;
     --outputs-dir)
@@ -167,19 +295,23 @@ if ! is_positive_int "${CLEANUP_INTERVAL_DAYS}" || ! is_positive_int "${RETENTIO
   exit 2
 fi
 
-if [[ -z "${DB_URL}" ]]; then
+if [[ -z "${REMOTE_API_URL}" ]]; then
+  echo "No remote API URL provided; config was not created." >&2
+  exit 2
+fi
+
+if [[ -z "${API_TOKEN}" ]]; then
   if [[ ! -t 0 ]]; then
-    echo "No database URL provided. Re-run with --db-url or run interactively." >&2
+    echo "No API token provided. Re-run with --api-token or run interactively." >&2
     exit 2
   fi
-  echo "Enter the read-only MySQL URL for Stocks_Tracker."
-  echo "Example: mysql+pymysql://stock_reader:password@127.0.0.1:3306/Stocks_Tracker?charset=utf8mb4"
-  read -r -s -p "Database URL (hidden): " DB_URL
+  echo "Enter your Anchises Stock QA API token."
+  read -r -s -p "API token (hidden): " API_TOKEN
   echo
 fi
 
-if [[ -z "${DB_URL}" ]]; then
-  echo "No database URL provided; config was not created." >&2
+if [[ -z "${API_TOKEN}" ]]; then
+  echo "No API token provided; config was not created." >&2
   exit 2
 fi
 
@@ -192,8 +324,10 @@ if [[ "${PRINT_CONFIG}" == "true" ]]; then
 fi
 
 if [[ -e "${CONFIG_PATH}" && "${FORCE}" != "true" ]]; then
-  echo "Config already exists: ${CONFIG_PATH}. Re-run with --force to overwrite." >&2
-  exit 1
+  update_existing_config_token
+  echo "Updated API token in existing config: ${CONFIG_PATH}"
+  echo "Other settings were kept. Keep this file private."
+  exit 0
 fi
 
 mkdir -p "$(dirname "${CONFIG_PATH}")"
@@ -201,4 +335,4 @@ umask 077
 printf '%s' "${CONFIG_TEXT}" > "${CONFIG_PATH}"
 
 echo "Created config: ${CONFIG_PATH}"
-echo "Database URL was written to the config file. Keep this file private."
+echo "Remote API token was written to the config file. Keep this file private."
