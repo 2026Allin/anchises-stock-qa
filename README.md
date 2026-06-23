@@ -22,7 +22,7 @@ QA API URL and your personal API token.
 ## Install
 
 Add this repository URL as a Codex marketplace URL, then install
-**Anchises Stock QA** from the Anchises marketplace.
+**Anchises Stock QA** from the Anchises-Tech marketplace.
 
 If you are updating an existing install, refresh or re-add the same marketplace
 URL and install the latest plugin version.

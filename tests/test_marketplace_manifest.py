@@ -12,6 +12,7 @@ MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 class MarketplaceManifestTest(unittest.TestCase):
     def test_marketplace_points_to_plugin_package(self) -> None:
         data = json.loads(MARKETPLACE.read_text(encoding="utf-8"))
+        self.assertEqual(data["name"], "Anchises-Tech")
         plugins = {plugin["name"]: plugin for plugin in data["plugins"]}
 
         plugin = plugins["anchises-stock-qa"]
