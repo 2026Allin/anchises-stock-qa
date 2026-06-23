@@ -211,7 +211,8 @@ def get_setup_instructions() -> Dict[str, Any]:
         api_base_url = DEFAULT_REMOTE_API_URL
 
     configured = config_exists and api_token_configured and not errors
-    setup_command = _setup_command()
+    setup_command = _setup_command(["--prepare-runtime"])
+    setup_without_runtime_command = _setup_command()
     force_recreate_command = _setup_command(["--force"])
     action = "reset_token" if api_token_configured else "first_time_setup"
     title = (
@@ -241,6 +242,16 @@ def get_setup_instructions() -> Dict[str, Any]:
         "config_path": str(config_path()),
         "config_exists": config_exists,
         "configured": configured,
+        "runtime": {
+            "prepare_runtime_on_setup": True,
+            "venv_dir": str(PLUGIN_ROOT / ".venv"),
+            "requirements": str(PLUGIN_ROOT / "requirements.txt"),
+            "prepare_command": setup_command,
+            "first_run_note": (
+                "The setup command prepares the plugin Python runtime. "
+                "The first run may take a few minutes while pandas and MCP dependencies install."
+            ),
+        },
         "backend": {
             "mode": backend_mode or "remote_api",
             "api_base_url": api_base_url,
@@ -249,18 +260,21 @@ def get_setup_instructions() -> Dict[str, Any]:
         },
         "commands": {
             "setup_or_reset_token": setup_command,
+            "setup_or_reset_token_without_runtime_prepare": setup_without_runtime_command,
             "force_recreate_config": force_recreate_command,
         },
         "instructions": [
             "Open Terminal.",
             "Run the setup_or_reset_token command exactly as shown.",
             "Paste your Anchises Stock QA API token when prompted; the token is hidden while typing.",
+            "The first run may take a few minutes while Python dependencies are prepared.",
             "Run the same command again later to replace the token while keeping other settings.",
             "After setup, ask Codex: Check the Anchises Stock QA connection.",
         ],
         "errors": errors,
         "notes": [
             "Users do not need a database URL.",
+            "Python dependencies are installed into the plugin-local .venv, not globally.",
             "The config file is outside the plugin install and is kept across plugin updates.",
             "Do not paste the API token into chat; enter it only in Terminal when the script prompts.",
         ],
@@ -952,6 +966,11 @@ def _remote_run_readonly_sql(
                 "Save and cite filtered_results.csv under filtered_csv_directory; "
                 "workspace copies are secondary only."
             ),
+            "portable_file_write_rule": (
+                "Write filtered_results.csv directly with pandas to the final absolute path. "
+                "If copying is unavoidable, create the destination directory first and then copy; "
+                "do not use GNU-only shell options such as install -D."
+            ),
             "top_30_required_for_probability_rate_screening": True,
             "interpretation_must_include": [
                 "Codex-derived screening/query rules",
@@ -1074,6 +1093,11 @@ def run_readonly_sql(
             "primary_csv_path_rule": (
                 "Save and cite filtered_results.csv under filtered_csv_directory; "
                 "workspace copies are secondary only."
+            ),
+            "portable_file_write_rule": (
+                "Write filtered_results.csv directly with pandas to the final absolute path. "
+                "If copying is unavoidable, create the destination directory first and then copy; "
+                "do not use GNU-only shell options such as install -D."
             ),
             "top_30_required_for_probability_rate_screening": True,
             "interpretation_must_include": [

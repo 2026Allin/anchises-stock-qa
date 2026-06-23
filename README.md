@@ -50,11 +50,13 @@ Set up Anchises Stock QA
 Codex will return a command like this:
 
 ```bash
-bash "/Users/you/.codex/plugins/cache/.../anchises-stock-qa/.../scripts/init_config.sh"
+bash "/Users/you/.codex/plugins/cache/.../anchises-stock-qa/.../scripts/init_config.sh" --prepare-runtime
 ```
 
 Run that command in Terminal. The script will ask for your API token and hide it
-while you type.
+while you type. The first run may take a few minutes because it prepares the
+plugin Python runtime and installs dependencies such as pandas into the plugin
+`.venv`.
 
 The config is saved here:
 

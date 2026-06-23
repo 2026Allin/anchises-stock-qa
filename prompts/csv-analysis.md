@@ -7,6 +7,8 @@ Use the returned metadata:
 - Use `analysis_python` when a specific Python runtime is needed.
 - Use `analysis_workdir` for derived artifacts.
 - Save final filtered, ranked, or evidence rows as `filtered_results.csv` in `analysis_workdir`.
+- Prefer writing `filtered_results.csv` directly from pandas to its final absolute path.
+- If you must copy an existing CSV, use portable steps: create the destination directory first, then copy the file. Do not use GNU-specific shell helpers such as `install -D`.
 
 Analysis rules:
 - Do not invent data when the CSV has no rows.

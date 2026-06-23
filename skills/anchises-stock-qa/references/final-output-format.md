@@ -57,6 +57,7 @@ This section is mandatory whenever the qualifying dataframe has at least one row
 Rules:
 
 - Save all qualifying/evidence rows to `filtered_results.csv`.
+- Write `filtered_results.csv` directly with pandas to the final path when possible. If a copy is unavoidable, use portable file steps such as creating the directory first and then copying the file; do not rely on GNU-only shell options such as `install -D`.
 - Display only Top 30 rows in the markdown when there are more than 30.
 - Add the exact line `**Showing Top 30 of [TOTAL] results.**` when total rows exceed 30.
 - Sort by an analysis-specific score. For post-spike persistence, use `POST_SPIKE_SCORE` based on return from first spike close to latest comparison close.
@@ -81,6 +82,7 @@ MCP export CSV: /absolute/path/to/plugin/outputs/.../<output_name>.csv
 ```
 
 The primary CSV path must be under the MCP `output_dir`. A Codex workspace copy may be listed only as a secondary copy.
+Prefer a direct pandas write to the primary CSV path over shell copy commands.
 
 ## Caveats
 

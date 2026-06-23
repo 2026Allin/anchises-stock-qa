@@ -1,6 +1,6 @@
 {
   "name": "anchises-stock-qa",
-  "version": "0.1.0+codex.20260623033245",
+  "version": "0.1.0+codex.20260623040644",
   "description": "Safe read-only Stocks_Tracker SQL exports for Codex CSV analysis.",
   "author": {
     "name": "Anchises"

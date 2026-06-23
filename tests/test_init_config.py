@@ -194,6 +194,17 @@ class InitConfigTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Unknown option: --db-url", result.stderr)
 
+    def test_prepare_runtime_option_is_documented(self) -> None:
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--help"],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertIn("--prepare-runtime", result.stdout)
+        self.assertIn("plugin Python runtime", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,7 +27,7 @@ Automatic workflow:
 7. Run `validate_readonly_sql`; revise unsafe SQL instead of asking the user to debug it.
 8. Run `run_readonly_sql` with a short `output_name`. Omit `conversation_id` by default.
 9. Read the returned `output_csv` with pandas for calculations, filtering, validation, and summaries.
-10. Save final filtered or ranked evidence rows as `filtered_results.csv` in the returned `analysis_workdir`.
+10. Save final filtered or ranked evidence rows as `filtered_results.csv` in the returned `analysis_workdir`; write it directly with pandas rather than copying through shell-only helpers.
 11. Perform at least one relevant web search before finalizing for current context, company/background checks, or external validation.
 12. Write the final answer using the prompt bundle's final-answer rules.
 
@@ -42,6 +42,7 @@ Rules:
 - Keep numeric probabilities, rankings, and filters grounded in the exported CSV.
 - Do not invent data if the database or CSV has no rows.
 - The primary final CSV path must be the absolute `filtered_results.csv` path under the MCP `analysis_workdir`.
+- Do not use GNU-specific commands such as `install -D` for result files; macOS users may have BSD tools. Use pandas direct writes, or `mkdir -p` followed by `cp` when copying is unavoidable.
 
 Reference routing:
 - Prefer the live prompt files returned by `get_prompt_bundle`; they may be user-overridden.

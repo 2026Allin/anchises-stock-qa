@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
 DEFAULT_CONFIG_PATH="${HOME}/.config/anchises-stock-qa/config.toml"
 DEFAULT_OUTPUTS_DIR="~/.local/share/anchises-stock-qa/outputs"
 DEFAULT_REMOTE_API_URL="https://anchisesdata.com/anchises-stock-qa"
@@ -16,6 +20,7 @@ RETENTION_DAYS="30"
 PROMPT_OVERRIDE_DIR=""
 FORCE="false"
 PRINT_CONFIG="false"
+PREPARE_RUNTIME="false"
 
 usage() {
   cat <<'EOF'
@@ -36,12 +41,15 @@ Options:
   --cleanup-interval-days N     Run automatic cleanup at most once per N days. Defaults to 7.
   --retention-days N            Delete output run directories older than N days. Defaults to 30.
   --prompt-override-dir PATH    Optional directory containing user-edited prompt markdown files.
+  --prepare-runtime             Create/update the plugin Python runtime now.
+                                This installs pandas and MCP dependencies into the plugin .venv.
   --force                       Overwrite an existing config file.
   --print                       Print config text instead of writing it.
   -h, --help                    Show this help.
 
 Examples:
   bash scripts/init_config.sh
+  bash scripts/init_config.sh --prepare-runtime
   bash scripts/init_config.sh --api-token 'your_token_here'
   bash scripts/init_config.sh --api-token 'new_token_here'
   bash scripts/init_config.sh --remote-api-url 'https://example.com/anchises-stock-qa'
@@ -222,6 +230,11 @@ except Exception:
 PY
 }
 
+prepare_runtime() {
+  echo "Preparing Anchises Stock QA Python runtime. This may take a few minutes the first time."
+  "${PYTHON_BIN}" "${PLUGIN_ROOT}/mcp/bootstrap.py" --prepare-only
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
@@ -264,6 +277,10 @@ while [[ $# -gt 0 ]]; do
       need_value "$1" "${2-}"
       PROMPT_OVERRIDE_DIR="$2"
       shift 2
+      ;;
+    --prepare-runtime)
+      PREPARE_RUNTIME="true"
+      shift
       ;;
     --force)
       FORCE="true"
@@ -327,6 +344,9 @@ if [[ -e "${CONFIG_PATH}" && "${FORCE}" != "true" ]]; then
   update_existing_config_token
   echo "Updated API token in existing config: ${CONFIG_PATH}"
   echo "Other settings were kept. Keep this file private."
+  if [[ "${PREPARE_RUNTIME}" == "true" ]]; then
+    prepare_runtime
+  fi
   exit 0
 fi
 
@@ -336,3 +356,6 @@ printf '%s' "${CONFIG_TEXT}" > "${CONFIG_PATH}"
 
 echo "Created config: ${CONFIG_PATH}"
 echo "Remote API token was written to the config file. Keep this file private."
+if [[ "${PREPARE_RUNTIME}" == "true" ]]; then
+  prepare_runtime
+fi

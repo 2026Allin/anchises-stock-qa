@@ -35,6 +35,7 @@ Codex-owned analysis:
 - Codex writes SQL.
 - The MCP server validates SQL, uses the configured local or remote backend, and exports CSV only.
 - Codex reads CSV and performs analysis with pandas or other local tools using the returned `analysis_python` when needed.
+- Codex should write `filtered_results.csv` directly with pandas to the absolute path under `analysis_workdir`. If copying is unavoidable, create the destination directory first and then copy; do not use GNU-specific commands such as `install -D`.
 - Codex must perform at least one relevant web search before the final stock answer for external/current context, company/background checks, or validation.
 - Numeric probabilities, rankings, and filters from `Stocks_Tracker` must remain grounded in the exported CSV.
 - The user should be able to ask in natural language. Do not require the user to say `run_readonly_sql`, provide `conversation_id`, or request CSV explicitly.
@@ -94,6 +95,7 @@ Final answer format:
 - `Interpretation` must show Codex's final derived screening/query rules.
 - Include the exact `**Full results saved to filtered_results.csv**` line.
 - Do not use a Codex workspace copy as the primary CSV path. Save `filtered_results.csv` beside the MCP `output_csv`; mention any workspace copy only after the primary path.
+- Prefer saving with pandas directly to the primary CSV path; avoid platform-specific shell copy helpers.
 
 Common failures:
 - The config file is missing.

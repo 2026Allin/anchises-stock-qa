@@ -44,6 +44,9 @@ class SetupInstructionsTest(unittest.TestCase):
         )
         self.assertIn("bash ", command)
         self.assertIn("scripts/init_config.sh", command)
+        self.assertIn("--prepare-runtime", command)
+        self.assertTrue(result["runtime"]["prepare_runtime_on_setup"])
+        self.assertIn(".venv", result["runtime"]["venv_dir"])
         self.assertIn("Set up Anchises Stock QA", result["trigger_phrases"])
 
     def test_configured_remote_returns_reset_command_without_secret(self) -> None:
@@ -72,6 +75,11 @@ class SetupInstructionsTest(unittest.TestCase):
         self.assertEqual(result["action"], "reset_token")
         self.assertTrue(result["backend"]["api_token_configured"])
         self.assertIn("setup_or_reset_token", result["commands"])
+        self.assertIn("--prepare-runtime", result["commands"]["setup_or_reset_token"])
+        self.assertIn(
+            "setup_or_reset_token_without_runtime_prepare",
+            result["commands"],
+        )
         self.assertNotIn("secret-token", serialized)
 
     def test_old_local_config_gets_remote_setup_guidance(self) -> None:

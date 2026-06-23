@@ -46,6 +46,9 @@ def _ensure_venv() -> Path:
 
 def main() -> None:
     python = _ensure_venv()
+    if "--prepare-only" in sys.argv[1:]:
+        print(f"Anchises Stock QA Python runtime is ready: {python}")
+        return
     os.execv(str(python), [str(python), str(SERVER)])
 
 
