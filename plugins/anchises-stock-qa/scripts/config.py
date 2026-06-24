@@ -46,11 +46,6 @@ class OutputsConfig:
 
 
 @dataclass(frozen=True)
-class PromptsConfig:
-    override_dir: Path | None = None
-
-
-@dataclass(frozen=True)
 class ExchangesConfig:
     aliases: Dict[str, str]
 
@@ -62,7 +57,6 @@ class StockQAConfig:
     backend: BackendConfig
     database: DatabaseConfig
     outputs: OutputsConfig
-    prompts: PromptsConfig
     exchanges: ExchangesConfig
     missing_config_message: str = ""
 
@@ -97,12 +91,6 @@ def _as_int(value: Any, default: int, *, minimum: int = 1) -> int:
     if parsed < minimum:
         raise ConfigError(f"Expected integer >= {minimum}, got {parsed}")
     return parsed
-
-
-def _optional_path(value: Any) -> Path | None:
-    if value is None or str(value).strip() == "":
-        return None
-    return Path(str(value)).expanduser().resolve()
 
 
 def _path_value(value: Any, default: Path) -> Path:
@@ -154,7 +142,6 @@ def load_config(*, require_database_url: bool = True) -> StockQAConfig:
     backend_raw = raw.get("backend", {})
     database_raw = raw.get("database", {})
     outputs_raw = raw.get("outputs", {})
-    prompts_raw = raw.get("prompts", {})
     exchanges_raw = raw.get("exchanges", {})
 
     if not isinstance(backend_raw, dict):
@@ -163,8 +150,6 @@ def load_config(*, require_database_url: bool = True) -> StockQAConfig:
         raise ConfigError("[database] must be a table")
     if not isinstance(outputs_raw, dict):
         raise ConfigError("[outputs] must be a table")
-    if not isinstance(prompts_raw, dict):
-        raise ConfigError("[prompts] must be a table")
     if not isinstance(exchanges_raw, dict):
         raise ConfigError("[exchanges] must be a table")
 
@@ -214,9 +199,6 @@ def load_config(*, require_database_url: bool = True) -> StockQAConfig:
             cleanup_enabled=_as_bool(outputs_raw.get("cleanup_enabled"), True),
             cleanup_interval_days=cleanup_interval_days,
             retention_days=retention_days,
-        ),
-        prompts=PromptsConfig(
-            override_dir=_optional_path(prompts_raw.get("override_dir")),
         ),
         exchanges=ExchangesConfig(
             aliases=_exchange_aliases(exchanges_raw.get("aliases")),
@@ -300,11 +282,6 @@ def config_as_dict(
             "cleanup_enabled": config.outputs.cleanup_enabled,
             "cleanup_interval_days": config.outputs.cleanup_interval_days,
             "retention_days": config.outputs.retention_days,
-        },
-        "prompts": {
-            "override_dir": str(config.prompts.override_dir)
-            if config.prompts.override_dir
-            else "",
         },
         "exchanges": {
             "aliases": dict(config.exchanges.aliases),

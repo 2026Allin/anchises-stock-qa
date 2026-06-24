@@ -30,6 +30,7 @@ class InitConfigTest(unittest.TestCase):
         self.assertIn("cleanup_enabled = true", result.stdout)
         self.assertIn("cleanup_interval_days = 7", result.stdout)
         self.assertIn("retention_days = 30", result.stdout)
+        self.assertNotIn("[prompts]", result.stdout)
         self.assertIn('p\\"a\\\\ss', result.stdout)
 
     def test_rerun_updates_token_without_overwriting_other_settings(self) -> None:

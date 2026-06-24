@@ -13,9 +13,6 @@ cleanup_enabled = true
 cleanup_interval_days = 7
 retention_days = 30
 
-[prompts]
-override_dir = ""
-
 [exchanges.aliases]
 # Optional natural-language aliases for exchange codes discovered from table names.
 # Example:

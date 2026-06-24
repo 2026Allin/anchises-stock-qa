@@ -17,6 +17,17 @@ Setup workflow:
 5. Do not ask the user to paste the API token into chat.
 6. After setup, suggest asking "Check the Anchises Stock QA connection".
 
+Custom prompt workflow:
+1. If the user asks to view, customize, edit, tune, reset, or restore Anchises Stock QA prompts, use the custom prompt tools instead of editing plugin files directly.
+2. First call `get_prompt_catalog` and show the user the editable prompt names, purposes, active source, built-in path, user path, and a short preview.
+3. Recommend the most relevant prompt based on the user's goal, but wait for the user to choose a prompt and describe the desired change.
+4. After the user chooses, call `read_custom_prompt` for that prompt and use the active content as the edit base.
+5. Propose a concise editing plan and, when ready, call `preview_custom_prompt_update` with the complete revised markdown to show a diff and current hash.
+6. Do not call `write_custom_prompt` until the user confirms the preview. Pass `expected_current_hash` from the preview result when writing.
+7. After writing, call `read_custom_prompt` or `get_prompt_catalog` again to verify the prompt now uses the user file.
+8. Call `reset_custom_prompt` only when the user wants one prompt to return to the built-in version.
+9. Explain that custom prompts are stored outside the plugin install and are not overwritten by plugin upgrades.
+
 Automatic workflow:
 1. Call `get_stock_qa_config` if configuration status is unclear.
 2. Call `get_prompt_bundle` and follow the returned prompt markdown.
@@ -34,6 +45,7 @@ Automatic workflow:
 Rules:
 - Do not request or use `OPENAI_API_KEY`.
 - Do not call OpenAI APIs or Code Interpreter from the plugin.
+- Do not edit files under the plugin `prompts/` directory for user customizations; use custom prompt tools.
 - Keep SQL to a single `SELECT` or `WITH ... SELECT`.
 - Never run writes, DDL, session changes, stored procedures, file access, locks, sleeps/benchmarks, or system-schema queries.
 - Database table names are the source of truth for exchange codes.
@@ -45,5 +57,5 @@ Rules:
 - Do not use GNU-specific commands such as `install -D` for result files; macOS users may have BSD tools. Use pandas direct writes, or `mkdir -p` followed by `cp` when copying is unavoidable.
 
 Reference routing:
-- Prefer the live prompt files returned by `get_prompt_bundle`; they may be user-overridden.
+- Prefer the live prompt files returned by `get_prompt_bundle`; they may be user-customized.
 - Use `references/workflow.md` only for additional tool, path, or failure details.

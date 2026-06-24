@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import sys
 
@@ -17,7 +18,16 @@ if str(SCRIPTS) not in sys.path:
 
 from config import load_config
 from output_cleanup import cleanup_outputs
-from prompts import get_prompt_bundle
+from prompts import (
+    get_prompt_bundle,
+    get_prompt_catalog,
+    initialize_custom_prompts,
+    list_custom_prompts,
+    preview_custom_prompt_update,
+    read_custom_prompt,
+    reset_custom_prompt,
+    write_custom_prompt,
+)
 
 
 class PromptAndCleanupTest(unittest.TestCase):
@@ -30,39 +40,107 @@ class PromptAndCleanupTest(unittest.TestCase):
         else:
             os.environ["ANCHISES_STOCK_QA_CONFIG"] = self._old_config
 
-    def test_prompt_override_falls_back_per_file(self) -> None:
+    def test_custom_prompt_falls_back_per_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            override_dir = root / "prompts"
-            override_dir.mkdir()
-            (override_dir / "query-planning.md").write_text(
+            user_prompt_dir = root / "prompts"
+            user_prompt_dir.mkdir()
+            (user_prompt_dir / "query-planning.md").write_text(
                 "custom query planning",
                 encoding="utf-8",
             )
-            config_path = root / "config.toml"
-            config_path.write_text(
-                "\n".join(
-                    [
-                        "[database]",
-                        'url = "mysql+pymysql://reader:secret@localhost/Stocks_Tracker"',
-                        'access_mode = "readonly"',
-                        "[prompts]",
-                        f'override_dir = "{override_dir}"',
-                    ]
-                ),
-                encoding="utf-8",
-            )
-            os.environ["ANCHISES_STOCK_QA_CONFIG"] = str(config_path)
 
-            bundle = get_prompt_bundle(load_config(require_database_url=False))
+            with patch("prompts.USER_PROMPT_DIR", user_prompt_dir):
+                bundle = get_prompt_bundle()
 
         by_name = {item["name"]: item for item in bundle["prompts"]}
-        self.assertEqual(by_name["query-planning.md"]["source"], "override")
+        self.assertEqual(by_name["query-planning.md"]["source"], "custom")
         self.assertEqual(
             by_name["query-planning.md"]["content"],
             "custom query planning",
         )
         self.assertEqual(by_name["sql-generation.md"]["source"], "built-in")
+
+    def test_custom_prompt_tools_initialize_write_and_reset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_prompt_dir = root / "custom-prompts"
+
+            with patch("prompts.USER_PROMPT_DIR", user_prompt_dir):
+                status = list_custom_prompts()
+                init_result = initialize_custom_prompts(
+                    ["query-planning"],
+                )
+                write_result = write_custom_prompt(
+                    "query-planning.md",
+                    "# Custom Query Planning\n\nUse a shorter plan.",
+                )
+                bundle_after_write = get_prompt_bundle()
+                reset_result = reset_custom_prompt("query-planning")
+                bundle_after_reset = get_prompt_bundle()
+
+        by_name_after_write = {
+            item["name"]: item for item in bundle_after_write["prompts"]
+        }
+        by_name_after_reset = {
+            item["name"]: item for item in bundle_after_reset["prompts"]
+        }
+        self.assertTrue(status["ok"])
+        self.assertEqual(status["user_prompt_dir"], str(user_prompt_dir))
+        self.assertEqual(init_result["prompts"][0]["status"], "created")
+        self.assertEqual(write_result["status"], "updated")
+        self.assertEqual(by_name_after_write["query-planning.md"]["source"], "custom")
+        self.assertIn(
+            "Use a shorter plan.",
+            by_name_after_write["query-planning.md"]["content"],
+        )
+        self.assertEqual(reset_result["status"], "deleted")
+        self.assertEqual(by_name_after_reset["query-planning.md"]["source"], "built-in")
+
+    def test_custom_prompt_catalog_read_preview_and_hash_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user_prompt_dir = root / "custom-prompts"
+            revised = "# Final Answer Prompt\n\nUse concise English summaries."
+            second_revision = "# Final Answer Prompt\n\nUse detailed English summaries."
+
+            with patch("prompts.USER_PROMPT_DIR", user_prompt_dir):
+                catalog = get_prompt_catalog(include_preview=True, preview_chars=80)
+                final_item = next(
+                    item
+                    for item in catalog["prompts"]
+                    if item["name"] == "final-answer.md"
+                )
+                read_result = read_custom_prompt("final-answer")
+                preview = preview_custom_prompt_update("final-answer.md", revised)
+                write_result = write_custom_prompt(
+                    "final-answer.md",
+                    revised,
+                    expected_current_hash=preview["current_hash"],
+                )
+                after_write = read_custom_prompt("final-answer.md")
+
+                with self.assertRaises(ValueError):
+                    write_custom_prompt(
+                        "final-answer.md",
+                        second_revision,
+                        expected_current_hash=preview["current_hash"],
+                    )
+
+        self.assertTrue(catalog["ok"])
+        self.assertEqual(final_item["title"], "Final Answer")
+        self.assertIn("visible markdown answer", final_item["purpose"])
+        self.assertIn("built_in_path", final_item)
+        self.assertIn("user_path", final_item)
+        self.assertEqual(read_result["active_source"], "built-in")
+        self.assertIn("active_content", read_result)
+        self.assertEqual(preview["target_path"], str(user_prompt_dir / "final-answer.md"))
+        self.assertTrue(preview["will_create_user_file"])
+        self.assertIn("--- final-answer.md (built-in)", preview["diff"])
+        self.assertIn("+++ final-answer.md (proposed custom)", preview["diff"])
+        self.assertEqual(write_result["previous_hash"], preview["current_hash"])
+        self.assertEqual(after_write["active_source"], "custom")
+        self.assertEqual(after_write["active_content"], revised)
 
     def test_cleanup_dry_run_and_apply(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

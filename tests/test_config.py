@@ -13,7 +13,12 @@ SCRIPTS = PLUGIN_ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from config import ConfigError, config_as_dict, load_config, redact_url
+from config import (
+    ConfigError,
+    config_as_dict,
+    load_config,
+    redact_url,
+)
 
 
 class ConfigTest(unittest.TestCase):

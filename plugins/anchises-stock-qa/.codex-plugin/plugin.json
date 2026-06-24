@@ -1,6 +1,6 @@
 {
   "name": "anchises-stock-qa",
-  "version": "0.1.0+codex.20260623062249",
+  "version": "0.1.0+codex.20260623185710",
   "description": "Safe read-only Stocks_Tracker SQL exports for Codex CSV analysis.",
   "author": {
     "name": "Anchises"
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Anchises Stock QA",
     "shortDescription": "Read-only stock SQL exports to CSV.",
-    "longDescription": "Anchises Stock QA lets Codex inspect a user-configured read-only Stocks_Tracker MySQL database, validate SELECT-only SQL, export query results to CSV, and analyze those CSV files with pandas. Database URL, output cleanup, and prompt overrides are configured locally after installation.",
+    "longDescription": "Anchises Stock QA lets Codex inspect a user-configured read-only Stocks_Tracker MySQL database, validate SELECT-only SQL, export query results to CSV, and analyze those CSV files with pandas. Database URL, output cleanup, and custom prompts are configured locally after installation.",
     "developerName": "Anchises",
     "category": "Productivity",
     "brandColor": "#334155",

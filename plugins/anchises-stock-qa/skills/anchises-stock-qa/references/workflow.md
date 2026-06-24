@@ -9,12 +9,19 @@ Configuration:
 - Local database URL setting: `[database].url`
 - Required database mode: `[database].access_mode = "readonly"`
 - Output root setting: `[outputs].dir`
-- Prompt override setting: `[prompts].override_dir`
+- User prompt directory: `~/.config/anchises-stock-qa/prompts`
 
 MCP tools:
 - `get_setup_instructions`
 - `get_stock_qa_config`
 - `get_prompt_bundle`
+- `get_prompt_catalog`
+- `list_custom_prompts`
+- `read_custom_prompt`
+- `preview_custom_prompt_update`
+- `initialize_custom_prompts`
+- `write_custom_prompt`
+- `reset_custom_prompt`
 - `cleanup_outputs`
 - `verify_stock_qa_environment`
 - `verify_stock_qa_database`
@@ -46,6 +53,21 @@ Setup and token reset:
 - The same command creates the config on first run and updates the API token on later runs.
 - `commands.force_recreate_config` is only for rebuilding the whole config from defaults.
 - Never ask the user to paste an API token into chat.
+
+Custom prompts:
+- Built-in prompt files live under the plugin `prompts/` directory.
+- User prompt files live under `~/.config/anchises-stock-qa/prompts`.
+- When a user prompt file exists with the same name as a built-in prompt, `get_prompt_bundle` returns the user content.
+- Missing user prompt files fall back to the built-in prompt.
+- Plugin upgrades may replace built-in prompt files but must not overwrite user prompt files.
+- If the user asks to customize prompts, first call `get_prompt_catalog` and show the prompt names, purposes, active source, built-in path, user path, and previews.
+- Ask the user which prompt they want to edit and what behavior they want changed. Do not guess silently.
+- After the user chooses a prompt, call `read_custom_prompt` and use the active content as the edit base.
+- Give the user a concise proposed edit, then call `preview_custom_prompt_update` with the complete revised markdown to produce a diff and current hash.
+- Do not call `write_custom_prompt` until the user confirms the preview. Pass `expected_current_hash` from the preview result.
+- After writing, call `read_custom_prompt` or `get_prompt_catalog` again to verify the active source and path.
+- If the user asks to restore a prompt, call `reset_custom_prompt` for that prompt file.
+- Do not modify plugin files under `prompts/` for user-specific prompt changes.
 
 Default prompt handling:
 - Discover exchange codes from the configured database with `get_available_exchanges`.

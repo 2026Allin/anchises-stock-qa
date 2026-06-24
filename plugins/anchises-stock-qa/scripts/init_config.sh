@@ -17,7 +17,6 @@ OUTPUTS_DIR="${DEFAULT_OUTPUTS_DIR}"
 CLEANUP_ENABLED="true"
 CLEANUP_INTERVAL_DAYS="7"
 RETENTION_DAYS="30"
-PROMPT_OVERRIDE_DIR=""
 FORCE="false"
 PRINT_CONFIG="false"
 PREPARE_RUNTIME="false"
@@ -40,7 +39,6 @@ Options:
   --cleanup-enabled true|false  Enable automatic lazy cleanup. Defaults to true.
   --cleanup-interval-days N     Run automatic cleanup at most once per N days. Defaults to 7.
   --retention-days N            Delete output run directories older than N days. Defaults to 30.
-  --prompt-override-dir PATH    Optional directory containing user-edited prompt markdown files.
   --prepare-runtime             Create/update the plugin Python runtime now.
                                 This installs pandas and MCP dependencies into the plugin .venv.
   --force                       Overwrite an existing config file.
@@ -107,9 +105,6 @@ dir = $(toml_string "${OUTPUTS_DIR}")
 cleanup_enabled = ${CLEANUP_ENABLED}
 cleanup_interval_days = ${CLEANUP_INTERVAL_DAYS}
 retention_days = ${RETENTION_DAYS}
-
-[prompts]
-override_dir = $(toml_string "${PROMPT_OVERRIDE_DIR}")
 
 [exchanges.aliases]
 # Optional natural-language aliases for exchange codes discovered from table names.
@@ -271,11 +266,6 @@ while [[ $# -gt 0 ]]; do
     --retention-days)
       need_value "$1" "${2-}"
       RETENTION_DAYS="$2"
-      shift 2
-      ;;
-    --prompt-override-dir)
-      need_value "$1" "${2-}"
-      PROMPT_OVERRIDE_DIR="$2"
       shift 2
       ;;
     --prepare-runtime)

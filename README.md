@@ -177,9 +177,6 @@ cleanup_enabled = true
 cleanup_interval_days = 7
 retention_days = 30
 
-[prompts]
-override_dir = ""
-
 [exchanges.aliases]
 # Optional aliases for exchange codes discovered from database table names.
 # "London" = "lse"
@@ -217,22 +214,41 @@ token.
 
 ## Custom Prompts
 
-You can override the built-in prompts without editing the plugin:
+You can customize the built-in prompts without editing the plugin. The user
+prompt directory is:
+
+```text
+~/.config/anchises-stock-qa/prompts
+```
+
+Custom files in that directory take precedence over the plugin prompts. Missing
+files fall back to the plugin defaults, and plugin upgrades do not overwrite the
+custom files because they live outside the plugin install.
+
+The easiest path is to ask Codex in a thread where this plugin is enabled:
+
+```text
+Show my Anchises Stock QA custom prompts.
+```
+
+```text
+Customize the final-answer prompt so answers are shorter and bilingual.
+```
+
+Codex will first show the editable prompt catalog with each prompt's purpose,
+built-in file path, user file path, active source, and preview. After you choose
+which prompt to edit and describe the change, Codex can read the full prompt,
+propose a revised version, preview the diff, and write the custom file only
+after you confirm.
+
+Manual setup also works:
 
 ```bash
 mkdir -p ~/.config/anchises-stock-qa/prompts
 cp plugins/anchises-stock-qa/prompts/*.md ~/.config/anchises-stock-qa/prompts/
 ```
 
-Then set this in `config.toml`:
-
-```toml
-[prompts]
-override_dir = "~/.config/anchises-stock-qa/prompts"
-```
-
-You only need to copy the prompt files you want to customize. Missing files fall
-back to the plugin defaults.
+You only need to copy the prompt files you want to customize.
 
 ## Repository Layout
 

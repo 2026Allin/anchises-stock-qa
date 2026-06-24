@@ -35,7 +35,16 @@ from config import (
 )
 from output_cleanup import cleanup_outputs as run_cleanup_outputs
 from output_cleanup import maybe_cleanup_outputs
-from prompts import get_prompt_bundle as load_prompt_bundle
+from prompts import (
+    get_prompt_catalog as run_get_prompt_catalog,
+    get_prompt_bundle as load_prompt_bundle,
+    initialize_custom_prompts as run_initialize_custom_prompts,
+    list_custom_prompts as run_list_custom_prompts,
+    preview_custom_prompt_update as run_preview_custom_prompt_update,
+    read_custom_prompt as run_read_custom_prompt,
+    reset_custom_prompt as run_reset_custom_prompt,
+    write_custom_prompt as run_write_custom_prompt,
+)
 import remote_api
 
 
@@ -571,11 +580,70 @@ def get_stock_qa_config(redact_secrets: bool = True) -> Dict[str, Any]:
 
 
 def get_prompt_bundle() -> Dict[str, Any]:
+    return load_prompt_bundle()
+
+
+def get_prompt_catalog(
+    include_preview: bool = True,
+    preview_chars: int = 500,
+) -> Dict[str, Any]:
+    return run_get_prompt_catalog(
+        include_preview=include_preview,
+        preview_chars=preview_chars,
+    )
+
+
+def list_custom_prompts() -> Dict[str, Any]:
+    return run_list_custom_prompts()
+
+
+def read_custom_prompt(prompt_name: str) -> Dict[str, Any]:
     try:
-        config = load_config(require_database_url=False)
-    except ConfigError as exc:
+        return run_read_custom_prompt(prompt_name)
+    except ValueError as exc:
         raise StockQAError(str(exc)) from exc
-    return load_prompt_bundle(config)
+
+
+def preview_custom_prompt_update(prompt_name: str, content: str) -> Dict[str, Any]:
+    try:
+        return run_preview_custom_prompt_update(prompt_name, content)
+    except ValueError as exc:
+        raise StockQAError(str(exc)) from exc
+
+
+def initialize_custom_prompts(
+    prompt_names: Optional[List[str]] = None,
+    overwrite: bool = False,
+) -> Dict[str, Any]:
+    try:
+        return run_initialize_custom_prompts(
+            prompt_names,
+            overwrite=overwrite,
+        )
+    except ValueError as exc:
+        raise StockQAError(str(exc)) from exc
+
+
+def write_custom_prompt(
+    prompt_name: str,
+    content: str,
+    expected_current_hash: str = "",
+) -> Dict[str, Any]:
+    try:
+        return run_write_custom_prompt(
+            prompt_name,
+            content,
+            expected_current_hash=expected_current_hash,
+        )
+    except ValueError as exc:
+        raise StockQAError(str(exc)) from exc
+
+
+def reset_custom_prompt(prompt_name: str) -> Dict[str, Any]:
+    try:
+        return run_reset_custom_prompt(prompt_name)
+    except ValueError as exc:
+        raise StockQAError(str(exc)) from exc
 
 
 def verify_environment() -> Dict[str, Any]:
@@ -1713,6 +1781,19 @@ def main() -> int:
     parser.add_argument("--setup-instructions", action="store_true")
     parser.add_argument("--get-config", action="store_true")
     parser.add_argument("--get-prompts", action="store_true")
+    parser.add_argument("--get-prompt-catalog", action="store_true")
+    parser.add_argument("--read-custom-prompt", action="store_true")
+    parser.add_argument("--preview-custom-prompt-update", action="store_true")
+    parser.add_argument("--list-custom-prompts", action="store_true")
+    parser.add_argument("--init-custom-prompts", action="store_true")
+    parser.add_argument("--write-custom-prompt", action="store_true")
+    parser.add_argument("--reset-custom-prompt", action="store_true")
+    parser.add_argument("--prompt-name", action="append", default=[])
+    parser.add_argument("--prompt-content-file", default="")
+    parser.add_argument("--expected-current-hash", default="")
+    parser.add_argument("--no-prompt-preview", action="store_true")
+    parser.add_argument("--prompt-preview-chars", type=int, default=500)
+    parser.add_argument("--overwrite-custom-prompts", action="store_true")
     parser.add_argument("--cleanup-outputs", action="store_true")
     parser.add_argument("--cleanup-apply", action="store_true")
     parser.add_argument("--available-exchanges", action="store_true")
@@ -1746,6 +1827,48 @@ def main() -> int:
             result = get_stock_qa_config(redact_secrets=True)
         elif args.get_prompts:
             result = get_prompt_bundle()
+        elif args.get_prompt_catalog:
+            result = get_prompt_catalog(
+                include_preview=not args.no_prompt_preview,
+                preview_chars=args.prompt_preview_chars,
+            )
+        elif args.read_custom_prompt:
+            if len(args.prompt_name) != 1:
+                raise StockQAError("--read-custom-prompt requires exactly one --prompt-name")
+            result = read_custom_prompt(args.prompt_name[0])
+        elif args.preview_custom_prompt_update:
+            if len(args.prompt_name) != 1:
+                raise StockQAError(
+                    "--preview-custom-prompt-update requires exactly one --prompt-name"
+                )
+            if not args.prompt_content_file:
+                raise StockQAError(
+                    "--preview-custom-prompt-update requires --prompt-content-file"
+                )
+            content = Path(args.prompt_content_file).read_text(encoding="utf-8")
+            result = preview_custom_prompt_update(args.prompt_name[0], content)
+        elif args.list_custom_prompts:
+            result = list_custom_prompts()
+        elif args.init_custom_prompts:
+            result = initialize_custom_prompts(
+                args.prompt_name or None,
+                overwrite=args.overwrite_custom_prompts,
+            )
+        elif args.write_custom_prompt:
+            if len(args.prompt_name) != 1:
+                raise StockQAError("--write-custom-prompt requires exactly one --prompt-name")
+            if not args.prompt_content_file:
+                raise StockQAError("--write-custom-prompt requires --prompt-content-file")
+            content = Path(args.prompt_content_file).read_text(encoding="utf-8")
+            result = write_custom_prompt(
+                args.prompt_name[0],
+                content,
+                expected_current_hash=args.expected_current_hash,
+            )
+        elif args.reset_custom_prompt:
+            if len(args.prompt_name) != 1:
+                raise StockQAError("--reset-custom-prompt requires exactly one --prompt-name")
+            result = reset_custom_prompt(args.prompt_name[0])
         elif args.cleanup_outputs:
             result = cleanup_outputs(dry_run=not args.cleanup_apply)
         elif args.available_exchanges:
