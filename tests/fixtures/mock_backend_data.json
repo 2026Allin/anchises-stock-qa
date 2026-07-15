@@ -1,0 +1,172 @@
+{
+  "data_date": "2026-07-10",
+  "exchanges": [
+    {
+      "code": "NASDAQ",
+      "name": "Nasdaq Stock Market"
+    },
+    {
+      "code": "ASX",
+      "name": "Australian Securities Exchange"
+    }
+  ],
+  "latest_dates": [
+    {
+      "exchange": "NASDAQ",
+      "latest_date": "2026-07-10"
+    },
+    {
+      "exchange": "ASX",
+      "latest_date": "2026-07-10"
+    }
+  ],
+  "fields": [
+    {
+      "name": "ticker",
+      "type": "string",
+      "description": "Exchange ticker symbol."
+    },
+    {
+      "name": "exchange",
+      "type": "string",
+      "description": "Exchange code."
+    },
+    {
+      "name": "price_close",
+      "type": "number",
+      "description": "Closing price for the data date."
+    },
+    {
+      "name": "price_change_pct_30day",
+      "type": "number",
+      "description": "Thirty-day percentage price change."
+    },
+    {
+      "name": "volume_change_pct_over_avg10day",
+      "type": "number",
+      "description": "Volume change relative to the ten-day average."
+    }
+  ],
+  "tables": [
+    {
+      "table_name": "daily_20260710_nasdaq",
+      "exchange": "NASDAQ",
+      "date": "2026-07-10"
+    },
+    {
+      "table_name": "daily_20260710_asx",
+      "exchange": "ASX",
+      "date": "2026-07-10"
+    },
+    {
+      "table_name": "daily_20260610_nasdaq",
+      "exchange": "NASDAQ",
+      "date": "2026-06-10"
+    }
+  ],
+  "table_columns": [
+    {
+      "name": "ticker",
+      "type": "VARCHAR"
+    },
+    {
+      "name": "price_close",
+      "type": "DECIMAL"
+    },
+    {
+      "name": "price_change_pct_30day",
+      "type": "DECIMAL"
+    }
+  ],
+  "screen_rows": [
+    {
+      "ticker": "MOCK",
+      "name": "Mock Minerals Ltd",
+      "exchange": "NASDAQ",
+      "price_close": 12.5,
+      "price_change_pct_30day": 24.3,
+      "volume_change_pct_over_avg10day": 155.0
+    },
+    {
+      "ticker": "FIXT",
+      "name": "Fixture Resources",
+      "exchange": "ASX",
+      "price_close": 3.2,
+      "price_change_pct_30day": 18.1,
+      "volume_change_pct_over_avg10day": 92.0
+    }
+  ],
+  "sql_rows": [
+    {
+      "ticker": "MOCK",
+      "exchange": "NASDAQ",
+      "start_close": 10.0,
+      "end_close": 12.5,
+      "return_pct": 25.0
+    },
+    {
+      "ticker": "FIXT",
+      "exchange": "ASX",
+      "start_close": 2.9,
+      "end_close": 3.2,
+      "return_pct": 10.34
+    }
+  ],
+  "company_reports": {
+    "BGL": {
+      "ticker": "BGL",
+      "exchange": "ASX",
+      "lang": "en",
+      "company_name": "Bellevue Gold Limited",
+      "title": "Bellevue Gold Limited Company Research Report",
+      "summary": "Bellevue Gold is a single-asset Australian gold producer with improving production and material execution risk.",
+      "risk_level": "Medium",
+      "sections": [
+        {
+          "id": "overview",
+          "order": 1,
+          "title": "Company overview",
+          "body": "Bellevue operates the high-grade Bellevue Gold Project in Western Australia."
+        },
+        {
+          "id": "risks",
+          "order": 2,
+          "title": "Risk assessment",
+          "body": "Single-asset underground execution and hedge exposure remain material risks."
+        }
+      ],
+      "citations": [
+        {
+          "title": "Bellevue Gold investor centre",
+          "url": "https://bellevuegold.com.au/investor-centre/"
+        }
+      ],
+      "source": "macmini",
+      "generated_at": "2026-07-10T12:00:00Z",
+      "expires_at": "2026-07-17T12:00:00Z",
+      "is_expired": false
+    },
+    "OLD": {
+      "ticker": "OLD",
+      "exchange": "ASX",
+      "lang": "en",
+      "company_name": "Old Gold Limited",
+      "title": "Old Gold Limited Company Research Report",
+      "summary": "This cached fixture report is older than seven days but remains readable.",
+      "risk_level": "High",
+      "sections": [
+        {
+          "id": "expired",
+          "order": 1,
+          "title": "Expired fixture",
+          "body": "The service retains this latest successful report after freshness expiry."
+        }
+      ],
+      "citations": [],
+      "source": "ondemand",
+      "generated_at": "2026-06-30T12:00:00Z",
+      "expires_at": "2026-07-07T12:00:00Z",
+      "is_expired": true
+    }
+  }
+}

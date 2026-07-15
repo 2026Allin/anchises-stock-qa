@@ -1,0 +1,1860 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract_version": "1.1.0-draft",
+  "source": {
+    "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
+    "access_mode": "anonymous_dev",
+    "protocol_version": "2025-06-18",
+    "server_name": "anchises-stock-qa",
+    "server_version": "0.1.0",
+    "synced_at": "2026-07-15T18:46:31+00:00",
+    "descriptor_sha256": "41b4930a0df86a7e59635b27d378adf500db899023e3c44b2eb9aaaf5183baaa"
+  },
+  "production": {
+    "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
+    "resource": "https://mcp.anchisesdata.com",
+    "protected_resource_metadata": "https://mcp.anchisesdata.com/.well-known/oauth-protected-resource",
+    "issuer": "https://auth.anchisesdata.com/",
+    "openid_configuration": "https://auth.anchisesdata.com/.well-known/openid-configuration",
+    "authorization_endpoint": "https://auth.anchisesdata.com/authorize",
+    "token_endpoint": "https://auth.anchisesdata.com/oauth/token",
+    "revocation_endpoint": "https://auth.anchisesdata.com/oauth/revoke",
+    "jwks_uri": "https://auth.anchisesdata.com/.well-known/jwks.json",
+    "product_page": "https://anchisesdata.com/stock-qa",
+    "access_page": "https://account.anchisesdata.com/access"
+  },
+  "oauth": {
+    "status": "future",
+    "flow": "authorization_code",
+    "pkce_methods_supported": [
+      "S256"
+    ],
+    "resource_parameter_required": true,
+    "client_registration_preference": [
+      "cimd",
+      "predefined"
+    ],
+    "scopes_supported": [
+      "openid",
+      "email",
+      "profile",
+      "stock.read",
+      "schema.read",
+      "export.create"
+    ],
+    "tool_scopes": {
+      "get_connection_status": [],
+      "get_available_exchanges": [
+        "stock.read"
+      ],
+      "get_latest_dates": [
+        "stock.read"
+      ],
+      "get_stock_schema": [
+        "schema.read"
+      ],
+      "list_stock_tables": [
+        "schema.read"
+      ],
+      "get_table_schema": [
+        "schema.read"
+      ],
+      "screen_stocks": [
+        "stock.read"
+      ],
+      "validate_readonly_sql": [
+        "stock.read"
+      ],
+      "run_readonly_sql": [
+        "stock.read"
+      ],
+      "get_latest_company_report": [
+        "stock.read"
+      ],
+      "create_csv_export": [
+        "export.create"
+      ]
+    },
+    "access_token": {
+      "signature_algorithm": "RS256",
+      "required_claims": [
+        "iss",
+        "aud",
+        "sub",
+        "exp",
+        "iat"
+      ],
+      "identity_key": [
+        "iss",
+        "sub"
+      ],
+      "audience": "https://mcp.anchisesdata.com"
+    }
+  },
+  "errors": {
+    "invalid_scope": {
+      "retryable": false
+    },
+    "access_pending": {
+      "retryable": false
+    },
+    "access_denied": {
+      "retryable": false
+    },
+    "usage_limit_exceeded": {
+      "retryable": false
+    },
+    "rate_limited": {
+      "retryable": true
+    },
+    "concurrency_limited": {
+      "retryable": true
+    },
+    "query_rejected": {
+      "retryable": false
+    },
+    "resource_not_found": {
+      "retryable": false
+    },
+    "result_too_large": {
+      "retryable": false
+    },
+    "temporarily_unavailable": {
+      "retryable": true
+    }
+  },
+  "tools": [
+    {
+      "name": "get_connection_status",
+      "title": "Get Anchises connection status",
+      "description": "Use this when you need to check Anchises access, policy, and data scope. It does not query stock data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "description": "No arguments. Call directly to inspect the current connection."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "service_not_activated",
+              "pending",
+              "active",
+              "suspended",
+              "expired",
+              "revoked"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "access_request_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "access_policy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data_scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "status",
+          "message",
+          "access_request_url",
+          "access_policy",
+          "data_scope"
+        ]
+      },
+      "annotations": {
+        "title": "Get Anchises connection status",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "get_available_exchanges",
+      "title": "Get available exchanges",
+      "description": "Use this when you need valid exchange codes or the latest table and date available for each market; call it before passing exchange arguments to other tools.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "description": "No arguments. Returns every exchange in the current data scope."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "exchanges": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Get available exchanges",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "get_latest_dates",
+      "title": "Get latest stock dates",
+      "description": "Use this when you need the latest available stock-data date for one or more known exchanges.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Uppercase exchange code returned by get_available_exchanges."
+            },
+            "maxItems": 50,
+            "uniqueItems": true,
+            "description": "One or more uppercase exchange codes from get_available_exchanges.",
+            "examples": [
+              [
+                "ASX"
+              ],
+              [
+                "NASDAQ",
+                "NYSE"
+              ]
+            ],
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "Provide at least one exchange code whose latest date is required.",
+        "required": [
+          "exchanges"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "latest_dates": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "latest_dates"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Get latest stock dates",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "get_stock_schema",
+      "title": "Get stock data schema",
+      "description": "Use this when you need exact stock field names, types, descriptions, or sample tables before screening or writing SQL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchange": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 16,
+            "description": "Optional uppercase exchange code from get_available_exchanges. Omit or pass null to combine fields from all sampled exchanges.",
+            "examples": [
+              "ASX",
+              "NASDAQ"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Optionally narrow schema discovery to one exchange."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Get stock data schema",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "list_stock_tables",
+      "title": "List stock tables",
+      "description": "Use this when you need allowlisted historical table names for SQL or schema inspection; it does not return stock rows.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Uppercase exchange code returned by get_available_exchanges."
+            },
+            "maxItems": 50,
+            "uniqueItems": true,
+            "description": "Optional exchange filter. Omit or pass an empty array to include all available exchanges.",
+            "examples": [
+              [
+                "ASX"
+              ],
+              [
+                "NASDAQ",
+                "NYSE"
+              ]
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Optional inclusive lower date bound in YYYY-MM-DD format. Omit or pass null for no lower bound.",
+            "examples": [
+              "2026-07-01"
+            ]
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Optional inclusive upper date bound in YYYY-MM-DD format. Omit or pass null for no upper bound.",
+            "examples": [
+              "2026-07-15"
+            ]
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 200,
+            "description": "Maximum rows to return on this page. Defaults to 200.",
+            "examples": [
+              50,
+              200
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Filter allowlisted stock table names by exchange/date and paginate the result."
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "page": {
+            "type": "object",
+            "properties": {
+              "row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "row_count",
+              "total_count",
+              "truncated",
+              "next_cursor"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota",
+          "page"
+        ]
+      },
+      "annotations": {
+        "title": "List stock tables",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "get_table_schema",
+      "title": "Get table schema",
+      "description": "Use this when you need exact column names and types before querying allowlisted tables returned by list_stock_tables.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Exact allowlisted table name from list_stock_tables."
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "One to 100 exact table names returned by list_stock_tables.",
+            "examples": [
+              [
+                "daily_20260715_asx"
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Provide exact allowlisted table names whose columns are required.",
+        "required": [
+          "tables"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "tables": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "tables"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Get table schema",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "screen_stocks",
+      "title": "Screen stocks",
+      "description": "Use this when you need structured stock filters and sorting; prefer it over raw SQL when the requested fields and operators fit this schema.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16,
+              "description": "Uppercase exchange code returned by get_available_exchanges."
+            },
+            "maxItems": 50,
+            "uniqueItems": true,
+            "description": "Optional markets to screen. Omit or pass an empty array to use every available exchange.",
+            "examples": [
+              [
+                "ASX"
+              ],
+              [
+                "NASDAQ",
+                "NYSE"
+              ]
+            ]
+          },
+          "as_of_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Optional exact market-data date in YYYY-MM-DD format. Omit or pass null to use each exchange's latest available table.",
+            "examples": [
+              "2026-07-15"
+            ]
+          },
+          "filters": {
+            "type": "array",
+            "maxItems": 30,
+            "description": "Zero to 30 AND-combined filters. Field names must exactly match get_stock_schema for every selected exchange.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+                  "description": "Exact stock column name returned by get_stock_schema, for example Price_Close or TICKER.",
+                  "examples": [
+                    "Price_Close",
+                    "TICKER"
+                  ]
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "eq",
+                    "ne",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte",
+                    "in",
+                    "between"
+                  ],
+                  "description": "Comparison operator. Use in with 1..100 values and between with exactly two ordered values.",
+                  "examples": [
+                    "gte",
+                    "in",
+                    "between"
+                  ]
+                },
+                "value": {
+                  "description": "Comparison value for this filter. Use one scalar for eq/ne/gt/gte/lt/lte; null is allowed only with eq or ne. Use an array of 1..100 scalars for in, and exactly two ordered scalars for between.",
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ],
+                      "maxLength": 10000
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "null"
+                        ],
+                        "maxLength": 10000
+                      },
+                      "minItems": 1,
+                      "maxItems": 100
+                    }
+                  ],
+                  "examples": [
+                    100,
+                    [
+                      10,
+                      20
+                    ],
+                    [
+                      "BHP",
+                      "CBA"
+                    ]
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "description": "One allowlisted field comparison used in the stock screen.",
+              "required": [
+                "field",
+                "operator",
+                "value"
+              ]
+            }
+          },
+          "sort": {
+            "type": "array",
+            "maxItems": 5,
+            "description": "Optional ordered sort keys. Fields must match get_stock_schema for every selected exchange.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+                  "description": "Exact stock column name returned by get_stock_schema.",
+                  "examples": [
+                    "Price_Close"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ],
+                  "default": "asc",
+                  "description": "Sort direction; defaults to asc when omitted.",
+                  "examples": [
+                    "desc"
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "description": "One sort key, evaluated in array order.",
+              "required": [
+                "field"
+              ]
+            }
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 200,
+            "description": "Maximum rows to return on this page. Defaults to 200.",
+            "examples": [
+              50,
+              200
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Build a safe stock screen using documented fields, structured comparisons, and pagination.",
+        "required": [
+          "filters"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "query_id": {
+                "type": "string"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "query_id",
+              "columns",
+              "rows"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "page": {
+            "type": "object",
+            "properties": {
+              "row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "row_count",
+              "total_count",
+              "truncated",
+              "next_cursor"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota",
+          "page"
+        ]
+      },
+      "annotations": {
+        "title": "Screen stocks",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "validate_readonly_sql",
+      "title": "Validate read-only SQL",
+      "description": "Use this when you need to check one proposed SELECT or WITH...SELECT before execution; it never runs the statement.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Exactly one SELECT or WITH...SELECT statement using allowlisted stock tables. DDL, DML, comments, and multiple statements are rejected.",
+            "examples": [
+              "SELECT TICKER, Price_Close FROM daily_20260715_asx LIMIT 20"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Validate one read-only SQL statement without executing it.",
+        "required": [
+          "sql"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "valid": {
+                "type": "boolean"
+              },
+              "normalized_sql": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "errors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "valid",
+              "normalized_sql",
+              "errors",
+              "warnings"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Validate read-only SQL",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "run_readonly_sql",
+      "title": "Run bounded read-only SQL",
+      "description": "Use this when structured screen_stocks cannot express the analysis; it executes one allowlisted read-only SELECT with bounded pagination.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Exactly one SELECT or WITH...SELECT statement using table names from list_stock_tables and columns from get_table_schema.",
+            "examples": [
+              "SELECT TICKER, Price_Close FROM daily_20260715_asx ORDER BY Price_Close DESC LIMIT 20"
+            ]
+          },
+          "max_rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200000,
+            "default": 200000,
+            "description": "Maximum rows the server may execute and retain. Defaults to and cannot exceed 200,000.",
+            "examples": [
+              1000
+            ]
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 200,
+            "description": "Maximum rows to return on this page. Defaults to 200.",
+            "examples": [
+              50,
+              200
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Execute one allowlisted read-only SQL query and return a query_id plus a bounded page.",
+        "required": [
+          "sql"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "query_id": {
+                "type": "string"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "query_id",
+              "columns",
+              "rows"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "page": {
+            "type": "object",
+            "properties": {
+              "row_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "row_count",
+              "total_count",
+              "truncated",
+              "next_cursor"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota",
+          "page"
+        ]
+      },
+      "annotations": {
+        "title": "Run bounded read-only SQL",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "get_latest_company_report",
+      "title": "Get latest English company report",
+      "description": "Use this when the user asks for the latest available English Anchises AI-generated company report and optional PDF for a known exchange and ticker. Do not use it for official annual reports, regulatory filings, live news, web search, or generating a new report.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "enum": [
+              "ASX",
+              "CSE",
+              "NASDAQ",
+              "NYSE",
+              "TSX",
+              "TSXV"
+            ],
+            "description": "Uppercase listing exchange for the company. Must be one of ASX, CSE, NASDAQ, NYSE, TSX, or TSXV.",
+            "examples": [
+              "ASX",
+              "NASDAQ"
+            ]
+          },
+          "ticker": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$",
+            "description": "Exchange-listed ticker symbol, using letters, numbers, dots, or hyphens; for example BGL or BRK.B.",
+            "examples": [
+              "BGL",
+              "BRK.B"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "ondemand",
+              "macmini"
+            ],
+            "default": "auto",
+            "description": "Report cache to read. auto compares ondemand and macmini and returns the newest; an explicit source restricts lookup to that source. Defaults to auto.",
+            "examples": [
+              "auto",
+              "macmini"
+            ]
+          },
+          "pdf_range": {
+            "type": "string",
+            "enum": [
+              "1M",
+              "3M",
+              "6M",
+              "1Y",
+              "2Y",
+              "MAX"
+            ],
+            "default": "MAX",
+            "description": "Market-history window rendered in the PDF chart. Defaults to MAX; this does not change the report text.",
+            "examples": [
+              "1Y",
+              "MAX"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Read one latest cached English Anchises AI company report. This tool never starts report generation.",
+        "required": [
+          "exchange",
+          "ticker"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "expired",
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "report": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ticker": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "exchange": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "lang": {
+                        "type": "string",
+                        "const": "en"
+                      },
+                      "company_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": "string"
+                      },
+                      "risk_level": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "sections": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "body": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "required": [
+                            "id",
+                            "order",
+                            "title",
+                            "body"
+                          ]
+                        },
+                        "maxItems": 100
+                      },
+                      "citations": {
+                        "type": "array",
+                        "maxItems": 100,
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "required": [
+                            "title",
+                            "url"
+                          ]
+                        }
+                      },
+                      "source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "ondemand",
+                          "macmini",
+                          null
+                        ]
+                      },
+                      "generated_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "expires_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "is_expired": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "ticker",
+                      "exchange",
+                      "lang",
+                      "company_name",
+                      "title",
+                      "summary",
+                      "risk_level",
+                      "sections",
+                      "citations",
+                      "source",
+                      "generated_at",
+                      "expires_at",
+                      "is_expired"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pdf_download_url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri"
+              },
+              "content_truncated": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "message",
+              "report",
+              "pdf_download_url",
+              "content_truncated"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Get latest English company report",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "create_csv_export",
+      "title": "Create temporary CSV export",
+      "description": "Use this when the user explicitly asks to download a prior screen_stocks or run_readonly_sql result as CSV.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^qry_[A-Za-z0-9_-]{8,196}$",
+            "description": "Exact query_id returned by the preceding screen_stocks or run_readonly_sql call in the current access mode."
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 3600,
+            "default": 3600,
+            "description": "Signed download lifetime in seconds. Defaults to 3600 (60 minutes).",
+            "examples": [
+              600,
+              3600
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Create a temporary bearer download from an existing query_id; never invent a query_id.",
+        "required": [
+          "query_id"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
+            "description": "Server-generated request identifier for support and audit correlation."
+          },
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "export_id": {
+                "type": "string"
+              },
+              "download_url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "export_id",
+              "download_url",
+              "expires_at",
+              "bytes"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Create temporary CSV export",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    }
+  ]
+}

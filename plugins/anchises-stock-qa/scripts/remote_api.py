@@ -86,10 +86,15 @@ def request_json(
         with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
             response_body = response.read()
     except HTTPError as exc:
-        body = exc.read(4096)
-        message = _decode_error_body(body) or exc.reason or "HTTP error"
+        status = exc.code
+        reason = exc.reason
+        try:
+            body = exc.read(4096)
+        finally:
+            exc.close()
+        message = _decode_error_body(body) or reason or "HTTP error"
         safe = sanitize_error_text(message, config)
-        raise RemoteAPIError(f"Remote API HTTP {exc.code}: {safe}") from exc
+        raise RemoteAPIError(f"Remote API HTTP {status}: {safe}") from exc
     except URLError as exc:
         safe = sanitize_error_text(str(exc.reason), config)
         raise RemoteAPIError(f"Remote API connection failed: {safe}") from exc

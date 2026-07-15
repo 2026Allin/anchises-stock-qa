@@ -1,37 +1,45 @@
 {
   "name": "anchises-stock-qa",
-  "version": "0.1.0+codex.20260623185710",
-  "description": "Safe read-only Stocks_Tracker SQL exports for Codex CSV analysis.",
+  "version": "0.2.0-beta.1+codex.20260715190152",
+  "description": "Screen stocks and read cached Anchises AI company reports.",
   "author": {
-    "name": "Anchises"
+    "name": "Anchises Tech",
+    "url": "https://anchisesdata.com"
   },
+  "homepage": "https://anchisesdata.com/stock-qa",
+  "repository": "https://github.com/2026Allin/anchises-stock-qa",
   "license": "MIT",
   "keywords": [
     "stocks",
-    "mysql",
-    "csv",
-    "analysis",
+    "screening",
+    "market-data",
+    "oauth",
     "read-only"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
+  "apps": "./.app.json",
   "interface": {
     "displayName": "Anchises Stock QA",
-    "shortDescription": "Read-only stock SQL exports to CSV.",
-    "longDescription": "Anchises Stock QA lets Codex inspect a user-configured read-only Stocks_Tracker MySQL database, validate SELECT-only SQL, export query results to CSV, and analyze those CSV files with pandas. Database URL, output cleanup, and custom prompts are configured locally after installation.",
-    "developerName": "Anchises",
+    "shortDescription": "Screen stocks and read Anchises AI company reports.",
+    "longDescription": "Anchises Stock QA provides stock screening, historical comparison, read-only SQL, cached English Anchises AI company reports with PDFs, and temporary CSV exports across Work, ChatGPT, and Codex. The private Developer Mode App currently uses anonymous development access; hosted OAuth and per-user approval remain prepared for a later activation.",
+    "developerName": "Anchises Tech",
     "category": "Productivity",
     "brandColor": "#334155",
     "composerIcon": "./assets/composer-icon.png",
     "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
     "capabilities": [
       "Interactive",
       "Read"
     ],
+    "websiteURL": "https://anchisesdata.com/stock-qa",
+    "privacyPolicyURL": "https://anchisesdata.com/privacy",
+    "termsOfServiceURL": "https://anchisesdata.com/terms",
     "defaultPrompt": [
-      "Answer my stock question from configured Stocks_Tracker data.",
-      "Find the strongest momentum stocks from the latest data.",
-      "Which mining stocks had unusual volume recently?"
+      "Summarize the latest Anchises AI report for ASX BGL and include its PDF.",
+      "Find the strongest momentum stocks in the latest data.",
+      "Compare unusual volume across supported exchanges."
     ]
   }
 }

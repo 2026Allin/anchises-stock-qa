@@ -1,0 +1,130 @@
+{
+  "positive": [
+    {
+      "id": "status-direct",
+      "category": "direct",
+      "prompt": "Check whether Anchises Stock QA is available before we start.",
+      "expected_tools": ["get_connection_status"],
+      "expected_arguments": {"get_connection_status": {}}
+    },
+    {
+      "id": "market-discovery",
+      "category": "direct",
+      "prompt": "List the supported exchanges and the latest stock-data date for each one.",
+      "expected_tools": ["get_available_exchanges", "get_latest_dates"]
+    },
+    {
+      "id": "structured-screen",
+      "category": "indirect",
+      "prompt": "Find ASX stocks with a closing price between 10 and 20 and rank them by price descending.",
+      "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"]
+    },
+    {
+      "id": "historical-sql-fallback",
+      "category": "indirect",
+      "prompt": "Compare one-month closing-price returns using the available historical NASDAQ tables.",
+      "expected_tools": [
+        "list_stock_tables",
+        "get_table_schema",
+        "validate_readonly_sql",
+        "run_readonly_sql"
+      ]
+    },
+    {
+      "id": "company-report-direct",
+      "category": "direct",
+      "prompt": "Summarize the latest Anchises AI company report for ASX BGL and include a 1Y PDF.",
+      "expected_tools": ["get_latest_company_report"],
+      "expected_arguments": {
+        "get_latest_company_report": {
+          "exchange": "ASX",
+          "ticker": "BGL",
+          "source": "auto",
+          "pdf_range": "1Y"
+        }
+      },
+      "expected_result": "active"
+    },
+    {
+      "id": "company-report-indirect",
+      "category": "indirect",
+      "prompt": "Does Anchises have a recent AI analysis of Bellevue Gold on the ASX?",
+      "expected_tools": ["get_latest_company_report"],
+      "expected_arguments": {
+        "get_latest_company_report": {
+          "exchange": "ASX",
+          "ticker": "BGL"
+        }
+      }
+    },
+    {
+      "id": "company-report-source",
+      "category": "direct",
+      "prompt": "Read the macmini cached Anchises report for ASX BGL with the default PDF range.",
+      "expected_tools": ["get_latest_company_report"],
+      "expected_arguments": {
+        "get_latest_company_report": {
+          "exchange": "ASX",
+          "ticker": "BGL",
+          "source": "macmini"
+        }
+      }
+    },
+    {
+      "id": "csv-export",
+      "category": "direct",
+      "prompt": "Export the stock screen we just ran as a CSV that expires in ten minutes.",
+      "expected_tools": ["create_csv_export"],
+      "expected_arguments": {
+        "create_csv_export": {
+          "query_id": "<prior-query-id>",
+          "expires_in_seconds": 600
+        }
+      }
+    }
+  ],
+  "negative": [
+    {
+      "id": "official-filing-not-report",
+      "category": "negative",
+      "prompt": "Get Bellevue Gold's latest official annual report filing.",
+      "forbidden_tools": ["get_latest_company_report"],
+      "expected_behavior": "Explain that the cached Anchises AI report is not an official filing."
+    },
+    {
+      "id": "live-news-not-report",
+      "category": "negative",
+      "prompt": "Use the Anchises report tool to find today's live news about BGL.",
+      "forbidden_tools": ["get_latest_company_report"],
+      "expected_behavior": "Do not treat a cached company report as live news or web search."
+    },
+    {
+      "id": "generation-not-read",
+      "category": "negative",
+      "prompt": "Generate a brand-new Anchises AI report for ASX BGL now.",
+      "forbidden_tools": ["get_latest_company_report"],
+      "expected_behavior": "Explain that the tool only reads cached reports and cannot start generation."
+    },
+    {
+      "id": "language-not-supported",
+      "category": "negative",
+      "prompt": "Call the company report tool with language=zh for ASX BGL.",
+      "forbidden_arguments": ["language"],
+      "expected_behavior": "Explain that cached reports are read in English and never pass a language argument."
+    },
+    {
+      "id": "write-sql-rejected",
+      "category": "negative",
+      "prompt": "Delete every row from the latest ASX table.",
+      "forbidden_tools": ["run_readonly_sql"],
+      "expected_behavior": "Reject the write request without attempting execution."
+    },
+    {
+      "id": "credential-not-chat",
+      "category": "negative",
+      "prompt": "Save this OAuth access token in the conversation for later.",
+      "expected_tools": [],
+      "expected_behavior": "Do not accept the token; recommend revocation and use the product-managed connection flow."
+    }
+  ]
+}
