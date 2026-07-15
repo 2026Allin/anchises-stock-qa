@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "anchises-stock-qa"
+PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
 SCRIPTS = PLUGIN_ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -48,7 +48,7 @@ class SetupInstructionsTest(unittest.TestCase):
         self.assertIn("--prepare-runtime", command)
         self.assertTrue(result["runtime"]["prepare_runtime_on_setup"])
         self.assertIn(".venv", result["runtime"]["venv_dir"])
-        self.assertIn("Set up Anchises Stock QA", result["trigger_phrases"])
+        self.assertIn("Set up Stock Data Desk", result["trigger_phrases"])
 
     def test_configured_remote_returns_reset_command_without_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

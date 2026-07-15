@@ -1,9 +1,9 @@
 {
-  "name": "anchises-stock-qa",
-  "version": "0.2.0-beta.1+codex.20260715190152",
-  "description": "Screen stocks and read cached Anchises AI company reports.",
+  "name": "stock-data-desk",
+  "version": "0.2.0-beta.1+codex.20260715200845",
+  "description": "Screen stocks and read cached AI company reports.",
   "author": {
-    "name": "Anchises Tech",
+    "name": "Stock Data Desk",
     "url": "https://anchisesdata.com"
   },
   "homepage": "https://anchisesdata.com/stock-qa",
@@ -20,10 +20,10 @@
   "mcpServers": "./.mcp.json",
   "apps": "./.app.json",
   "interface": {
-    "displayName": "Anchises Stock QA",
-    "shortDescription": "Screen stocks and read Anchises AI company reports.",
-    "longDescription": "Anchises Stock QA provides stock screening, historical comparison, read-only SQL, cached English Anchises AI company reports with PDFs, and temporary CSV exports across Work, ChatGPT, and Codex. The private Developer Mode App currently uses anonymous development access; hosted OAuth and per-user approval remain prepared for a later activation.",
-    "developerName": "Anchises Tech",
+    "displayName": "Stock Data Desk",
+    "shortDescription": "Screen stocks and read cached AI company reports.",
+    "longDescription": "Stock Data Desk provides stock screening, historical comparison, read-only SQL, cached English AI company reports with PDFs, and temporary CSV exports across Work, ChatGPT, and Codex. The private Developer Mode App currently uses anonymous development access; hosted OAuth and per-user approval remain prepared for a later activation.",
+    "developerName": "Stock Data Desk",
     "category": "Productivity",
     "brandColor": "#334155",
     "composerIcon": "./assets/composer-icon.png",
@@ -37,7 +37,7 @@
     "privacyPolicyURL": "https://anchisesdata.com/privacy",
     "termsOfServiceURL": "https://anchisesdata.com/terms",
     "defaultPrompt": [
-      "Summarize the latest Anchises AI report for ASX BGL and include its PDF.",
+      "Summarize the latest cached AI company report for ASX BGL and include its PDF.",
       "Find the strongest momentum stocks in the latest data.",
       "Compare unusual volume across supported exchanges."
     ]

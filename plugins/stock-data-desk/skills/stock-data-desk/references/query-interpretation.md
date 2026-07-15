@@ -19,7 +19,7 @@
 
 ## Company reports
 
-- Interpret “Anchises report,” “AI company report,” or “your latest analysis” as
+- Interpret “cached AI company report,” “AI company report,” or “your latest analysis” as
   a request for `get_latest_company_report` when exchange and ticker are known.
 - Ask for or discover the exchange when the ticker could be listed on multiple
   markets. Do not silently guess an exchange.

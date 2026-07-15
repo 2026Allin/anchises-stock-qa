@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "anchises-stock-qa"
-SKILL_ROOT = PLUGIN_ROOT / "skills" / "anchises-stock-qa"
+PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
+SKILL_ROOT = PLUGIN_ROOT / "skills" / "stock-data-desk"
 SKILL = SKILL_ROOT / "SKILL.md"
 OPENAI_YAML = SKILL_ROOT / "agents" / "openai.yaml"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
@@ -34,9 +34,9 @@ EXPECTED_TOOLS = {
 class SkillHostedWorkflowTest(unittest.TestCase):
     def test_single_skill_targets_all_eleven_hosted_tools(self) -> None:
         skill_dirs = [path for path in (PLUGIN_ROOT / "skills").iterdir() if path.is_dir()]
-        self.assertEqual([path.name for path in skill_dirs], ["anchises-stock-qa"])
+        self.assertEqual([path.name for path in skill_dirs], ["stock-data-desk"])
         text = SKILL.read_text(encoding="utf-8")
-        self.assertIn("name: anchises-stock-qa", text)
+        self.assertIn("name: stock-data-desk", text)
         self.assertIn("anonymous_dev", text)
         self.assertIn("OAuth", text)
         self.assertIn("Work", text)
@@ -77,25 +77,27 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("Do not pass a language argument", text)
         self.assertIn("Do not repeat an identical successful tool call", text)
         self.assertIn("once before an access-sensitive workflow", text)
+        self.assertIn("Always identify the product as **Stock Data Desk**", text)
+        self.assertIn("do not repeat", text)
 
     def test_openai_metadata_matches_single_skill(self) -> None:
         text = OPENAI_YAML.read_text(encoding="utf-8")
-        self.assertIn('display_name: "Anchises Stock QA"', text)
-        self.assertIn("$anchises-stock-qa", text)
+        self.assertIn('display_name: "Stock Data Desk"', text)
+        self.assertIn("$stock-data-desk", text)
         self.assertIn("company report", text)
         self.assertIn("allow_implicit_invocation: true", text)
 
     def test_manifest_connects_real_app_and_keeps_legacy_rollback(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         app_manifest = json.loads(APP_MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["name"], "anchises-stock-qa")
+        self.assertEqual(manifest["name"], "stock-data-desk")
         self.assertEqual(manifest["apps"], "./.app.json")
         self.assertEqual(manifest["mcpServers"], "./.mcp.json")
         self.assertTrue((PLUGIN_ROOT / ".mcp.json").exists())
         self.assertTrue((PLUGIN_ROOT / "mcp" / "bootstrap.py").exists())
         self.assertEqual(set(app_manifest), {"apps"})
-        self.assertEqual(set(app_manifest["apps"]), {"anchises_stock_qa"})
-        app = app_manifest["apps"]["anchises_stock_qa"]
+        self.assertEqual(set(app_manifest["apps"]), {"stock_data_desk"})
+        app = app_manifest["apps"]["stock_data_desk"]
         self.assertEqual(set(app), {"id"})
         self.assertEqual(
             app["id"],
@@ -113,11 +115,68 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(interface["privacyPolicyURL"], "https://anchisesdata.com/privacy")
         self.assertEqual(interface["termsOfServiceURL"], "https://anchisesdata.com/terms")
         self.assertEqual(len(interface["defaultPrompt"]), 3)
-        self.assertTrue(any("Anchises AI report" in prompt for prompt in interface["defaultPrompt"]))
+        self.assertTrue(any("cached AI company report" in prompt for prompt in interface["defaultPrompt"]))
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
         copy = json.dumps(manifest).lower()
         for stale in ("mysql", "api token", "pandas", "user-configured"):
             self.assertNotIn(stale, copy)
+
+    def test_user_facing_brand_is_stock_data_desk(self) -> None:
+        strict_files = [
+            SKILL,
+            OPENAI_YAML,
+            *sorted((SKILL_ROOT / "references").glob("*.md")),
+            *sorted((PLUGIN_ROOT / "prompts").glob("*.md")),
+            GOLDEN_CASES,
+            REVIEWER_CASES,
+        ]
+        for path in strict_files:
+            self.assertNotIn(
+                "anchises",
+                path.read_text(encoding="utf-8").lower(),
+                str(path),
+            )
+
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        user_facing = {
+            "description": manifest["description"],
+            "author": manifest["author"]["name"],
+            "displayName": manifest["interface"]["displayName"],
+            "shortDescription": manifest["interface"]["shortDescription"],
+            "longDescription": manifest["interface"]["longDescription"],
+            "developerName": manifest["interface"]["developerName"],
+            "defaultPrompt": manifest["interface"]["defaultPrompt"],
+        }
+        self.assertNotIn("anchises", json.dumps(user_facing).lower())
+
+    def test_old_brand_only_remains_in_approved_technical_compatibility(self) -> None:
+        excluded = {PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"}
+        allowed_line_markers = (
+            "://",
+            "ANCHISES_STOCK_QA_CONFIG",
+            ".config/anchises-stock-qa",
+            ".local/share/anchises-stock-qa",
+            '".config" / "anchises-stock-qa"',
+            '"share" / "anchises-stock-qa"',
+        )
+        unexpected: list[str] = []
+        for path in PLUGIN_ROOT.rglob("*"):
+            if not path.is_file() or path in excluded:
+                continue
+            if ".venv" in path.parts or "__pycache__" in path.parts:
+                continue
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except UnicodeDecodeError:
+                continue
+            for line_number, line in enumerate(lines, start=1):
+                if "anchises" not in line.lower():
+                    continue
+                if not any(marker.lower() in line.lower() for marker in allowed_line_markers):
+                    unexpected.append(
+                        f"{path.relative_to(ROOT)}:{line_number}: {line.strip()}"
+                    )
+        self.assertEqual(unexpected, [])
 
     def test_golden_prompts_cover_all_tools_and_report_boundaries(self) -> None:
         cases = json.loads(GOLDEN_CASES.read_text(encoding="utf-8"))

@@ -225,9 +225,9 @@ def get_setup_instructions() -> Dict[str, Any]:
     force_recreate_command = _setup_command(["--force"])
     action = "reset_token" if api_token_configured else "first_time_setup"
     title = (
-        "Anchises Stock QA is already configured"
+        "Stock Data Desk is already configured"
         if configured
-        else "Set up Anchises Stock QA"
+        else "Set up Stock Data Desk"
     )
     summary = (
         "Run the reset command if you received a new API token."
@@ -238,9 +238,9 @@ def get_setup_instructions() -> Dict[str, Any]:
     return {
         "ok": True,
         "trigger_phrases": [
-            "Set up Anchises Stock QA",
-            "Reset Anchises Stock QA token",
-            "Check the Anchises Stock QA connection",
+            "Set up Stock Data Desk",
+            "Reset Stock Data Desk token",
+            "Check the Stock Data Desk connection",
         ],
         "title": title,
         "summary": summary,
@@ -275,10 +275,10 @@ def get_setup_instructions() -> Dict[str, Any]:
         "instructions": [
             "Open Terminal.",
             "Run the setup_or_reset_token command exactly as shown.",
-            "Paste your Anchises Stock QA API token when prompted; the token is hidden while typing.",
+            "Paste your Stock Data Desk API token when prompted; the token is hidden while typing.",
             "The first run may take a few minutes while Python dependencies are prepared.",
             "Run the same command again later to replace the token while keeping other settings.",
-            "After setup, ask Codex: Check the Anchises Stock QA connection.",
+            "After setup, ask Codex: Check the Stock Data Desk connection.",
         ],
         "errors": errors,
         "notes": [
@@ -1104,7 +1104,7 @@ def run_readonly_sql(
     max_rows = _bounded_max_rows(max_rows)
     engine = _engine(config)
     wrapped_sql = (
-        f"SELECT * FROM ({validation.normalized_sql}) AS _anchises_safe_query "
+        f"SELECT * FROM ({validation.normalized_sql}) AS _stock_data_desk_safe_query "
         f"LIMIT {max_rows}"
     )
     run_id, out_dir, output_conversation_id, requested_conversation_id = _new_output_dir(
@@ -1775,7 +1775,7 @@ def cleanup_outputs(dry_run: bool = True) -> Dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Anchises Stock QA local DB tools")
+    parser = argparse.ArgumentParser(description="Stock Data Desk local DB tools")
     parser.add_argument("--verify-env", action="store_true")
     parser.add_argument("--verify-db", action="store_true")
     parser.add_argument("--setup-instructions", action="store_true")

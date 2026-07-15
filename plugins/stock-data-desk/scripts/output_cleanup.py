@@ -1,4 +1,4 @@
-"""Output cleanup helpers for Anchises Stock QA."""
+"""Output cleanup helpers for Stock Data Desk."""
 
 from __future__ import annotations
 

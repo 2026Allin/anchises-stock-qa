@@ -1,4 +1,4 @@
-"""Prompt bundle loading for Anchises Stock QA."""
+"""Prompt bundle loading for Stock Data Desk."""
 
 from __future__ import annotations
 

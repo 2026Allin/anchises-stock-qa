@@ -1,0 +1,8 @@
+interface:
+  display_name: "Stock Data Desk"
+  short_description: "Screen stocks and read cached company reports."
+  brand_color: "#334155"
+  default_prompt: "Use $stock-data-desk to summarize the latest cached AI company report for ASX BGL and include its PDF."
+
+policy:
+  allow_implicit_invocation: true

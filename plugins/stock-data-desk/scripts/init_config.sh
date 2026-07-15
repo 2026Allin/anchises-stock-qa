@@ -31,9 +31,9 @@ Usage:
 Options:
   --config PATH                 Config file to create.
                                 Defaults to ~/.config/anchises-stock-qa/config.toml
-  --remote-api-url URL          Anchises Stock QA API URL.
+  --remote-api-url URL          Stock Data Desk API URL.
                                 Defaults to https://anchisesdata.com/anchises-stock-qa
-  --api-token TOKEN             Your Anchises Stock QA API token. If omitted, prompts for it.
+  --api-token TOKEN             Your Stock Data Desk API token. If omitted, prompts for it.
   --outputs-dir PATH            Directory for exported CSV files.
                                 Defaults to ~/.local/share/anchises-stock-qa/outputs
   --cleanup-enabled true|false  Enable automatic lazy cleanup. Defaults to true.
@@ -226,7 +226,7 @@ PY
 }
 
 prepare_runtime() {
-  echo "Preparing Anchises Stock QA Python runtime. This may take a few minutes the first time."
+  echo "Preparing Stock Data Desk Python runtime. This may take a few minutes the first time."
   "${PYTHON_BIN}" "${PLUGIN_ROOT}/mcp/bootstrap.py" --prepare-only
 }
 
@@ -312,7 +312,7 @@ if [[ -z "${API_TOKEN}" ]]; then
     echo "No API token provided. Re-run with --api-token or run interactively." >&2
     exit 2
   fi
-  echo "Enter your Anchises Stock QA API token."
+  echo "Enter your Stock Data Desk API token."
   read -r -s -p "API token (hidden): " API_TOKEN
   echo
 fi

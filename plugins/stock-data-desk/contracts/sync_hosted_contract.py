@@ -58,7 +58,7 @@ def _rpc(endpoint: str, method: str, params: dict[str, Any], request_id: int) ->
         headers={
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "anchises-stock-qa-contract-sync/1.0",
+            "User-Agent": "stock-data-desk-contract-sync/1.0",
         },
     )
     with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed HTTPS endpoint by default
@@ -91,7 +91,7 @@ def fetch_contract(endpoint: str) -> dict[str, Any]:
         {
             "protocolVersion": "2025-06-18",
             "capabilities": {},
-            "clientInfo": {"name": "anchises-plugin-contract-sync", "version": "1.0.0"},
+            "clientInfo": {"name": "stock-data-desk-contract-sync", "version": "1.0.0"},
         },
         1,
     )

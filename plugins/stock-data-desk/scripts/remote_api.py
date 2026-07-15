@@ -70,7 +70,7 @@ def request_json(
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {config.backend.api_token}",
-        "User-Agent": "anchises-stock-qa-plugin/remote-api",
+        "User-Agent": "stock-data-desk-plugin/remote-api",
     }
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")

@@ -15,7 +15,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACTS = ROOT / "plugins" / "anchises-stock-qa" / "contracts"
+CONTRACTS = ROOT / "plugins" / "stock-data-desk" / "contracts"
 TESTS = ROOT / "tests"
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
@@ -27,7 +27,7 @@ from mock_services import (  # noqa: E402
     ACTIVE_TOKEN,
     INTERNAL_TOKEN,
     PENDING_TOKEN,
-    MockAnchisesServices,
+    MockStockDataDeskServices,
 )
 
 
@@ -80,7 +80,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
         cls.contract = load_contract()
 
     def setUp(self) -> None:
-        self.services = MockAnchisesServices().__enter__()
+        self.services = MockStockDataDeskServices().__enter__()
 
     def tearDown(self) -> None:
         self.services.__exit__(None, None, None)
@@ -381,7 +381,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertNotIn("rows", body["result"]["structuredContent"])
 
     def test_anonymous_dev_requires_no_token_and_publishes_noauth(self) -> None:
-        with MockAnchisesServices(access_mode="anonymous_dev") as services:
+        with MockStockDataDeskServices(access_mode="anonymous_dev") as services:
             status, body, headers = _request(
                 f"{services.base_url}/mcp",
                 method="POST",

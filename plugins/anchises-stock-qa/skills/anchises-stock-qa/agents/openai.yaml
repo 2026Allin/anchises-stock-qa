@@ -1,8 +1,0 @@
-interface:
-  display_name: "Anchises Stock QA"
-  short_description: "Screen stocks and read cached company reports."
-  brand_color: "#334155"
-  default_prompt: "Use $anchises-stock-qa to summarize the latest Anchises AI company report for ASX BGL and include its PDF."
-
-policy:
-  allow_implicit_invocation: true

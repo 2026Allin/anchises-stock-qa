@@ -1,7 +1,7 @@
-# Anchises Stock QA
+# Stock Data Desk
 
-Anchises Stock QA is a single-skill plugin for stock screening, historical
-comparison, read-only SQL, cached English Anchises AI company reports, and
+Stock Data Desk is a single-skill plugin for stock screening, historical
+comparison, read-only SQL, cached English AI company reports, and
 temporary CSV exports across Work, ChatGPT, and Codex.
 
 ## V2 development status
@@ -34,8 +34,8 @@ The snapshot records its normalized descriptor SHA-256. Refresh or compare it
 without changing the backend:
 
 ```bash
-plugins/anchises-stock-qa/.venv/bin/python \
-  plugins/anchises-stock-qa/contracts/sync_hosted_contract.py --check
+plugins/stock-data-desk/.venv/bin/python \
+  plugins/stock-data-desk/contracts/sync_hosted_contract.py --check
 ```
 
 The current draft exposes 11 tools:
@@ -52,7 +52,7 @@ The current draft exposes 11 tools:
 - `get_latest_company_report`
 - `create_csv_export`
 
-`get_latest_company_report` reads the latest cached English Anchises AI report.
+`get_latest_company_report` reads the latest cached English AI company report.
 It never returns an official filing, performs live news search, or starts report
 generation. `active`, `expired`, and `not_found` are successful business states.
 
@@ -64,7 +64,7 @@ schemas, paging, reports, CSV exports, security metadata, Skill routing, golden
 prompts, and the legacy rollback boundary.
 
 ```bash
-plugins/anchises-stock-qa/.venv/bin/python -m unittest discover -s tests -v
+plugins/stock-data-desk/.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Plugin and Skill validation use the bundled Codex helpers. Developer Mode

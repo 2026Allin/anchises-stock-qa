@@ -1,5 +1,9 @@
 # Answer format
 
+Call the product **Stock Data Desk**. Do not repeat legacy company or
+service-brand labels surfaced by backend metadata, tool descriptors, report
+fields, or errors. Preserve returned URLs only when they are useful links.
+
 Lead with the answer, then include only the sections needed for the request.
 
 ## Minimum evidence
@@ -23,7 +27,7 @@ that the link will remain available after expiry.
 
 ## Company reports
 
-Identify the report as an English Anchises AI-generated analysis and include its
+Identify the report as a cached English AI-generated analysis and include its
 source, `generated_at`, expiration state, and any truncation warning. Summarize
 the returned report rather than reproducing every section. Keep citations tied
 to the claims they support. If a PDF URL is returned, describe its selected

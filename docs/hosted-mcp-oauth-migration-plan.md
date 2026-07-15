@@ -1,4 +1,4 @@
-# Anchises Stock QA Hosted MCP 与 OAuth 完整改造方案
+# Stock Data Desk Hosted MCP 与 OAuth 完整改造方案
 
 - 状态：提案（Auth0 与 SQLite 首版决策已冻结）
 - 日期：2026-07-14
@@ -7,18 +7,18 @@
 
 ## 1. 执行摘要
 
-本方案将 Anchises Stock QA 从“Codex 本地 stdio MCP + 用户手工配置 API Token + 远程 Stock Data API”改造成：
+本方案将 Stock Data Desk 从“Codex 本地 stdio MCP + 用户手工配置 API Token + 远程 Stock Data API”改造成：
 
-- 一个公开的 `Anchises Stock QA` 插件；
-- 一个统一的 `anchises-stock-qa` Skill，不拆分 Work/Codex Skill；
+- 一个公开的 `Stock Data Desk` 插件；
+- 一个统一的 `stock-data-desk` Skill，不拆分 Work/Codex Skill；
 - 一个运行在 `https://mcp.anchisesdata.com/mcp` 的 Hosted MCP；
 - 一个由 Auth0 云端 Tenant 托管、目标自定义域名为 `https://auth.anchisesdata.com` 的 OAuth 2.1/OIDC 身份服务；
 - Auth0 Universal Login 提供 Google 登录，以及 Email/Password 注册、登录、邮箱验证和密码重置；
-- 一个放在 VPS 本地持久化磁盘上的 SQLite `authz.db`，保存 Anchises 用户映射、白名单、批准状态、权限、用量和审计；
-- 由 Anchises 生成的稳定 `user_id` 作为业务用户身份；
+- 一个放在 VPS 本地持久化磁盘上的 SQLite `authz.db`，保存 Stock Data Desk 用户映射、白名单、批准状态、权限、用量和审计；
+- 由 Stock Data Desk 生成的稳定 `user_id` 作为业务用户身份；
 - MCP 与 Stock Data API 全部在后端通信；
 - Stock Data API 不再接受普通插件用户手工配置的长期 API Token；
-- 用户通过 Plugin Directory 搜索或直达链接安装；首次使用时登录 Anchises，后台批准用户可查询真实数据，未批准用户进入 pending/demo 状态并获得申请入口。
+- 用户通过 Plugin Directory 搜索或直达链接安装；首次使用时登录 Stock Data Desk，后台批准用户可查询真实数据，未批准用户进入 pending/demo 状态并获得申请入口。
 
 公开首版不包含自定义 Apps SDK UI 和 Sites 发布功能。它们不是完成“搜索、安装、登录、使用”闭环的必要条件，可以在 Hosted MCP 和 OAuth 稳定后单独迭代。
 
@@ -39,11 +39,11 @@
 
 以下决策作为后续实施默认值：
 
-1. 只保留一个 Skill：`anchises-stock-qa`。
-2. 普通用户不创建、不复制、不填写 Anchises API Token。
-3. ChatGPT/Codex 是 OAuth 客户端，不是 Anchises 用户身份来源。
-4. 用户通过 Google 或 Email/Password 注册和登录 Anchises。
-5. Anchises 内部 `users.id` 是唯一业务身份；Email 不能作为主键。
+1. 只保留一个 Skill：`stock-data-desk`。
+2. 普通用户不创建、不复制、不填写 Stock Data Desk API Token。
+3. ChatGPT/Codex 是 OAuth 客户端，不是 Stock Data Desk 用户身份来源。
+4. 用户通过 Google 或 Email/Password 注册和登录 Stock Data Desk。
+5. Stock Data Desk 内部 `users.id` 是唯一业务身份；Email 不能作为主键。
 6. OAuth 采用 Authorization Code + PKCE S256。
 7. 身份提供商确定为 Auth0，首版从 Auth0 Free Tenant 起步；Auth0 是云服务，不安装在 VPS，也不使用 VPS SQLite 保存密码。
 8. OAuth 客户端识别优先采用 Auth0 的 CIMD；若提交门户集成更适合 predefined client，则可先采用 predefined client，但不得降低 PKCE、redirect URI 和 audience 校验要求。DCR 只在确有兼容需要时开启。
@@ -81,11 +81,11 @@ Codex
 
 相关文件：
 
-- `plugins/anchises-stock-qa/.codex-plugin/plugin.json`
-- `plugins/anchises-stock-qa/.mcp.json`
-- `plugins/anchises-stock-qa/config.example.toml`
-- `plugins/anchises-stock-qa/scripts/remote_api.py`
-- `plugins/anchises-stock-qa/scripts/ask_stock.py`
+- `plugins/stock-data-desk/.codex-plugin/plugin.json`
+- `plugins/stock-data-desk/.mcp.json`
+- `plugins/stock-data-desk/config.example.toml`
+- `plugins/stock-data-desk/scripts/remote_api.py`
+- `plugins/stock-data-desk/scripts/ask_stock.py`
 
 默认远程 API 地址为：
 
@@ -101,7 +101,7 @@ https://anchisesdata.com/anchises-stock-qa
 
 需要同时消除以下三类冲突：
 
-1. **安装来源冲突**：本机曾出现 `anchises-stock-qa@personal` 指向 marketplace 仓库根目录，而真正插件包位于嵌套的 `plugins/anchises-stock-qa`。正式开发源应统一为 `anchises-stock-qa@Anchises-Tech`，公开源应统一为 Plugin Directory。
+1. **安装来源冲突**：本机曾出现 `stock-data-desk@personal` 指向 marketplace 仓库根目录，而真正插件包位于嵌套的 `plugins/stock-data-desk`。正式开发源应统一为 `stock-data-desk@Stock-Data-Desk`，公开源应统一为 Plugin Directory。
 2. **产品文案冲突**：manifest 和 `agents/openai.yaml` 仍描述“本地 MySQL、本地 CSV、本地配置”，而实际代码已主要调用远程 API。
 3. **公开发布材料缺失**：缺少完整 website、support、privacy、terms、开发者身份、暗色 Logo、截图、审核账号、工具 annotations 和审核测试用例。
 
@@ -118,15 +118,15 @@ https://anchisesdata.com/anchises-stock-qa
 sequenceDiagram
     participant U as 用户
     participant C as ChatGPT / Codex
-    participant O as Anchises OAuth
-    participant M as Anchises Hosted MCP
+    participant O as Stock Data Desk OAuth
+    participant M as Stock Data Desk Hosted MCP
     participant A as Stock Data API
 
     U->>C: 搜索或通过直达链接安装插件
     U->>C: 提出股票筛选问题
     C->>M: 调用受保护工具
     M-->>C: OAuth challenge
-    C-->>U: 显示“连接 Anchises Stock QA”
+    C-->>U: 显示“连接 Stock Data Desk”
     U->>O: Google 或 Email/Password 登录
     U->>O: 同意只读股票数据权限
     O-->>C: OAuth 授权完成
@@ -179,7 +179,7 @@ flowchart LR
 
 Auth0 不安装在 VPS。项目方在 Auth0 控制台创建云端 Tenant，配置 Google Social Connection、Auth0 Database Connection、Universal Login、API Resource Server、CIMD/客户端注册和 Custom Domain。`auth.anchisesdata.com` 通过 Auth0 要求的 DNS 记录指向 Auth0 边缘服务，不由 VPS 应用自行实现 `/authorize`、`/oauth/token` 或密码存储。
 
-VPS 只运行 Hosted MCP、Stock Data API adapter 和 Anchises 业务授权层。Hosted MCP 从 Auth0 discovery/JWKS 获取公开元数据，验证 Access Token 后，把 `(issuer, subject)` 映射为本地 `user_id`，再查询 VPS 本地 SQLite：
+VPS 只运行 Hosted MCP、Stock Data API adapter 和 Stock Data Desk 业务授权层。Hosted MCP 从 Auth0 discovery/JWKS 获取公开元数据，验证 Access Token 后，把 `(issuer, subject)` 映射为本地 `user_id`，再查询 VPS 本地 SQLite：
 
 ```text
 /var/lib/anchises-stock-qa/authz.db
@@ -199,10 +199,10 @@ docs/
     stock-data-api.md
 
 plugins/
-  anchises-stock-qa/
+  stock-data-desk/
     .codex-plugin/plugin.json
     .app.json
-    skills/anchises-stock-qa/
+    skills/stock-data-desk/
     assets/
 ```
 
@@ -248,7 +248,7 @@ sequenceDiagram
 | `SKILL.md` | 何时调用工具、调用顺序、结果解释和安全边界 | 登录页面、Token 保存、直接访问数据库 |
 | `.app.json` | 开发阶段引用 ChatGPT Developer Mode 创建的 App ID | 保存 MCP 密钥、OAuth client secret 或后端代码 |
 | `plugin.json` | 声明单一 Skill、App 引用、品牌和公开元数据 | 实现业务 API |
-| ChatGPT/Codex runtime | 发起 MCP 调用、处理 OAuth UI、保存用户连接 | 生成 Anchises 业务用户 ID |
+| ChatGPT/Codex runtime | 发起 MCP 调用、处理 OAuth UI、保存用户连接 | 生成 Stock Data Desk 业务用户 ID |
 | VPS Hosted MCP | 工具实现、Token 验证、用户映射、权限、额度、审计 | 把内部服务凭证返回给插件 |
 | Stock Data API | 数据访问、只读查询策略和结果限制 | 直接接受普通插件用户的长期 Token |
 
@@ -350,18 +350,18 @@ port:     443
 
 ### 7.1 身份边界
 
-- ChatGPT 账户只负责插件安装与发起 OAuth，Anchises 不能依赖 ChatGPT 账户 ID 或 Email 作为业务身份。
-- Google 和 Email/Password 是 Anchises 的登录方式。
-- Anchises 自己生成的 `users.id` 是业务主键。
+- ChatGPT 账户只负责插件安装与发起 OAuth，Stock Data Desk 不能依赖 ChatGPT 账户 ID 或 Email 作为业务身份。
+- Google 和 Email/Password 是 Stock Data Desk 的登录方式。
+- Stock Data Desk 自己生成的 `users.id` 是业务主键。
 - 外部身份使用 `(issuer, subject)` 唯一映射到内部用户。
 - 不允许仅凭相同 Email 自动合并两个身份；账户关联必须要求用户验证双方身份。
 
-Auth0 的 `sub` 是外部身份，不是 Anchises 的内部 `user_id`。典型值如下：
+Auth0 的 `sub` 是外部身份，不是 Stock Data Desk 的内部 `user_id`。典型值如下：
 
 ```text
 Google:         google-oauth2|108...
 Email/Password: auth0|abc...
-Anchises:       usr_01ABC...
+Stock Data Desk:       usr_01ABC...
 ```
 
 同一人分别使用 Google 和 Email/Password 登录时，默认会得到两个 Auth0 `subject`。即使两者 Email 相同，也不能静默合并；首版允许白名单记录只被一个身份 claim，第二个身份保持 pending，后续再提供要求双方重新认证的显式 account-linking 流程。
@@ -390,7 +390,7 @@ Universal Login 注册
   -> 匹配白名单并生成 pending 或 active entitlement
 ```
 
-未验证邮箱可以保留 Auth0 身份记录，但不能 claim 白名单、不能获得 active entitlement，也不能访问真实股票数据。密码重置完全由 Auth0 托管，Anchises 日志中不得出现密码、重置票据或完整登录请求。
+未验证邮箱可以保留 Auth0 身份记录，但不能 claim 白名单、不能获得 active entitlement，也不能访问真实股票数据。密码重置完全由 Auth0 托管，Stock Data Desk 日志中不得出现密码、重置票据或完整登录请求。
 
 Auth0 自定义 API Access Token 默认只保证包含 `sub` 等身份/授权字段。为让 VPS 在首次登录时安全匹配白名单，增加最小 Post Login Action，以 namespaced claims 向 Access Token 写入：
 
@@ -456,7 +456,7 @@ prompts.write
 }
 ```
 
-`client_id` 的实际 claim 名称可能随 Auth0 token profile 表现为 `client_id` 或 `azp`，实现时以 discovery、Access Token profile 和真实 Token 为准。Hosted MCP 使用 `(iss, sub)` 查找 `identities` 并得到内部 `user_id`；再使用 `(user_id, oauth_client_id)` 创建或查找本地 `oauth_connections.id` 作为 `connection_id`。不要要求 Auth0 Token 直接携带 Anchises `user_id` 或 `connection_id`。
+`client_id` 的实际 claim 名称可能随 Auth0 token profile 表现为 `client_id` 或 `azp`，实现时以 discovery、Access Token profile 和真实 Token 为准。Hosted MCP 使用 `(iss, sub)` 查找 `identities` 并得到内部 `user_id`；再使用 `(user_id, oauth_client_id)` 创建或查找本地 `oauth_connections.id` 作为 `connection_id`。不要要求 Auth0 Token 直接携带 Stock Data Desk `user_id` 或 `connection_id`。
 
 MCP 必须验证：
 
@@ -489,7 +489,7 @@ OpenAI 要求需要认证的插件提供可直接运行审核案例的 demo cred
 - 无 MFA；
 - 无短信验证；
 - 无邮件二次确认；
-- 在 Anchises 白名单中预先批准，并绑定 `full_v1`，可以调用首版全部工具；
+- 在 Stock Data Desk 白名单中预先批准，并绑定 `full_v1`，可以调用首版全部工具；
 - 使用稳定、可复现的 review fixture 数据或固定只读股票快照，使五个正向测试不会因每日数据变化而失效；
 - 不能读取其他用户的身份、保存 Prompt、历史导出、用量或账户资源；
 - 凭证只通过 OpenAI Plugin Submission Portal 提交，不写进插件、Skill、GitHub 或公开文档；
@@ -499,12 +499,12 @@ OpenAI 要求需要认证的插件提供可直接运行审核案例的 demo cred
 
 #### 7.5.1 推荐账号形态
 
-使用 Anchises 自己控制的专用 Email/Password 账号，不使用个人 Google 账号：
+使用 Stock Data Desk 自己控制的专用 Email/Password 账号，不使用个人 Google 账号：
 
 ```text
 登录邮箱：openai-review@anchisesdata.com
 身份来源：Auth0 Database Connection
-Anchises user_type：reviewer
+Stock Data Desk user_type：reviewer
 access_status：active
 access_policy_id：full_v1
 data_scope_id：review_fixture
@@ -633,7 +633,7 @@ OAuth 登录只证明用户身份，不自动授予 Stock QA 使用权。VPS MCP
 
 ```text
 1. 验证 Access Token 签名、issuer、audience、expiry 和 scope
-2. 将 (issuer, subject) 映射为 Anchises user_id
+2. 将 (issuer, subject) 映射为 Stock Data Desk user_id
 3. 检查 users.status
 4. 检查 access grant / entitlement 是否 active 且未过期
 5. 检查 active entitlement，并加载统一 `full_v1` access policy
@@ -659,7 +659,7 @@ OAuth 登录只证明用户身份，不自动授予 Stock QA 使用权。VPS MCP
 - 只接受 IdP 返回的 `email_verified = true`；
 - 仅做 Unicode/空格清理和统一小写，不要对所有邮箱擅自删除 `+tag` 或 Gmail 点号；
 - 白名单可以按精确 Email、批准域名、一次性邀请码三种模式创建；首版优先精确 Email；
-- 首次命中后，把白名单记录 claim 到 Anchises `user_id`，以后授权以 `user_id` 为准；
+- 首次命中后，把白名单记录 claim 到 Stock Data Desk `user_id`，以后授权以 `user_id` 为准；
 - Email 变化、身份关联和重新绑定必须走显式验证，不能只靠字符串相同自动合并账户；
 - 白名单数据库存 HMAC 规范化 Email 用于匹配；如后台需要显示原邮箱，另行加密存储并限制管理员访问。
 
@@ -748,7 +748,7 @@ Hosted MCP 不再依赖本地 CSV 路径，也不返回大体积 base64 CSV。�
 
 | 工具 | 用途 | Scope | 注解原则 |
 |---|---|---|---|
-| `get_connection_status` | 返回 Anchises 用户连接、scope、批准状态和统一用量摘要 | OAuth | 只读 |
+| `get_connection_status` | 返回 Stock Data Desk 用户连接、scope、批准状态和统一用量摘要 | OAuth | 只读 |
 | `get_available_exchanges` | 可用交易所 | `stock.read` | 只读 |
 | `get_latest_dates` | 最新数据日期 | `stock.read` | 只读 |
 | `get_stock_schema` | 指标与字段说明 | `schema.read` | 只读 |
@@ -830,7 +830,7 @@ ChatGPT/Codex 会先通过 MCP `tools/list` 发现工具，再根据 Skill 和�
 | 数据 | 存储位置 | 说明 |
 |---|---|---|
 | 密码、密码哈希、Google 身份、验证邮件、密码重置 | Auth0 Cloud Tenant | Auth0 负责认证；VPS 不接触密码 |
-| Anchises 用户映射、白名单、entitlement、用量、审计、导出索引 | VPS 本地 SQLite `authz.db` | Anchises 负责授权与运营控制 |
+| Stock Data Desk 用户映射、白名单、entitlement、用量、审计、导出索引 | VPS 本地 SQLite `authz.db` | Stock Data Desk 负责授权与运营控制 |
 | 股票行情、历史指标和业务查询数据 | 现有 Stock Data API/股票数据库 | 不迁移进 `authz.db` |
 
 SQLite 文件固定放在 VPS 本地持久化磁盘，例如：
@@ -938,7 +938,7 @@ data_scopes
 - status
 
 oauth_connections
-- id                       # Anchises connection_id
+- id                       # Stock Data Desk connection_id
 - user_id
 - oauth_client_id          # Auth0 token 的 client_id/azp，不是 secret
 - granted_scopes_json
@@ -1052,7 +1052,7 @@ auth0_management_token
 ```text
 BEGIN IMMEDIATE
   -> 按 (issuer, subject) 查找或创建 identity
-  -> 创建 Anchises users.id（如尚不存在）
+  -> 创建 Stock Data Desk users.id（如尚不存在）
   -> 若 email_verified != true：保持 pending，不执行 allowlist claim
   -> 计算 email_hmac 并查找未过期、未撤销的 allowlist
   -> 以条件 UPDATE 原子增加 claim_count，保证不超过 max_claims
@@ -1067,7 +1067,7 @@ COMMIT
 
 ### 10.4 用量、限流、并发和幂等
 
-首版不尝试按 ChatGPT 模型 Token 计费，只统计 Anchises 可观测资源：
+首版不尝试按 ChatGPT 模型 Token 计费，只统计 Stock Data Desk 可观测资源：
 
 - 工具调用和 quota units；
 - 扫描/返回行数区间；
@@ -1164,7 +1164,7 @@ SQLite 是否适用主要取决于写并发和部署拓扑，不取决于“注�
 保留：
 
 ```text
-plugins/anchises-stock-qa/skills/anchises-stock-qa/SKILL.md
+plugins/stock-data-desk/skills/stock-data-desk/SKILL.md
 ```
 
 不新增第二个 Codex Skill。
@@ -1185,8 +1185,8 @@ plugins/anchises-stock-qa/skills/anchises-stock-qa/SKILL.md
 ```text
 1. 首次使用时调用 get_connection_status。
 2. 如果未认证，由 MCP 返回 OAuth challenge。
-3. 引导用户点击“连接 Anchises Stock QA”。
-4. 用户在 Anchises 登录页面使用 Google 或 Email/Password 登录。
+3. 引导用户点击“连接 Stock Data Desk”。
+4. 用户在 Stock Data Desk 登录页面使用 Google 或 Email/Password 登录。
 5. 授权完成后重新调用 get_connection_status。
 6. 根据用户 scope、entitlement 和统一安全限额继续查询。
 ```
@@ -1231,12 +1231,12 @@ reset_custom_prompt
 ### 12.1 目标插件结构
 
 ```text
-plugins/anchises-stock-qa/
+plugins/stock-data-desk/
 ├── .codex-plugin/
 │   └── plugin.json
 ├── .app.json
 ├── skills/
-│   └── anchises-stock-qa/
+│   └── stock-data-desk/
 │       ├── SKILL.md
 │       ├── agents/openai.yaml
 │       └── references/
@@ -1264,9 +1264,8 @@ Hosted App 尚未创建时，不得提前在 `plugin.json` 中添加 `apps`。`.
 ```json
 {
   "apps": {
-    "anchises_stock_qa": {
-      "id": "plugin_asdk_app_REPLACE_WITH_REAL_ID",
-      "required": true
+    "stock_data_desk": {
+      "id": "plugin_asdk_app_6a5754cdf4ac8191a27ec8854675482a"
     }
   }
 }
@@ -1278,14 +1277,14 @@ Hosted App 尚未创建时，不得提前在 `plugin.json` 中添加 `apps`。`.
 
 ```text
 Name:
-Anchises Stock QA
+Stock Data Desk
 
 Short description:
-Screen and analyze stock-market data with Anchises.
+Screen and analyze stock-market data with Stock Data Desk.
 
 Positioning:
 A read-only stock screening, comparison, research, and export service
-available through Work, ChatGPT, and Codex after Anchises account login.
+available through Work, ChatGPT, and Codex after Stock Data Desk account login.
 ```
 
 manifest、`agents/openai.yaml`、README 和提交门户必须使用同一产品定位，不再出现“用户本地 MySQL”或“本地配置 API Token”。
@@ -1295,7 +1294,7 @@ manifest、`agents/openai.yaml`、README 和提交门户必须使用同一产品
 manifest 最多保留三条短 Prompt：
 
 ```text
-Connect my Anchises Stock QA account.
+Connect my Stock Data Desk account.
 Find the strongest momentum stocks in the latest data.
 Compare unusual volume across supported exchanges.
 ```
@@ -1317,7 +1316,7 @@ Compare unusual volume across supported exchanges.
 
 ### 12.5 公共目录分发与服务端白名单
 
-本方案改为正式提交并 Publish 到通用 Plugin Directory。审核发布后，用户可以搜索 `Anchises Stock QA`、查看详情并安装；安装资格不作为产品数据权限边界。
+本方案改为正式提交并 Publish 到通用 Plugin Directory。审核发布后，用户可以搜索 `Stock Data Desk`、查看详情并安装；安装资格不作为产品数据权限边界。
 
 公开安装后的状态：
 
@@ -1332,7 +1331,7 @@ Compare unusual volume across supported exchanges.
 建议公开页面和插件长描述明确写出：
 
 ```text
-Anchises Stock QA is currently in approved-access beta.
+Stock Data Desk is currently in approved-access beta.
 Anyone can install and sign in; production stock-data access requires approval.
 ```
 
@@ -1344,7 +1343,7 @@ Anyone can install and sign in; production stock-data access requires approval.
 后台预先添加 Email / 用户提交 access request
   -> 用户安装插件
   -> OAuth 登录并返回 verified email
-  -> VPS 创建/查找 Anchises user_id
+  -> VPS 创建/查找 Stock Data Desk user_id
   -> 匹配 access_allowlist
   -> 命中则创建 active entitlement
   -> 未命中则保持 pending
@@ -1371,7 +1370,7 @@ Anyone can install and sign in; production stock-data access requires approval.
 
 至少保留 `get_connection_status`、申请入口和 demo/metadata，让未批准用户知道下一步。申请入口建议使用 `https://account.anchisesdata.com/access`，而不是让用户在聊天中提供邮箱或邀请码。
 
-GitHub `Anchises-Tech` marketplace 继续保留为开发和回归测试来源，但普通用户正式安装统一使用 Plugin Directory，避免再次形成公开 Directory、GitHub marketplace 和 personal marketplace 三套用户入口。
+GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源，但普通用户正式安装统一使用 Plugin Directory，避免再次形成公开 Directory、GitHub marketplace 和 personal marketplace 三套用户入口。
 
 ## 13. 分阶段实施计划
 
@@ -1418,11 +1417,11 @@ GitHub `Anchises-Tech` marketplace 继续保留为开发和回归测试来源，
 
 改动文件：
 
-- `plugins/anchises-stock-qa/skills/anchises-stock-qa/SKILL.md`
-- `plugins/anchises-stock-qa/skills/anchises-stock-qa/agents/openai.yaml`
-- `plugins/anchises-stock-qa/.codex-plugin/plugin.json`
-- `plugins/anchises-stock-qa/README.md`
-- `plugins/anchises-stock-qa/assets/*`
+- `plugins/stock-data-desk/skills/stock-data-desk/SKILL.md`
+- `plugins/stock-data-desk/skills/stock-data-desk/agents/openai.yaml`
+- `plugins/stock-data-desk/.codex-plugin/plugin.json`
+- `plugins/stock-data-desk/README.md`
+- `plugins/stock-data-desk/assets/*`
 - `tests/*`
 
 任务：
@@ -1621,12 +1620,12 @@ GitHub `Anchises-Tech` marketplace 继续保留为开发和回归测试来源，
 
 改动文件：
 
-- `plugins/anchises-stock-qa/skills/anchises-stock-qa/SKILL.md`
-- `plugins/anchises-stock-qa/skills/anchises-stock-qa/agents/openai.yaml`
-- `plugins/anchises-stock-qa/.codex-plugin/plugin.json`
-- `plugins/anchises-stock-qa/.app.json`（真实 Hosted App 存在后创建）
-- `plugins/anchises-stock-qa/README.md`
-- `plugins/anchises-stock-qa/assets/*`
+- `plugins/stock-data-desk/skills/stock-data-desk/SKILL.md`
+- `plugins/stock-data-desk/skills/stock-data-desk/agents/openai.yaml`
+- `plugins/stock-data-desk/.codex-plugin/plugin.json`
+- `plugins/stock-data-desk/.app.json`（真实 Hosted App 存在后创建）
+- `plugins/stock-data-desk/README.md`
+- `plugins/stock-data-desk/assets/*`
 
 任务：
 
@@ -1671,13 +1670,13 @@ GitHub `Anchises-Tech` marketplace 继续保留为开发和回归测试来源，
 
 任务：
 
-- [ ] 停止将 `@personal` 作为 Anchises Stock QA 开发来源。
-- [ ] 确认 repo marketplace 名称为 `Anchises-Tech`。
-- [ ] 确认 marketplace source 指向 `./plugins/anchises-stock-qa`。
+- [ ] 停止将 `@personal` 作为 Stock Data Desk 开发来源。
+- [ ] 确认 repo marketplace 名称为 `Stock-Data-Desk`。
+- [ ] 确认 marketplace source 指向 `./plugins/stock-data-desk`。
 - [ ] 通过 CLI 移除错误 personal 安装，不手工改 Codex 缓存。
 - [ ] 仅在 Phase 7 验收后，在 `qa-v2-auth` 中提交插件激活改动；Phase 8 验证通过后再将该分支合并回 `main`。
 - [ ] 运行官方 cachebuster helper 更新插件版本。
-- [ ] 从 `Anchises-Tech` marketplace 重新安装。
+- [ ] 从 `Stock-Data-Desk` marketplace 重新安装。
 - [ ] 在新任务中验证插件加载新 Skill/App。
 - [ ] 删除或移出公开包内的本地 `.mcp.json` 和 bootstrap 依赖。
 - [ ] 从新插件版本删除 `api_token`、setup/reset Token 和本地配置文案。
@@ -1691,7 +1690,7 @@ GitHub `Anchises-Tech` marketplace 继续保留为开发和回归测试来源，
 ```text
 update_plugin_cachebuster.py
 read_marketplace_name.py
-codex plugin add anchises-stock-qa@Anchises-Tech
+codex plugin add stock-data-desk@Stock-Data-Desk
 新任务验证
 ```
 
@@ -1760,7 +1759,7 @@ codex plugin add anchises-stock-qa@Anchises-Tech
 
 ### 15.1 用户体验
 
-- [ ] 正式 Publish 后，所有用户可搜索 `Anchises Stock QA` 或使用公开直达链接安装。
+- [ ] 正式 Publish 后，所有用户可搜索 `Stock Data Desk` 或使用公开直达链接安装。
 - [ ] 首次受保护调用自动触发 OAuth。
 - [ ] Google 登录，以及 Auth0-hosted Email/Password 注册、登录、邮箱验证和密码重置可用。
 - [ ] 普通终端用户不需要 Auth0 开发者账号；只有项目方维护一个 Auth0 Tenant。
@@ -1776,7 +1775,7 @@ codex plugin add anchises-stock-qa@Anchises-Tech
 - [ ] 多个客户端连接由 `connection_id` 区分。
 - [ ] 用户 A 无法访问用户 B 的 Prompt、导出、额度或账户资源。
 - [ ] OAuth Token 校验 issuer、audience、expiry、scope 和签名。
-- [ ] Auth0 `sub` 只作为外部身份，通过 `(issuer, subject)` 映射到内部 `user_id`；Token 不伪装携带 Anchises `user_id`。
+- [ ] Auth0 `sub` 只作为外部身份，通过 `(issuer, subject)` 映射到内部 `user_id`；Token 不伪装携带 Stock Data Desk `user_id`。
 - [ ] SQLite 不保存密码、密码哈希、Access/Refresh Token、Google Token 或 Auth0 Management Token。
 - [ ] 未验证 Email 不能 claim 白名单或获得 active entitlement。
 - [ ] 每次工具调用检查 user status、access grant、`full_v1` policy 和统一安全限额。
@@ -1800,7 +1799,7 @@ codex plugin add anchises-stock-qa@Anchises-Tech
 - [ ] manifest、Skill、README 和目录文案一致。
 - [ ] Plugin validator 通过。
 - [ ] 五正三负审核案例通过。
-- [ ] `@personal`、`@Anchises-Tech` 和 Directory 职责清晰无冲突。
+- [ ] `@personal`、`@Stock-Data-Desk` 和 Directory 职责清晰无冲突。
 
 ## 16. 主要风险与缓解措施
 

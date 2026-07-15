@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP server for Anchises Stock QA read-only exports."""
+"""MCP server for Stock Data Desk read-only exports."""
 
 from __future__ import annotations
 
@@ -43,9 +43,9 @@ from ask_stock import (  # noqa: E402
 
 
 mcp = FastMCP(
-    "anchises-stock-qa",
+    "stock-data-desk",
     instructions=(
-        "Anchises Stock QA exposes read-only Stocks_Tracker tools. "
+        "Stock Data Desk exposes read-only Stocks_Tracker tools. "
         "Configuration is loaded from ~/.config/anchises-stock-qa/config.toml "
         "or ANCHISES_STOCK_QA_CONFIG. Shared users configure remote_api with "
         "an API URL and token; all secrets are treated as private. For setup "
@@ -245,7 +245,7 @@ def run_readonly_sql(
 
 @mcp.tool()
 def list_outputs(limit: int = 20, conversation_id: str = "") -> List[Dict[str, Any]]:
-    """List recent CSV exports produced by Anchises Stock QA."""
+    """List recent CSV exports produced by Stock Data Desk."""
     return run_list_outputs(limit, conversation_id=conversation_id)
 
 

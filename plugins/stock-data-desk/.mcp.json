@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "anchises-stock-qa": {
+    "stock-data-desk": {
       "cwd": ".",
       "command": "python3",
       "args": [

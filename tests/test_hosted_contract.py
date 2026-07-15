@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "anchises-stock-qa"
+PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
 CONTRACTS = PLUGIN_ROOT / "contracts"
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))

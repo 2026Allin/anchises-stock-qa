@@ -2,7 +2,7 @@
   "positive": [
     {
       "id": "positive-oauth-connect",
-      "prompt": "Connect my Anchises Stock QA account.",
+      "prompt": "Connect my Stock Data Desk account.",
       "expected_workflow": [
         "oauth_authorization_code_pkce",
         "get_connection_status"

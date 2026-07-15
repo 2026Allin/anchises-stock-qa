@@ -1,14 +1,14 @@
 {
-  "name": "Anchises-Tech",
+  "name": "Stock-Data-Desk",
   "interface": {
-    "displayName": "Anchises"
+    "displayName": "Stock Data Desk"
   },
   "plugins": [
     {
-      "name": "anchises-stock-qa",
+      "name": "stock-data-desk",
       "source": {
         "source": "local",
-        "path": "./plugins/anchises-stock-qa"
+        "path": "./plugins/stock-data-desk"
       },
       "policy": {
         "installation": "AVAILABLE",

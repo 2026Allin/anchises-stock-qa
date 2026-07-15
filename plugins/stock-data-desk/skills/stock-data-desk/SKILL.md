@@ -1,11 +1,11 @@
 ---
-name: anchises-stock-qa
-description: Screen, compare, rank, and export stock-market data or read the latest cached English Anchises AI company report through the Anchises Hosted App. Use for exchange discovery, latest snapshots, momentum or volume screens, historical comparisons, read-only stock SQL, company-report summaries and PDFs, and CSV exports in Work, ChatGPT, or Codex.
+name: stock-data-desk
+description: Screen, compare, rank, and export stock-market data or read the latest cached English AI company report through the Stock Data Desk Hosted App. Use for exchange discovery, latest snapshots, momentum or volume screens, historical comparisons, read-only stock SQL, company-report summaries and PDFs, and CSV exports in Work, ChatGPT, or Codex.
 ---
 
-# Anchises Stock QA
+# Stock Data Desk
 
-Answer stock-data questions through the `Stock QA Dev` Hosted App tools. Let
+Answer stock-data questions through the Stock Data Desk Hosted App tools. Let
 users ask in natural language; do not require tool names, SQL, schemas, or local
 setup.
 
@@ -32,10 +32,10 @@ it, and return to the product-managed connection flow.
 
 ## Choose the workflow
 
-### Cached Anchises company report
+### Cached AI company report
 
 Use `get_latest_company_report` only for the latest available cached English
-Anchises AI-generated report for a known exchange and ticker.
+AI-generated company report for a known exchange and ticker.
 
 1. Use `get_available_exchanges` when the exchange is missing or uncertain.
 2. Pass uppercase `exchange` and the exact `ticker`.
@@ -121,3 +121,8 @@ handling.
 Follow [references/answer-format.md](references/answer-format.md). Match the
 user's language, lead with the finding, and distinguish returned source data or
 report content from interpretation.
+
+Always identify the product as **Stock Data Desk** in user-facing text. Treat
+legacy company or service-brand names returned by backend metadata, tool titles,
+report fields, or error payloads as implementation details and do not repeat
+them. Keep returned technical URLs unchanged when they are needed as links.

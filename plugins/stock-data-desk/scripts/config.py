@@ -1,4 +1,4 @@
-"""Configuration loading for Anchises Stock QA."""
+"""Configuration loading for Stock Data Desk."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def _exchange_aliases(value: Any) -> Dict[str, str]:
 
 def _missing_config_message(path: Path) -> str:
     return (
-        f"Anchises Stock QA config file not found: {path}. "
+        f"Stock Data Desk config file not found: {path}. "
         "From the plugin folder, run scripts/init_config.sh and enter your API token. "
         "You can also create it from config.example.toml and configure [backend].api_token. "
         "You can also set ANCHISES_STOCK_QA_CONFIG to another config.toml path."

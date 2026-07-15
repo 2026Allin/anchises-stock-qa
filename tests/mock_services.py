@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACTS = ROOT / "plugins" / "anchises-stock-qa" / "contracts"
+CONTRACTS = ROOT / "plugins" / "stock-data-desk" / "contracts"
 FIXTURE_PATH = ROOT / "tests" / "fixtures" / "mock_backend_data.json"
 
 import sys
@@ -38,7 +38,7 @@ def _base64url_sha256(value: str) -> str:
 
 
 class MockServiceHandler(BaseHTTPRequestHandler):
-    server_version = "AnchisesMock/1.0"
+    server_version = "StockDataDeskMock/1.0"
 
     @property
     def base_url(self) -> str:
@@ -253,7 +253,7 @@ class MockServiceHandler(BaseHTTPRequestHandler):
     def _auth_challenge(self, request_id: Any) -> None:
         challenge = (
             f'Bearer resource_metadata="{self.base_url}/mcp/.well-known/oauth-protected-resource", '
-            'error="invalid_token", error_description="Sign in to Anchises Stock QA"'
+            'error="invalid_token", error_description="Sign in to Stock Data Desk"'
         )
         self._json(
             401,
@@ -282,7 +282,7 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                     "result": {
                         "protocolVersion": "2025-11-25",
                         "capabilities": {"tools": {"listChanged": False}},
-                        "serverInfo": {"name": "anchises-stock-qa-mock", "version": "1.0.0"},
+                        "serverInfo": {"name": "stock-data-desk-mock", "version": "1.0.0"},
                     },
                 },
             )
@@ -541,7 +541,7 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         )
 
 
-class MockAnchisesServices(AbstractContextManager["MockAnchisesServices"]):
+class MockStockDataDeskServices(AbstractContextManager["MockStockDataDeskServices"]):
     """Run all external dependencies on one loopback HTTP server."""
 
     def __init__(self, *, access_mode: str = "oauth") -> None:
@@ -557,7 +557,7 @@ class MockAnchisesServices(AbstractContextManager["MockAnchisesServices"]):
         self.httpd.authorization_codes = {}  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
 
-    def __enter__(self) -> "MockAnchisesServices":
+    def __enter__(self) -> "MockStockDataDeskServices":
         self.thread.start()
         return self
 

@@ -13,7 +13,7 @@ PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 VENV_DIR = PLUGIN_ROOT / ".venv"
 REQUIREMENTS = PLUGIN_ROOT / "requirements.txt"
 SERVER = PLUGIN_ROOT / "mcp" / "server.py"
-INSTALL_MARKER = VENV_DIR / ".anchises-stock-qa-requirements-installed"
+INSTALL_MARKER = VENV_DIR / ".stock-data-desk-requirements-installed"
 
 
 def _venv_python() -> Path:
@@ -47,7 +47,7 @@ def _ensure_venv() -> Path:
 def main() -> None:
     python = _ensure_venv()
     if "--prepare-only" in sys.argv[1:]:
-        print(f"Anchises Stock QA Python runtime is ready: {python}")
+        print(f"Stock Data Desk Python runtime is ready: {python}")
         return
     os.execv(str(python), [str(python), str(SERVER)])
 

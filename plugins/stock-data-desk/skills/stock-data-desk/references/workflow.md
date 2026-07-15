@@ -6,7 +6,7 @@ Use the smallest sequence that answers the question:
 
 1. `get_connection_status` for access state.
 2. `get_available_exchanges` for authoritative exchange codes.
-3. `get_latest_company_report` for one latest cached English Anchises AI report.
+3. `get_latest_company_report` for one latest cached English cached AI company report.
 4. `get_latest_dates` for stock-data freshness.
 5. `get_stock_schema` before structured field selection.
 6. `screen_stocks` for ordinary filters and rankings.
