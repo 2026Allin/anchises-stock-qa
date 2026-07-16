@@ -18,9 +18,15 @@ if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
 
 from hosted_contract import (  # noqa: E402
+    PROFILE_ANONYMOUS,
+    PROFILE_AUTHENTICATED,
+    PROFILE_UNAVAILABLE,
     ContractError,
+    ServiceUnavailableModeError,
     descriptor_by_name,
     load_contract,
+    mode_profile,
+    mode_profiles,
     tool_descriptors,
     tool_names,
     validate_contract,
@@ -71,7 +77,21 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.1.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.2.0-draft")
+        runtime = self.contract["runtime"]
+        self.assertEqual(
+            runtime["supported_modes"],
+            ["closed", "anonymous_dev", "oauth"],
+        )
+        self.assertEqual(runtime["snapshot_mode"], "anonymous_dev")
+        self.assertEqual(
+            mode_profiles(self.contract),
+            {
+                "closed": PROFILE_UNAVAILABLE,
+                "anonymous_dev": PROFILE_ANONYMOUS,
+                "oauth": PROFILE_AUTHENTICATED,
+            },
+        )
         source = self.contract["source"]
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "anonymous_dev")
@@ -133,6 +153,10 @@ class HostedContractTest(unittest.TestCase):
                     self.assertIn("description", prop)
 
     def test_future_oauth_security_is_materialized_at_top_level_and_meta(self) -> None:
+        self.assertEqual(
+            mode_profile(self.contract, "oauth"),
+            PROFILE_AUTHENTICATED,
+        )
         oauth = tool_descriptors(self.contract, access_mode="oauth")
         for descriptor in oauth:
             with self.subTest(tool=descriptor["name"]):
@@ -224,7 +248,7 @@ class HostedContractTest(unittest.TestCase):
     def test_unknown_modes_tools_and_placeholder_credentials_are_rejected(self) -> None:
         with self.assertRaises(ContractError):
             descriptor_by_name("not-a-tool", self.contract)
-        with self.assertRaises(ContractError):
+        with self.assertRaises(ServiceUnavailableModeError):
             tool_descriptors(self.contract, access_mode="closed")
         serialized = json.dumps(self.contract).lower()
         for forbidden in (
@@ -239,8 +263,14 @@ class HostedContractTest(unittest.TestCase):
     def test_invalid_contract_modes_scopes_and_error_metadata_are_rejected(self) -> None:
         invalid_mode = copy.deepcopy(self.contract)
         invalid_mode["source"]["access_mode"] = "public"
-        with self.assertRaisesRegex(ContractError, "access mode"):
+        invalid_mode["runtime"]["snapshot_mode"] = "public"
+        with self.assertRaisesRegex(ContractError, "supported mode"):
             validate_contract(invalid_mode)
+
+        invalid_profile = copy.deepcopy(self.contract)
+        invalid_profile["runtime"]["profiles"]["anonymous_dev"] = "other"
+        with self.assertRaisesRegex(ContractError, "unsupported profile"):
+            validate_contract(invalid_profile)
 
         invalid_scope = copy.deepcopy(self.contract)
         invalid_scope["oauth"]["tool_scopes"]["screen_stocks"] = ["admin.write"]
@@ -251,6 +281,26 @@ class HostedContractTest(unittest.TestCase):
         invalid_error["errors"]["rate_limited"]["retryable"] = "yes"
         with self.assertRaisesRegex(ContractError, "retryable"):
             validate_contract(invalid_error)
+
+    def test_future_anonymous_mode_name_is_one_mapping_change(self) -> None:
+        renamed = copy.deepcopy(self.contract)
+        renamed["runtime"]["supported_modes"].append("public_noauth")
+        renamed["runtime"]["profiles"]["public_noauth"] = PROFILE_ANONYMOUS
+        renamed["runtime"]["snapshot_mode"] = "public_noauth"
+        renamed["source"]["access_mode"] = "public_noauth"
+        validate_contract(renamed)
+        self.assertEqual(
+            mode_profile(renamed, "public_noauth"),
+            PROFILE_ANONYMOUS,
+        )
+        self.assertTrue(
+            all(
+                descriptor["securitySchemes"] == [{"type": "noauth"}]
+                for descriptor in tool_descriptors(
+                    renamed, access_mode="public_noauth"
+                )
+            )
+        )
 
     def test_invalid_tool_metadata_and_explicit_empty_contract_are_rejected(self) -> None:
         mismatched_title = copy.deepcopy(self.contract)

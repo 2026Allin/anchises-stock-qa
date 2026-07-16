@@ -37,13 +37,23 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual([path.name for path in skill_dirs], ["stock-data-desk"])
         text = SKILL.read_text(encoding="utf-8")
         self.assertIn("name: stock-data-desk", text)
-        self.assertIn("anonymous_dev", text)
         self.assertIn("OAuth", text)
+        self.assertIn("shared", text)
+        self.assertIn("HTTP 503", text)
         self.assertIn("Work", text)
         self.assertIn("ChatGPT", text)
         self.assertIn("Codex", text)
         for tool in EXPECTED_TOOLS:
             self.assertIn(f"`{tool}`", text)
+
+    def test_skill_uses_observable_access_behavior_not_backend_mode_names(self) -> None:
+        paths = [SKILL, *sorted((SKILL_ROOT / "references").glob("*.md"))]
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+        for internal_mode in ("anonymous_dev", "anonymous_dev_v1", "usr_anonymous_dev"):
+            self.assertNotIn(internal_mode, combined)
+        self.assertIn("OAuth challenge", combined)
+        self.assertIn("shared limits", combined)
+        self.assertIn("HTTP 503", combined)
 
     def test_primary_skill_has_no_secret_or_local_runtime_setup(self) -> None:
         text = SKILL.read_text(encoding="utf-8").lower()

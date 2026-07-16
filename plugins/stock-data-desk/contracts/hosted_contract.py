@@ -10,7 +10,15 @@ from typing import Any, Dict, List
 
 
 CONTRACT_PATH = Path(__file__).with_name("hosted-mcp-v1.json")
-SUPPORTED_ACCESS_MODES = {"anonymous_dev", "oauth"}
+PROFILE_UNAVAILABLE = "unavailable"
+PROFILE_ANONYMOUS = "anonymous"
+PROFILE_AUTHENTICATED = "authenticated"
+SUPPORTED_MODE_PROFILES = {
+    PROFILE_UNAVAILABLE,
+    PROFILE_ANONYMOUS,
+    PROFILE_AUTHENTICATED,
+}
+DISCOVERABLE_MODE_PROFILES = {PROFILE_ANONYMOUS, PROFILE_AUTHENTICATED}
 REQUIRED_TOOL_KEYS = {
     "name",
     "title",
@@ -31,6 +39,10 @@ ANNOTATION_HINTS = (
 
 class ContractError(ValueError):
     """Raised when the checked-in Hosted MCP contract is inconsistent."""
+
+
+class ServiceUnavailableModeError(ContractError):
+    """Raised when a runtime mode intentionally exposes no MCP tools."""
 
 
 def _descriptor_sha256(tools: List[Dict[str, Any]]) -> str:
@@ -74,16 +86,49 @@ def _string_list(value: Any, label: str, *, allow_empty: bool = True) -> List[st
     return value
 
 
+def mode_profiles(contract: Dict[str, Any]) -> Dict[str, str]:
+    """Return backend mode names mapped to stable plugin behavior profiles."""
+
+    runtime = _object(contract.get("runtime"), "runtime")
+    profiles = _object(runtime.get("profiles"), "runtime.profiles")
+    return {
+        _nonempty_string(mode, "runtime.profiles mode"): _nonempty_string(
+            profile, f"runtime.profiles.{mode}"
+        )
+        for mode, profile in profiles.items()
+    }
+
+
+def mode_profile(contract: Dict[str, Any], access_mode: str) -> str:
+    """Resolve a mutable backend mode name to a stable behavior profile."""
+
+    mode = _nonempty_string(access_mode, "access mode")
+    profiles = mode_profiles(contract)
+    try:
+        return profiles[mode]
+    except KeyError as exc:
+        raise ContractError(f"unsupported access mode: {mode}") from exc
+
+
 def validate_contract(contract: Dict[str, Any]) -> None:
     """Validate invariants that the individual JSON Schemas do not express."""
 
     contract = _object(contract, "contract")
-    required = {"contract_version", "source", "production", "oauth", "errors", "tools"}
+    required = {
+        "contract_version",
+        "runtime",
+        "source",
+        "production",
+        "oauth",
+        "errors",
+        "tools",
+    }
     missing = required - set(contract)
     if missing:
         raise ContractError(f"contract is missing keys: {sorted(missing)}")
 
     _nonempty_string(contract["contract_version"], "contract_version")
+    runtime = _object(contract["runtime"], "runtime")
     source = _object(contract["source"], "source")
     _object(contract["production"], "production")
     oauth = _object(contract["oauth"], "oauth")
@@ -98,9 +143,37 @@ def validate_contract(contract: Dict[str, Any]) -> None:
         "descriptor_sha256",
     ):
         _nonempty_string(source.get(key), f"source.{key}")
+    supported_modes = _string_list(
+        runtime.get("supported_modes"),
+        "runtime.supported_modes",
+        allow_empty=False,
+    )
+    snapshot_mode = _nonempty_string(
+        runtime.get("snapshot_mode"), "runtime.snapshot_mode"
+    )
+    profiles = mode_profiles(contract)
+    if set(profiles) != set(supported_modes):
+        raise ContractError(
+            "runtime.profiles must cover runtime.supported_modes exactly"
+        )
+    for mode, profile in profiles.items():
+        if profile not in SUPPORTED_MODE_PROFILES:
+            raise ContractError(
+                f"runtime.profiles.{mode} has unsupported profile: {profile}"
+            )
+    if snapshot_mode not in profiles:
+        raise ContractError("runtime.snapshot_mode must be a supported mode")
+
     access_mode = source["access_mode"]
-    if access_mode not in SUPPORTED_ACCESS_MODES:
-        raise ContractError(f"unsupported source access mode: {access_mode}")
+    if access_mode != snapshot_mode:
+        raise ContractError(
+            "source.access_mode must match runtime.snapshot_mode"
+        )
+    source_profile = mode_profile(contract, access_mode)
+    if source_profile not in DISCOVERABLE_MODE_PROFILES:
+        raise ContractError(
+            "the checked-in descriptor snapshot must use a discoverable mode"
+        )
 
     tools = contract["tools"]
     if not isinstance(tools, list) or not tools:
@@ -172,7 +245,9 @@ def validate_contract(contract: Dict[str, Any]) -> None:
             )
 
     for tool in tools:
-        expected_schemes = _security_schemes(contract, tool["name"], access_mode)
+        expected_schemes = _security_schemes(
+            contract, tool["name"], source_profile
+        )
         if tool["securitySchemes"] != expected_schemes:
             raise ContractError(
                 f"{tool['name']} securitySchemes do not match source access mode "
@@ -188,17 +263,21 @@ def validate_contract(contract: Dict[str, Any]) -> None:
             raise ContractError(f"errors.{code}.retryable must be a boolean")
 
 
-def _security_schemes(contract: Dict[str, Any], tool_name: str, access_mode: str) -> list:
-    if access_mode == "anonymous_dev":
+def _security_schemes(contract: Dict[str, Any], tool_name: str, profile: str) -> list:
+    if profile == PROFILE_ANONYMOUS:
         return [{"type": "noauth"}]
-    if access_mode == "oauth":
+    if profile == PROFILE_AUTHENTICATED:
         return [
             {
                 "type": "oauth2",
                 "scopes": copy.deepcopy(contract["oauth"]["tool_scopes"][tool_name]),
             }
         ]
-    raise ContractError(f"unsupported access mode: {access_mode}")
+    if profile == PROFILE_UNAVAILABLE:
+        raise ServiceUnavailableModeError(
+            "the selected runtime mode does not expose MCP tools"
+        )
+    raise ContractError(f"unsupported mode profile: {profile}")
 
 
 def tool_descriptors(
@@ -214,11 +293,14 @@ def tool_descriptors(
         validate_contract(contract)
         source = contract
     mode = access_mode or source["source"]["access_mode"]
-    if mode not in SUPPORTED_ACCESS_MODES:
-        raise ContractError(f"unsupported access mode: {mode}")
+    profile = mode_profile(source, mode)
+    if profile not in DISCOVERABLE_MODE_PROFILES:
+        raise ServiceUnavailableModeError(
+            f"runtime mode {mode!r} does not expose MCP tools"
+        )
     descriptors = copy.deepcopy(source["tools"])
     for descriptor in descriptors:
-        schemes = _security_schemes(source, descriptor["name"], mode)
+        schemes = _security_schemes(source, descriptor["name"], profile)
         descriptor["securitySchemes"] = schemes
         descriptor["_meta"]["securitySchemes"] = copy.deepcopy(schemes)
     return descriptors

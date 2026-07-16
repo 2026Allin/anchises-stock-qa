@@ -13,11 +13,12 @@ CONTRACTS = ROOT / "plugins" / "stock-data-desk" / "contracts"
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
 
-from hosted_contract import load_contract  # noqa: E402
+from hosted_contract import load_contract, tool_descriptors  # noqa: E402
 from sync_hosted_contract import (  # noqa: E402
     MAX_RESPONSE_BYTES,
     _jsonrpc_messages,
     _read_limited,
+    _security_profile,
     _validated_endpoint,
     contracts_match,
     write_contract,
@@ -85,6 +86,30 @@ class ContractSyncTest(unittest.TestCase):
         self.assertTrue(contracts_match(self.contract, refreshed))
         refreshed["source"]["server_version"] = "9.9.9"
         self.assertFalse(contracts_match(self.contract, refreshed))
+
+    def test_security_profile_is_inferred_from_live_descriptors(self) -> None:
+        self.assertEqual(
+            _security_profile(tool_descriptors(self.contract)),
+            "anonymous",
+        )
+        self.assertEqual(
+            _security_profile(
+                tool_descriptors(self.contract, access_mode="oauth")
+            ),
+            "authenticated",
+        )
+
+        mixed = tool_descriptors(self.contract)
+        mixed[0] = tool_descriptors(
+            self.contract, access_mode="oauth"
+        )[0]
+        with self.assertRaisesRegex(RuntimeError, "one consistent"):
+            _security_profile(mixed)
+
+        mismatched_meta = tool_descriptors(self.contract)
+        mismatched_meta[0]["_meta"]["securitySchemes"] = []
+        with self.assertRaisesRegex(RuntimeError, "do not match"):
+            _security_profile(mismatched_meta)
 
     def test_contract_write_is_valid_atomic_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

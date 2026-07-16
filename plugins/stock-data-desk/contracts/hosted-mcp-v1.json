@@ -1,6 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "contract_version": "1.1.0-draft",
+  "contract_version": "1.2.0-draft",
+  "runtime": {
+    "supported_modes": [
+      "closed",
+      "anonymous_dev",
+      "oauth"
+    ],
+    "snapshot_mode": "anonymous_dev",
+    "profiles": {
+      "closed": "unavailable",
+      "anonymous_dev": "anonymous",
+      "oauth": "authenticated"
+    }
+  },
   "source": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
     "access_mode": "anonymous_dev",

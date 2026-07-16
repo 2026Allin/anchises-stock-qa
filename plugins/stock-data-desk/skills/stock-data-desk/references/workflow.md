@@ -71,12 +71,22 @@ usage, search events, internal IDs, private addresses, or local paths.
 a `query_id` returned by the current user's screen or SQL call. Its HTTPS URL is
 a short-lived bearer capability: do not share it or call it a permanent archive.
 
-## Access modes
+## Access behavior
 
-The current private Developer Mode App uses `anonymous_dev`: no login is
-required and all callers share global limits. The future `oauth` mode will use
-the product-managed authorization flow and per-user entitlements. Never emulate
-OAuth in chat or ask for credentials.
+Do not branch on an internal backend mode name. Infer only behavior exposed by
+the product:
+
+- If `get_connection_status` succeeds as `active` without an OAuth challenge
+  and reports shared limits, continue without sign-in and treat quota as global.
+- If the product presents an OAuth challenge, use the product-managed
+  authorization flow and check status again only after authorization changes.
+- If the MCP endpoint is unavailable or returns HTTP 503, stop and report a
+  temporary service outage. Do not retry in a loop or start OAuth.
+- A backend access-mode transition can invalidate opaque cursors, query IDs,
+  and exports. Rerun the original request for fresh state instead of probing an
+  expired capability.
+
+Never emulate OAuth in chat or ask for credentials.
 
 ## Stable business errors
 
@@ -89,6 +99,7 @@ OAuth in chat or ask for credentials.
 | `rate_limited` | Retry only after the returned delay. |
 | `concurrency_limited` | Wait for an existing query to finish. |
 | `query_rejected` | Narrow or safely rewrite the query. |
-| `resource_not_found` | Stop; do not test whether another user's resource exists. |
+| `resource_not_found` | Stop; do not probe or edit an opaque capability. Rerun the original request if needed. |
 | `result_too_large` | Narrow, paginate, or offer an allowed export. |
 | `temporarily_unavailable` | Suggest retrying later. |
+| `service_not_activated` or HTTP 503 | Stop without retrying or starting OAuth. |

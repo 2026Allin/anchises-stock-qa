@@ -19,7 +19,7 @@ class MarketplaceManifestTest(unittest.TestCase):
         self.assertEqual(plugin["source"]["source"], "local")
         self.assertEqual(plugin["source"]["path"], "./plugins/stock-data-desk")
         self.assertEqual(plugin["policy"]["installation"], "AVAILABLE")
-        self.assertEqual(plugin["policy"]["authentication"], "ON_INSTALL")
+        self.assertEqual(plugin["policy"]["authentication"], "ON_USE")
 
         plugin_root = ROOT / plugin["source"]["path"]
         self.assertTrue((plugin_root / ".codex-plugin" / "plugin.json").exists())

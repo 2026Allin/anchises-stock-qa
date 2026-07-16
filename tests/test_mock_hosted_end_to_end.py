@@ -29,6 +29,10 @@ from mock_services import (  # noqa: E402
     PENDING_TOKEN,
     MockStockDataDeskServices,
 )
+from sync_hosted_contract import (  # noqa: E402
+    MCPServiceClosedError,
+    fetch_contract,
+)
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -407,6 +411,96 @@ class MockHostedEndToEndTest(unittest.TestCase):
             self.assertEqual(len(listed["result"]["tools"]), 11)
             for descriptor in listed["result"]["tools"]:
                 self.assertEqual(descriptor["securitySchemes"], [{"type": "noauth"}])
+
+            calls = [
+                ("get_available_exchanges", {}),
+                ("get_latest_dates", {"exchanges": ["NASDAQ", "ASX"]}),
+                ("get_stock_schema", {"exchange": "NASDAQ"}),
+                (
+                    "list_stock_tables",
+                    {
+                        "exchanges": ["NASDAQ"],
+                        "start_date": "2026-06-01",
+                        "end_date": "2026-07-10",
+                    },
+                ),
+                (
+                    "get_table_schema",
+                    {"tables": ["daily_20260710_nasdaq"]},
+                ),
+                ("screen_stocks", {"filters": []}),
+                ("validate_readonly_sql", {"sql": "SELECT 1"}),
+                (
+                    "run_readonly_sql",
+                    {
+                        "sql": (
+                            "SELECT ticker, price_close "
+                            "FROM daily_20260710_nasdaq LIMIT 2"
+                        )
+                    },
+                ),
+                (
+                    "get_latest_company_report",
+                    {"exchange": "ASX", "ticker": "BGL"},
+                ),
+                ("create_csv_export", {"query_id": "qry_screen_0001"}),
+            ]
+            for request_id, (tool_name, arguments) in enumerate(calls, start=22):
+                with self.subTest(tool=tool_name):
+                    status, body, headers = _request(
+                        f"{services.base_url}/mcp",
+                        method="POST",
+                        payload={
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "method": "tools/call",
+                            "params": {
+                                "name": tool_name,
+                                "arguments": arguments,
+                            },
+                        },
+                    )
+                    self.assertEqual(status, 200)
+                    self.assertNotIn("WWW-Authenticate", headers)
+                    self.assertFalse(body["result"]["isError"])
+                    Draft202012Validator(
+                        descriptor_by_name(tool_name, self.contract)["outputSchema"],
+                        format_checker=FormatChecker(),
+                    ).validate(body["result"]["structuredContent"])
+
+    def test_closed_mode_returns_503_and_exposes_no_oauth_metadata(self) -> None:
+        with MockStockDataDeskServices(access_mode="closed") as services:
+            with self.assertRaises(MCPServiceClosedError):
+                fetch_contract(
+                    f"{services.base_url}/mcp",
+                    base_contract=self.contract,
+                    expected_mode="closed",
+                )
+
+            status, body, _ = _request(
+                f"{services.base_url}/mcp",
+                method="POST",
+                payload={
+                    "jsonrpc": "2.0",
+                    "id": 30,
+                    "method": "initialize",
+                    "params": {},
+                },
+            )
+            self.assertEqual(status, 503)
+            self.assertEqual(body["error"], "service_unavailable")
+
+            status, body, _ = _request(
+                f"{services.base_url}/mcp/.well-known/oauth-protected-resource"
+            )
+            self.assertEqual(status, 404)
+            self.assertEqual(body["error"], "not_found")
+
+            status, body, _ = _request(
+                f"{services.base_url}/downloads/exp_mock.csv?sig=mock"
+            )
+            self.assertEqual(status, 404)
+            self.assertEqual(body["error"], "not_found")
 
     def test_auth0_rejects_an_invalid_pkce_verifier(self) -> None:
         verifier = "correct-verifier-with-sufficient-entropy-0123456789"

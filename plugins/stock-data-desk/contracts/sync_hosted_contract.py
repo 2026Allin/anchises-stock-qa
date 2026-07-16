@@ -21,7 +21,15 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from hosted_contract import ContractError, load_contract, validate_contract
+from hosted_contract import (
+    PROFILE_ANONYMOUS,
+    PROFILE_AUTHENTICATED,
+    PROFILE_UNAVAILABLE,
+    ContractError,
+    load_contract,
+    mode_profile,
+    validate_contract,
+)
 
 
 DEFAULT_ENDPOINT = "https://mcp.anchisesdata.com/mcp"
@@ -42,24 +50,23 @@ EXPECTED_TOOLS = [
     "get_latest_company_report",
     "create_csv_export",
 ]
-OAUTH_SCOPES = {
-    "get_connection_status": [],
-    "get_available_exchanges": ["stock.read"],
-    "get_latest_dates": ["stock.read"],
-    "get_stock_schema": ["schema.read"],
-    "list_stock_tables": ["schema.read"],
-    "get_table_schema": ["schema.read"],
-    "screen_stocks": ["stock.read"],
-    "validate_readonly_sql": ["stock.read"],
-    "run_readonly_sql": ["stock.read"],
-    "get_latest_company_report": ["stock.read"],
-    "create_csv_export": ["export.create"],
-}
-
-
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
         return None
+
+
+class MCPHTTPError(RuntimeError):
+    """HTTP failure carrying a status code for access-mode detection."""
+
+    def __init__(self, status: int, details: str = "") -> None:
+        self.status = status
+        self.details = details
+        suffix = f": {details}" if details else ""
+        super().__init__(f"MCP HTTP {status}{suffix}")
+
+
+class MCPServiceClosedError(RuntimeError):
+    """The MCP endpoint is intentionally unavailable in its closed mode."""
 
 
 def _validated_endpoint(endpoint: str) -> str:
@@ -177,8 +184,7 @@ class MCPHttpClient:
                 details = exc.read(1024).decode("utf-8", errors="replace").strip()
             finally:
                 exc.close()
-            suffix = f": {details}" if details else ""
-            raise RuntimeError(f"MCP HTTP {exc.code}{suffix}") from exc
+            raise MCPHTTPError(exc.code, details) from exc
         except URLError as exc:
             raise RuntimeError(f"MCP connection failed: {exc.reason}") from exc
         except TimeoutError as exc:
@@ -218,91 +224,102 @@ def _descriptor_sha256(tools: list[dict[str, Any]]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def fetch_contract(endpoint: str) -> dict[str, Any]:
+def _security_profile(tools: list[dict[str, Any]]) -> str:
+    """Classify one live tools/list response without depending on mode names."""
+
+    profiles: set[str] = set()
+    for tool in tools:
+        name = tool.get("name", "<unknown>")
+        schemes = tool.get("securitySchemes")
+        meta = tool.get("_meta")
+        meta_schemes = meta.get("securitySchemes") if isinstance(meta, dict) else None
+        if schemes != meta_schemes:
+            raise RuntimeError(
+                f"{name} top-level and _meta security schemes do not match"
+            )
+        if schemes == [{"type": "noauth"}]:
+            profiles.add(PROFILE_ANONYMOUS)
+            continue
+        if (
+            isinstance(schemes, list)
+            and len(schemes) == 1
+            and isinstance(schemes[0], dict)
+            and schemes[0].get("type") == "oauth2"
+            and isinstance(schemes[0].get("scopes"), list)
+        ):
+            profiles.add(PROFILE_AUTHENTICATED)
+            continue
+        raise RuntimeError(f"{name} publishes an unsupported security scheme")
+    if len(profiles) != 1:
+        raise RuntimeError(
+            "Hosted MCP tools must publish one consistent security profile"
+        )
+    return profiles.pop()
+
+
+def fetch_contract(
+    endpoint: str,
+    *,
+    base_contract: dict[str, Any] | None = None,
+    expected_mode: str | None = None,
+) -> dict[str, Any]:
+    """Fetch the live descriptor set using a checked-in contract as metadata."""
+
+    base = copy.deepcopy(base_contract if base_contract is not None else load_contract())
+    validate_contract(base)
+    mode = expected_mode or base["runtime"]["snapshot_mode"]
+    expected_profile = mode_profile(base, mode)
     client = MCPHttpClient(endpoint)
-    initialization = client.call(
-        "initialize",
-        {
-            "protocolVersion": MCP_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {"name": "stock-data-desk-contract-sync", "version": "1.1.0"},
-        },
-        1,
-    )
-    client.notify("notifications/initialized", {})
-    listed = client.call("tools/list", {}, 2)
+    try:
+        initialization = client.call(
+            "initialize",
+            {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "stock-data-desk-contract-sync",
+                    "version": "1.2.0",
+                },
+            },
+            1,
+        )
+        client.notify("notifications/initialized", {})
+        listed = client.call("tools/list", {}, 2)
+    except MCPHTTPError as exc:
+        if exc.status == 503:
+            raise MCPServiceClosedError("Hosted MCP is in closed mode") from exc
+        raise
     tools = listed.get("tools")
     if not isinstance(tools, list):
         raise RuntimeError("MCP tools/list result must contain a tools list")
     names = [tool["name"] for tool in tools]
     if names != EXPECTED_TOOLS:
         raise RuntimeError(f"unexpected Hosted MCP tools: {names}")
+    actual_profile = _security_profile(tools)
+    if expected_profile == PROFILE_UNAVAILABLE:
+        raise RuntimeError(
+            f"expected mode {mode!r} to be closed, but the endpoint exposes tools"
+        )
+    if actual_profile != expected_profile:
+        raise RuntimeError(
+            f"Hosted MCP security profile mismatch: mode={mode!r} "
+            f"expected={expected_profile} actual={actual_profile}"
+        )
 
-    contract = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "contract_version": "1.1.0-draft",
-        "source": {
+    contract = base
+    contract["runtime"]["snapshot_mode"] = mode
+    contract["source"].update(
+        {
             "mcp_endpoint": endpoint,
-            "access_mode": "anonymous_dev",
+            "access_mode": mode,
             "protocol_version": initialization["protocolVersion"],
             "server_name": initialization["serverInfo"]["name"],
             "server_version": initialization["serverInfo"]["version"],
             "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "descriptor_sha256": _descriptor_sha256(tools),
-        },
-        "production": {
-            "mcp_endpoint": DEFAULT_ENDPOINT,
-            "resource": "https://mcp.anchisesdata.com",
-            "protected_resource_metadata": (
-                "https://mcp.anchisesdata.com/.well-known/oauth-protected-resource"
-            ),
-            "issuer": "https://auth.anchisesdata.com/",
-            "openid_configuration": (
-                "https://auth.anchisesdata.com/.well-known/openid-configuration"
-            ),
-            "authorization_endpoint": "https://auth.anchisesdata.com/authorize",
-            "token_endpoint": "https://auth.anchisesdata.com/oauth/token",
-            "revocation_endpoint": "https://auth.anchisesdata.com/oauth/revoke",
-            "jwks_uri": "https://auth.anchisesdata.com/.well-known/jwks.json",
-            "product_page": "https://anchisesdata.com/stock-qa",
-            "access_page": "https://account.anchisesdata.com/access",
-        },
-        "oauth": {
-            "status": "future",
-            "flow": "authorization_code",
-            "pkce_methods_supported": ["S256"],
-            "resource_parameter_required": True,
-            "client_registration_preference": ["cimd", "predefined"],
-            "scopes_supported": [
-                "openid",
-                "email",
-                "profile",
-                "stock.read",
-                "schema.read",
-                "export.create",
-            ],
-            "tool_scopes": OAUTH_SCOPES,
-            "access_token": {
-                "signature_algorithm": "RS256",
-                "required_claims": ["iss", "aud", "sub", "exp", "iat"],
-                "identity_key": ["iss", "sub"],
-                "audience": "https://mcp.anchisesdata.com",
-            },
-        },
-        "errors": {
-            "invalid_scope": {"retryable": False},
-            "access_pending": {"retryable": False},
-            "access_denied": {"retryable": False},
-            "usage_limit_exceeded": {"retryable": False},
-            "rate_limited": {"retryable": True},
-            "concurrency_limited": {"retryable": True},
-            "query_rejected": {"retryable": False},
-            "resource_not_found": {"retryable": False},
-            "result_too_large": {"retryable": False},
-            "temporarily_unavailable": {"retryable": True},
-        },
-        "tools": tools,
-    }
+        }
+    )
+    contract["tools"] = tools
     validate_contract(contract)
     return contract
 
@@ -358,6 +375,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
+        "--expect-mode",
+        help=(
+            "Expected backend runtime mode. Defaults to runtime.snapshot_mode "
+            "from the checked-in contract."
+        ),
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Compare live descriptors with the checked-in snapshot without writing files.",
@@ -368,22 +392,33 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     try:
-        live = fetch_contract(args.endpoint)
+        base_path = args.output if args.output.exists() else DEFAULT_OUTPUT
+        base = load_contract(base_path)
+        expected_mode = args.expect_mode or base["runtime"]["snapshot_mode"]
+        expected_profile = mode_profile(base, expected_mode)
+        live = fetch_contract(
+            args.endpoint,
+            base_contract=base,
+            expected_mode=expected_mode,
+        )
+    except MCPServiceClosedError as exc:
+        if "expected_profile" in locals() and expected_profile == PROFILE_UNAVAILABLE:
+            print(f"Hosted MCP mode matches: {expected_mode} (closed)")
+            return
+        raise SystemExit(
+            f"Hosted MCP is closed; expected mode was {expected_mode!r}"
+        ) from exc
     except (ContractError, RuntimeError) as exc:
         raise SystemExit(str(exc)) from exc
     if args.check:
-        try:
-            checked_in = load_contract(args.output)
-        except ContractError as exc:
-            raise SystemExit(str(exc)) from exc
-        if not contracts_match(checked_in, live):
+        if not contracts_match(base, live):
             raise SystemExit(
                 "Hosted MCP contract changed: "
-                f"checked-in={checked_in['source']['descriptor_sha256']} "
+                f"checked-in={base['source']['descriptor_sha256']} "
                 f"live={live['source']['descriptor_sha256']}"
             )
         print(
-            "Hosted MCP contract matches: "
+            f"Hosted MCP contract matches ({expected_mode}): "
             f"{live['source']['descriptor_sha256']}"
         )
         return

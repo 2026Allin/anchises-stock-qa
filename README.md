@@ -5,11 +5,12 @@
 This repository contains the `Stock-Data-Desk` development marketplace and the
 `Stock Data Desk` plugin package.
 
-The `qa-v2-auth` branch is preparing the plugin for a Hosted MCP service with
-Auth0 OAuth 2.1 authentication. The target product provides read-only stock
-screening, comparison, historical research, and temporary CSV exports in Work,
-ChatGPT, and Codex. Approved users connect through hosted sign-in; the normal
-workflow does not require a local database or credentials in chat.
+The `qa-v2-auth` branch connects the plugin to the Hosted MCP service and keeps
+the plugin behavior independent from the backend's runtime mode name. The
+current live snapshot uses credential-free `anonymous_dev`; the backend also
+supports fail-closed and future OAuth operation. The product provides stock
+screening, comparison, historical research, reports, and temporary CSV exports
+in Work, ChatGPT, and Codex without a local database or credentials in chat.
 
 ## Repository layout
 
@@ -38,8 +39,10 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-The test suite starts loopback-only mock Auth0, Hosted MCP, and Stock Data API
-endpoints. It never calls production services.
+The default test suite starts loopback-only mock Auth0, Hosted MCP, and Stock
+Data API endpoints for `closed`, `anonymous_dev`, and `oauth`. It never calls
+production services. An explicit, credential-free live contract check is
+available with `RUN_LIVE_MCP_TESTS=1`.
 
 ## Development marketplace
 
@@ -51,11 +54,13 @@ codex plugin marketplace add https://github.com/2026Allin/anchises-stock-qa
 codex plugin add stock-data-desk@Stock-Data-Desk
 ```
 
-The future public installation source is the universal Plugin Directory. Do not
-publish the current `anonymous_dev` build until production OAuth, allowlist
-enforcement, and user-isolation validation are complete.
+The future public installation source is the universal Plugin Directory. Freeze
+the intended public access profile and re-scan the real MCP descriptors before
+submission; changing `noauth` to OAuth after publication requires a reviewed
+plugin update.
 
 ## Design plan
 
 See [`docs/hosted-mcp-oauth-migration-plan.md`](docs/hosted-mcp-oauth-migration-plan.md)
-for the Auth0, SQLite, allowlist, rollout, review-account, and rollback design.
+for historical architecture and rollout context. The checked-in contract and
+the real MCP `tools/list` response are authoritative for plugin behavior.

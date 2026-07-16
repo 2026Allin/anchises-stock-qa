@@ -23,7 +23,14 @@ import sys
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
 
-from hosted_contract import load_contract, tool_descriptors  # noqa: E402
+from hosted_contract import (  # noqa: E402
+    PROFILE_AUTHENTICATED,
+    PROFILE_UNAVAILABLE,
+    ContractError,
+    load_contract,
+    mode_profile,
+    tool_descriptors,
+)
 
 
 ACTIVE_TOKEN = "mock-access-token-active"
@@ -51,6 +58,13 @@ class MockServiceHandler(BaseHTTPRequestHandler):
     @property
     def access_mode(self) -> str:
         return self.server.access_mode  # type: ignore[attr-defined]
+
+    @property
+    def access_profile(self) -> str:
+        return mode_profile(
+            self.server.contract,  # type: ignore[attr-defined]
+            self.access_mode,
+        )
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -131,6 +145,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/mcp/.well-known/oauth-protected-resource":
+            if self.access_profile != PROFILE_AUTHENTICATED:
+                self._json(404, {"error": "not_found"})
+                return
             self._json(200, self._protected_resource())
             return
         if path in {
@@ -192,6 +209,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "data": {"exchanges": self.fixture["exchanges"]}})
             return
         if path == "/downloads/exp_mock.csv":
+            if self.access_profile == PROFILE_UNAVAILABLE:
+                self._json(404, {"error": "not_found"})
+                return
             self._text(
                 200,
                 "ticker,exchange,price_close\nMOCK,NASDAQ,12.5\nFIXT,ASX,3.2\n",
@@ -199,6 +219,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             )
             return
         if path == "/downloads/report.pdf":
+            if self.access_profile == PROFILE_UNAVAILABLE:
+                self._json(404, {"error": "not_found"})
+                return
             self._text(200, "%PDF-1.7\n% mock report\n", "application/pdf")
             return
         self._json(404, {"error": "not_found"})
@@ -272,6 +295,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
     def _handle_mcp(self) -> None:
         request = self._read_json()
         request_id = request.get("id")
+        if self.access_profile == PROFILE_UNAVAILABLE:
+            self._json(503, {"error": "service_unavailable"})
+            return
         method = request.get("method")
         if method == "initialize":
             self._json(
@@ -365,7 +391,10 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 return {
                     "request_id": "req_status_001",
                     "status": "active",
-                    "message": "Anonymous development access is active.",
+                    "message": (
+                        "Anonymous development access is active. "
+                        "All callers share one global quota."
+                    ),
                     "access_request_url": None,
                     "access_policy": "anonymous_dev_v1",
                     "data_scope": "full_market_data",
@@ -545,14 +574,17 @@ class MockStockDataDeskServices(AbstractContextManager["MockStockDataDeskService
     """Run all external dependencies on one loopback HTTP server."""
 
     def __init__(self, *, access_mode: str = "oauth") -> None:
-        if access_mode not in {"anonymous_dev", "oauth"}:
-            raise ValueError(f"unsupported mock access mode: {access_mode}")
+        contract = load_contract()
+        try:
+            mode_profile(contract, access_mode)
+        except ContractError as exc:
+            raise ValueError(f"unsupported mock access mode: {access_mode}") from exc
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), MockServiceHandler)
         host, port = self.httpd.server_address
         self.base_url = f"http://{host}:{port}"
         self.httpd.base_url = self.base_url  # type: ignore[attr-defined]
         self.httpd.fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))  # type: ignore[attr-defined]
-        self.httpd.contract = load_contract()  # type: ignore[attr-defined]
+        self.httpd.contract = contract  # type: ignore[attr-defined]
         self.httpd.access_mode = access_mode  # type: ignore[attr-defined]
         self.httpd.authorization_codes = {}  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)

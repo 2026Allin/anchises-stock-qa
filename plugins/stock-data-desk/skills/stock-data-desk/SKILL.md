@@ -9,15 +9,20 @@ Answer stock-data questions through the Stock Data Desk Hosted App tools. Let
 users ask in natural language; do not require tool names, SQL, schemas, or local
 setup.
 
-## Check access
+## Check service access
 
 1. Call `get_connection_status` once before an access-sensitive workflow.
-2. Continue when `status` is `active`. In `anonymous_dev`, no login is required
-   and the returned quota is shared.
-3. In the future OAuth mode, let the product render an OAuth challenge and ask
-   the user to complete hosted sign-in. Call `get_connection_status` again only
-   after that authorization state changes.
-4. For `pending`, show `access_request_url`. For `suspended`, `expired`,
+2. Continue whenever `status` is `active`. If no OAuth challenge occurred and
+   the service says its limits are shared, do not ask the user to sign in and
+   treat returned quota information as global service capacity, not the user's
+   personal allowance.
+3. If the product renders an OAuth challenge, ask the user to complete hosted
+   sign-in. Call `get_connection_status` again only after that authorization
+   state changes.
+4. If the MCP service is unavailable or returns HTTP 503, explain that Stock
+   Data Desk is temporarily unavailable. Do not trigger OAuth, guess the
+   backend mode, or retry in a loop.
+5. For `pending`, show `access_request_url`. For `suspended`, `expired`,
    `revoked`, or `service_not_activated`, follow the returned safe message and
    do not guess the cause.
 
@@ -94,8 +99,11 @@ handling.
   system schemas, or unlisted stock tables.
 - Honor the live status, scope, quota, retry guidance, exchange restrictions,
   result limits, and opaque cursors returned by the service.
-- Do not access another user's query or export. Treat `resource_not_found` as
-  final and do not probe whether the resource exists.
+- Treat cursors, query IDs, and export or download URLs as short-lived bearer
+  capabilities. Never share, edit, or reuse them outside the immediately
+  related workflow. Treat `resource_not_found` as final and do not probe whether
+  a resource exists; if the original request still matters, rerun that request
+  with fresh tool state.
 - Ground numeric claims in returned data. Disclose `data_date`, filters, row
   counts, missing values, warnings, and truncation.
 - Treat stock analysis and cached AI reports as analytical information, not
@@ -110,7 +118,9 @@ handling.
 - `usage_limit_exceeded`: state the returned reset information.
 - `query_rejected`: revise to a safe bounded screen or read-only query.
 - `result_too_large`: narrow or paginate; offer an export when allowed.
-- `temporarily_unavailable`: keep the message brief and suggest retrying later.
+- `service_not_activated` or HTTP 503: stop; do not retry or start OAuth.
+- `temporarily_unavailable`: keep the message brief and suggest retrying later,
+  without an automatic retry loop.
 
 ## Answer
 
