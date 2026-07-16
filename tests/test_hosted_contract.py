@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +22,8 @@ from hosted_contract import (  # noqa: E402
     descriptor_by_name,
     load_contract,
     tool_descriptors,
+    tool_names,
+    validate_contract,
 )
 
 
@@ -50,6 +55,13 @@ def _property_schemas(schema: dict) -> list[dict]:
         for child in schema.get(key, []):
             found.extend(_property_schemas(child))
     return found
+
+
+def _rehash(contract: dict) -> None:
+    canonical = json.dumps(
+        contract["tools"], sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    contract["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
 
 
 class HostedContractTest(unittest.TestCase):
@@ -223,6 +235,48 @@ class HostedContractTest(unittest.TestCase):
             "password123",
         ):
             self.assertNotIn(forbidden, serialized)
+
+    def test_invalid_contract_modes_scopes_and_error_metadata_are_rejected(self) -> None:
+        invalid_mode = copy.deepcopy(self.contract)
+        invalid_mode["source"]["access_mode"] = "public"
+        with self.assertRaisesRegex(ContractError, "access mode"):
+            validate_contract(invalid_mode)
+
+        invalid_scope = copy.deepcopy(self.contract)
+        invalid_scope["oauth"]["tool_scopes"]["screen_stocks"] = ["admin.write"]
+        with self.assertRaisesRegex(ContractError, "unsupported scopes"):
+            validate_contract(invalid_scope)
+
+        invalid_error = copy.deepcopy(self.contract)
+        invalid_error["errors"]["rate_limited"]["retryable"] = "yes"
+        with self.assertRaisesRegex(ContractError, "retryable"):
+            validate_contract(invalid_error)
+
+    def test_invalid_tool_metadata_and_explicit_empty_contract_are_rejected(self) -> None:
+        mismatched_title = copy.deepcopy(self.contract)
+        mismatched_title["tools"][0]["annotations"]["title"] = "Different title"
+        _rehash(mismatched_title)
+        with self.assertRaisesRegex(ContractError, "annotation title"):
+            validate_contract(mismatched_title)
+
+        contradictory = copy.deepcopy(self.contract)
+        contradictory["tools"][0]["annotations"]["destructiveHint"] = True
+        _rehash(contradictory)
+        with self.assertRaisesRegex(ContractError, "read-only and destructive"):
+            validate_contract(contradictory)
+
+        with self.assertRaises(ContractError):
+            tool_descriptors({})
+        with self.assertRaises(ContractError):
+            tool_names({})
+
+    def test_load_contract_wraps_invalid_json_with_path_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "broken.json"
+            path.write_text("{", encoding="utf-8")
+            with self.assertRaisesRegex(ContractError, "not valid JSON") as ctx:
+                load_contract(path)
+        self.assertIn("broken.json", str(ctx.exception))
 
 
 if __name__ == "__main__":

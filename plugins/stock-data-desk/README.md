@@ -14,11 +14,13 @@ The `qa-v2-auth` branch contains the private Phase 7A Developer Mode activation:
 - Current access mode: `anonymous_dev`
 - Future OAuth issuer: `https://auth.anchisesdata.com/`
 
-The plugin manifest loads the Hosted App through `.app.json`. It intentionally
-also keeps `.mcp.json`, `mcpServers`, bootstrap code, and the legacy Token flow
-as a rollback path until Auth0 and multi-user OAuth pass their separate rollout
-gates. This branch must not be merged to the public `main` branch or published
-to the Plugin Directory during Phase 7A.
+The plugin package is now Hosted App-only: `.app.json` connects the App and the
+single bundled Skill supplies workflow guidance. The package contains no local
+stdio MCP, Python bootstrap, API Token setup, or local database runtime.
+
+Phase 7A still uses the private Developer Mode App and `anonymous_dev` access.
+Do not publish this version to the Plugin Directory until Auth0, allowlist
+enforcement, and multi-user isolation pass the production rollout gates.
 
 ## Hosted contract
 
@@ -34,7 +36,7 @@ The snapshot records its normalized descriptor SHA-256. Refresh or compare it
 without changing the backend:
 
 ```bash
-plugins/stock-data-desk/.venv/bin/python \
+.venv/bin/python \
   plugins/stock-data-desk/contracts/sync_hosted_contract.py --check
 ```
 
@@ -61,10 +63,12 @@ generation. `active`, `expired`, and `not_found` are successful business states.
 The offline suite mocks both the current `anonymous_dev` mode and the future
 OAuth authorization-code + PKCE mode. It covers all 11 descriptors, strict input
 schemas, paging, reports, CSV exports, security metadata, Skill routing, golden
-prompts, and the legacy rollback boundary.
+prompts, and the Hosted App-only package boundary.
 
 ```bash
-plugins/stock-data-desk/.venv/bin/python -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Plugin and Skill validation use the bundled Codex helpers. Developer Mode

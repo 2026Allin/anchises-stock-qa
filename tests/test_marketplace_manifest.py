@@ -23,7 +23,8 @@ class MarketplaceManifestTest(unittest.TestCase):
 
         plugin_root = ROOT / plugin["source"]["path"]
         self.assertTrue((plugin_root / ".codex-plugin" / "plugin.json").exists())
-        self.assertTrue((plugin_root / ".mcp.json").exists())
+        self.assertTrue((plugin_root / ".app.json").exists())
+        self.assertFalse((plugin_root / ".mcp.json").exists())
         self.assertTrue((plugin_root / "skills" / "stock-data-desk").is_dir())
 
 

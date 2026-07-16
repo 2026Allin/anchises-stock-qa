@@ -1,9 +1,9 @@
 # Stock Data Desk Hosted MCP 与 OAuth 完整改造方案
 
-- 状态：提案（Auth0 与 SQLite 首版决策已冻结）
-- 日期：2026-07-14
+- 状态：实施中（Hosted App-only 插件边界已冻结）
+- 日期：2026-07-15
 - 目标版本：首个可公开分发的 Plugin Directory 版本
-- 实施状态：`qa-v2-auth` 已完成 Phase 0–1 的插件侧代码、契约和全离线 mock 测试；真实 Auth0 Tenant、VPS Hosted MCP、`.app.json` 与公开发布尚未激活
+- 实施状态：`qa-v2-auth` 已完成插件侧契约、全离线 mock 测试和 Phase 7A Developer Mode App 激活；本地 stdio MCP 与 API Token 客户端已从该分支移除。真实 Auth0 Tenant、OAuth 白名单和公开发布尚未激活
 
 ## 1. 执行摘要
 
@@ -22,18 +22,18 @@
 
 公开首版不包含自定义 Apps SDK UI 和 Sites 发布功能。它们不是完成“搜索、安装、登录、使用”闭环的必要条件，可以在 Hosted MCP 和 OAuth 稳定后单独迭代。
 
-实施顺序调整为“插件代码准备优先、VPS 后端独立实现、最后激活 Hosted App”。当前仓库只维护插件包、接口契约和发布材料，不创建或维护后端源码。插件代码可以先在功能分支中重构和验证，但在正式 MCP 可连接之前，不得合并或发布会让新安装用户失去现有可用链路的激活变更。后端由项目方在 VPS 上另建独立目录或仓库，并从第一天起使用最终生产域名；不建设 staging 子域名。
+实施顺序调整为“插件代码准备优先、VPS 后端独立实现、最后公开发布”。当前仓库只维护 Hosted App-only 插件包、接口契约和发布材料，不创建或维护后端源码。Phase 7A 已通过真实 `.app.json` 连接 Developer Mode App，因此该功能分支不再携带本地 stdio MCP。后端由项目方在 VPS 上另建独立目录或仓库，并从第一天起使用最终生产域名；不建设 staging 子域名。
 
 ### 1.1 开发分支与发布边界
 
-插件端改造统一在长期功能分支 `qa-v2-auth` 中完成，该分支从当前稳定的 `main` 创建，同时承载准备改造、联调、兼容迁移和最终 Hosted App 激活，不再为最终切换另建 activation 分支。
+插件端改造统一在长期功能分支 `qa-v2-auth` 中完成，该分支从当前稳定的 `main` 创建，同时承载准备改造、联调、正式 OAuth 验收和最终公开发布，不再为最终切换另建 activation 分支。
 
-- `main` 在正式切换前继续代表当前可安装、可回滚的稳定版本；
-- `qa-v2-auth` 可以持续提交插件准备代码，但准备阶段必须保留 `.mcp.json`、`mcpServers` 和 legacy Token 链路；
-- 准备提交和激活提交仍须保持独立，以便按提交或版本回退；
-- 只有 Phase 7 的生产域名、Auth0、白名单、SQLite 授权和端到端验收全部通过后，才能在 `qa-v2-auth` 中提交最终激活改动；
+- `main` 在正式切换前继续代表当前已发布的稳定版本；已安装版本不会因功能分支删除源码而被远程修改；
+- `qa-v2-auth` 只保留 Hosted App、单一 Skill、Hosted contract 和发布材料，不再维护 `.mcp.json`、`mcpServers`、Python bootstrap 或 API Token 客户端；
+- 准备提交和公开发布提交仍须保持独立，以便按提交或版本回退；
+- 只有 Phase 7 的生产域名、Auth0、白名单、SQLite 授权和端到端验收全部通过后，才能在 `qa-v2-auth` 中提交公开发布改动；
 - Phase 8 验证通过后，以 `qa-v2-auth` 向 `main` 发起最终合并，随后再更新 GitHub marketplace 或提交 Plugin Directory；
-- 不把尚未可用的 Hosted MCP manifest 发布给当前用户，也不在功能分支开发期间提前删除 legacy 服务端兼容能力。
+- 当前 `anonymous_dev` Developer Mode 构建不发布给普通用户；回滚依赖 Git 提交、已发布插件版本和后端 revision，而不是在同一插件包中并存两个运行时。
 
 ## 2. 已确定的架构决策
 
@@ -57,60 +57,52 @@
 16. 实施顺序先准备插件代码，再由项目方在 VPS 的独立目录或仓库实现后端；本插件仓库不包含后端源码。
 17. 集成测试直接使用最终生产域名 `mcp.anchisesdata.com` 和 `auth.anchisesdata.com`，不使用 staging 子域名。
 18. 未公开阶段通过 OAuth beta allowlist、测试账户、功能开关和部署 revision 控制访问，不通过临时域名隔离。
-19. 插件改造统一在 `qa-v2-auth` 分支完成，并分成“准备提交”和“激活提交”：准备提交可以先完成，激活提交必须等后端生产域名可用；最终从该分支合并回 `main`。
+19. 插件改造统一在 `qa-v2-auth` 分支完成，并分成“Developer Mode 准备提交”和“公开发布提交”：前者可以先完成，后者必须等正式 OAuth 与授权验收通过；最终从该分支合并回 `main`。
 20. 正式版本 Publish 到通用 Plugin Directory，允许所有用户搜索和安装。
 21. 真实股票数据权限由 VPS `access_allowlist + entitlement` 控制，不由插件可见性或 OAuth 登录成功与否决定。
 22. Email/Password 使用 Auth0-hosted Database Connection；Auth0 保存密码哈希并负责注册、验证和重置，VPS 与 SQLite 永不接收或保存密码、密码哈希。
 23. 首版授权控制面数据库固定为 VPS 本机 SQLite，不引入 MySQL/PostgreSQL 依赖；股票业务数据继续留在现有 Stock Data API/数据库。
 24. 首版不强制部署 Redis；限流、幂等、并发租约和持久用量先使用进程内控制加 SQLite 原子事务实现。
 25. SQLite 只允许同一台 VPS 上的服务进程访问；数据库文件不得放在 NFS、网络卷、对象存储挂载或容器临时层。
-26. 首个 Hosted MCP 版本暂不提供服务端自定义 Prompt 工具；插件只保留内置 Skill 指令。现有本地 Prompt 工具随 legacy stdio MCP 暂留作回归与回滚，不进入 v1 Hosted MCP contract。
+26. 首个 Hosted MCP 版本不提供服务端自定义 Prompt 工具；插件只保留内置 Skill 指令，本地 Prompt 工具与 stdio MCP 一并移除。
 
 ## 3. 当前状态与需要解决的问题
 
 ### 3.1 当前调用链
 
-当前插件 manifest 通过 `mcpServers` 加载本地 `.mcp.json`：
+当前功能分支的 manifest 只通过 `apps` 加载 `.app.json`：
 
 ```text
-Codex
-  -> python3 ./mcp/bootstrap.py
-  -> https://anchisesdata.com/anchises-stock-qa
+Work / ChatGPT / Codex
+  -> Stock Data Desk Hosted App
+  -> https://mcp.anchisesdata.com/mcp
   -> Stock Data API
 ```
 
 相关文件：
 
 - `plugins/stock-data-desk/.codex-plugin/plugin.json`
-- `plugins/stock-data-desk/.mcp.json`
-- `plugins/stock-data-desk/config.example.toml`
-- `plugins/stock-data-desk/scripts/remote_api.py`
-- `plugins/stock-data-desk/scripts/ask_stock.py`
+- `plugins/stock-data-desk/.app.json`
+- `plugins/stock-data-desk/skills/stock-data-desk/SKILL.md`
+- `plugins/stock-data-desk/contracts/hosted-mcp-v1.json`
 
-默认远程 API 地址为：
+当前 Phase 7A App 使用 `anonymous_dev` 访问模式；正式版改为 Auth0 OAuth。普通用户不配置 API Token，Hosted MCP 在后端以内部身份调用 Stock Data API。
 
-```text
-https://anchisesdata.com/anchises-stock-qa
-```
+修改本仓库中的插件代码不会自动覆盖用户已经安装的缓存版本，但会影响后续从 GitHub marketplace 新安装或主动更新的用户。因此，Hosted App-only 改动保留在 `qa-v2-auth`，等正式 OAuth 和授权验收通过后再合并和发布。
 
-当前客户端使用用户配置的 Bearer API Token 调用 `/v1/*` 接口。
+### 3.2 发布层状态
 
-修改本仓库中的插件代码不会自动覆盖用户已经安装的缓存版本，但会影响后续从 GitHub marketplace 新安装或主动更新的用户。因此，插件可以先修改，但应在功能分支或未发布版本中完成；在正式 Hosted MCP 可用前，不应把移除本地 MCP、移除旧认证或启用 `.app.json` 的激活提交发布给新用户。
-
-### 3.2 当前发布层冲突
-
-需要同时消除以下三类冲突：
+三类发布问题的当前状态：
 
 1. **安装来源冲突**：本机曾出现 `stock-data-desk@personal` 指向 marketplace 仓库根目录，而真正插件包位于嵌套的 `plugins/stock-data-desk`。正式开发源应统一为 `stock-data-desk@Stock-Data-Desk`，公开源应统一为 Plugin Directory。
-2. **产品文案冲突**：manifest 和 `agents/openai.yaml` 仍描述“本地 MySQL、本地 CSV、本地配置”，而实际代码已主要调用远程 API。
-3. **公开发布材料缺失**：缺少完整 website、support、privacy、terms、开发者身份、暗色 Logo、截图、审核账号、工具 annotations 和审核测试用例。
+2. **产品文案冲突（已解决）**：manifest、单一 Skill 和 `agents/openai.yaml` 已统一为 Hosted App 工作流。
+3. **公开发布材料（部分完成）**：website、privacy、terms、图标和审核 fixture 已进入插件包；开发者验证、截图、真实审核账号和正式 OAuth 验收仍待完成。
 
-### 3.3 当前能力约束
+### 3.3 剩余能力约束
 
-- Skill 强制要求本地配置、CSV、pandas 和绝对文件路径，无法自然适配 Work Web。
-- 自定义 Prompt 当前存储在本地用户文件中，无法跨设备和多用户同步。
-- 远程 API 可能返回较大的 CSV 内容，不适合 Hosted MCP 的结构化响应模式。
-- 用户 API Token 配置增加泄漏、轮换、支持和跨设备使用成本。
+- `anonymous_dev` 仍是共享开发访问，尚不能区分或批准真实用户。
+- Auth0 OAuth、SQLite entitlement、白名单和逐用户用量控制仍需由 VPS 后端实现。
+- 大结果必须继续分页，CSV 必须由后端返回短期下载能力，不能回退到本地文件路径。
 
 ## 4. 目标用户体验
 
@@ -1390,30 +1382,30 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - [ ] 确认 VPS 后端的独立目录或仓库、部署用户、运行时和备份方式；它不进入当前插件仓库。
 - [ ] 冻结 SQLite 路径 `/var/lib/anchises-stock-qa/authz.db`、持久化 volume、文件权限、WAL 配置、备份位置和恢复流程。
 - [x] 创建并切换到插件改造分支 `qa-v2-auth`，不立即替换当前 `main` 上的可用安装链路。
-- [x] 将插件改造拆成“准备提交”和“激活提交”。
+- [x] 将插件改造拆成“Developer Mode 准备提交”和“公开发布提交”。
 - [x] 确认首版不包含服务端自定义 Prompt；v1 scopes 不申请 `prompts.*`。
 - [ ] 确认首版 scopes、`pending/active/suspended` 状态和所有 active 用户统一安全限额。
 - [x] 确认公开目录文案明确披露 approved-access beta，contract 固定申请入口 `https://account.anchisesdata.com/access`。
 - [ ] 确认白名单只匹配 verified Email，授权命中后绑定内部 `user_id`。
 - [x] 确认新注册用户默认为 `pending`，只有 active access grant 才能使用股票工具；mock 端到端测试覆盖该边界。
-- [x] 记录当前 44 个测试为回归基线，并在 Phase 1 上扩展 Hosted MCP/Auth0 mock 测试。
-- [x] 保存当前公开 API 行为作为 legacy 回归基线，同时冻结 `contracts/hosted-mcp-v1.json` v1 contract。
-- [ ] 记录当前 API Token 用户和 `/v1/*` 活跃情况，作为旧链路下线依据。
+- [x] 建立 Hosted MCP/Auth0 loopback mock 回归套件。
+- [x] 冻结 `contracts/hosted-mcp-v1.json` v1 contract，并以真实 `tools/list` 快照校验。
+- [x] 决定 `qa-v2-auth` 不保留旧 stdio/API Token 客户端，也不以旧链路活跃度作为新包清理前置条件。
 
 出口条件：
 
 - 架构决策无未决项；
 - 正式域名已确定；
-- 插件准备提交与激活提交的边界已明确；
+- Developer Mode 准备提交与公开发布提交的边界已明确；
 - VPS 后端目录、部署方式和插件/后端责任边界已明确。
 
 回滚点：无代码变更。
 
-### Phase 1：插件代码准备（优先实施）
+### Phase 1：插件代码准备与本地运行时清理（已完成）
 
-目标：先完成单一 Skill、manifest 文案、工具 contract 和测试结构改造，但暂不切断现有本地 MCP 链路。
+目标：完成单一 Skill、manifest 文案、工具 contract 和测试结构改造，并让功能分支只包含 Hosted App 运行边界。
 
-实施结果（2026-07-14）：插件侧 Phase 1 已在 `qa-v2-auth` 完成。测试使用 loopback-only HTTP mock 代替 Auth0、Hosted MCP 和内部 Stock Data API；这不表示真实生产端点已经部署或通过验收。
+实施结果（2026-07-15）：插件侧 Phase 1 已在 `qa-v2-auth` 完成。测试使用 loopback-only HTTP mock 代替 Auth0、Hosted MCP 和内部 Stock Data API；真实 `.app.json` 仅连接当前 Developer Mode App，这不表示正式 OAuth 已通过验收。
 
 改动文件：
 
@@ -1434,19 +1426,19 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - [x] 更新产品定位、Starter Prompts 和 `agents/openai.yaml`。
 - [x] 补齐 homepage、repository、website、privacy、terms 等 manifest 目标字段。
 - [x] 为 Hosted MCP contract 编写 mock/fixture 测试，不依赖真实后端。
-- [x] 保留当前 `.mcp.json` 和 `mcpServers` 作为临时可运行链路。
-- [x] 不创建虚假的 `.app.json`；后端 App 存在后再创建。
+- [x] 从 manifest 和插件包移除 `.mcp.json`、`mcpServers`、bootstrap、旧 prompts、API Token 配置和本地 Python 数据运行时。
+- [x] 创建只含真实 Developer Mode App ID 的 `.app.json`，不在插件包中保存 OAuth secret 或 Token。
 - [x] 不执行公开安装源切换，不让准备提交成为新用户的不可用版本。
 
 验证：
 
 - [x] Plugin validator 与 Skill validator 通过；
-- [x] 当前 44 个基线测试继续通过，并新增完整 Hosted MCP/Auth0 mock 测试；
+- [x] Hosted contract、manifest、单一 Skill 和 Auth0/Hosted MCP mock 测试通过；
 - [x] Skill 扫描不要求用户粘贴 secrets；
-- [x] Hosted MCP mock contract 覆盖 10 个 v1 工具、Auth0 discovery/PKCE、OAuth challenge、active/pending 授权、导出和内部 API 身份边界；
-- [x] `main` 未修改，当前已安装用户和公开 legacy 链路不受功能分支影响。
+- [x] Hosted MCP mock contract 覆盖 11 个工具、Auth0 discovery/PKCE、OAuth challenge、active/pending 授权、导出和内部 API 身份边界；
+- [x] `main` 未修改；已安装用户的本地缓存不会被功能分支代码删除动作远程修改。
 
-出口条件：插件侧目标 contract 已冻结，可以交给 VPS 后端实现；公开 runtime 尚未切换。
+出口条件：插件侧目标 contract 已冻结，功能分支为 Hosted App-only，可以交给 VPS 后端实现；公开目录版本尚未切换。
 
 ### Phase 2：VPS 后端与正式域名基础设施
 
@@ -1479,7 +1471,7 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - `/health` 和错误页面不泄露 secrets、内部地址或堆栈；
 - 后端 revision 可以回滚，不需要更换 MCP hostname。
 
-出口条件：`mcp.anchisesdata.com` 和 `auth.anchisesdata.com` 已可用于受控集成，后端骨架可持续部署，公开插件仍使用旧链路。
+出口条件：`mcp.anchisesdata.com` 和 `auth.anchisesdata.com` 已可用于受控集成，后端骨架可持续部署，Hosted App-only 功能分支仍未公开发布。
 
 ### Phase 3：用户系统与 OAuth 2.1
 
@@ -1523,7 +1515,7 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 
 ### Phase 4：Stock Data API 多用户授权
 
-目标：让 Data API 接受 MCP 的内部用户身份，而不是用户 API Token；旧 Token 链路在迁移窗口内继续服务现有用户。
+目标：让 Data API 只接受 MCP 的内部用户身份，而不是用户 API Token。
 
 任务：
 
@@ -1538,7 +1530,7 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - [ ] 增加分页和临时导出存储。
 - [ ] 实现 `data_scope_id` 路由和 `review_fixture` 只读数据作用域，禁止跨用户账户资源。
 - [ ] 将现有 `/v1/*` contract 整理到 `docs/contracts/stock-data-api.md`。
-- [ ] 将旧 API Token 端点标记为 legacy，不在新插件中暴露，但暂不下线。
+- [ ] 关闭面向插件用户的旧 API Token 入口；如其他系统仍依赖 `/v1/*`，必须改为独立内部凭证并另行管理。
 
 验证：
 
@@ -1547,13 +1539,13 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - 过期 Delegation JWT 被拒绝；
 - 同一 request ID 不重复扣额；
 - SQL 写入、DDL、系统表和资源消耗攻击被拒绝；
-- legacy Token 用户在迁移窗口内仍能使用原 contract。
+- 公开插件能力不依赖任何用户级长期 API Token。
 
-出口条件：Data API 无需新用户提供长期 API Token 即可完成所有公开插件能力，同时旧用户链路尚未被破坏。
+出口条件：Data API 无需用户提供长期 API Token 即可完成所有公开插件能力，且旧插件 Token 入口已退出支持范围。
 
 ### Phase 5：Hosted MCP 工具迁移
 
-目标：按照 Phase 1 冻结的工具 contract，在独立后端中将本地 stdio MCP 工具迁移到 Streamable HTTP MCP。
+目标：按照 Phase 1 冻结的工具 contract，在独立后端中实现 Streamable HTTP MCP。
 
 任务：
 
@@ -1579,7 +1571,7 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - 不返回本地路径、Token、内部 ID 或原始异常；
 - 结构化筛选与现有 SQL 结果一致。
 
-出口条件：Hosted MCP 在正式域名的受控灰度中达到本地 MCP 功能等价，或已记录合理差异。
+出口条件：Hosted MCP 在正式域名的受控灰度中完整实现冻结 contract，或已记录合理差异。
 
 ### Phase 6：用量、限流、审计与可观测性
 
@@ -1614,9 +1606,9 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 
 出口条件：可以回答“哪个用户、何时、调用哪个工具、是否成功、消耗多少额度”，且不收集不必要的投资查询内容。
 
-### Phase 7：插件激活与正式域名集成测试
+### Phase 7：Hosted App 激活与正式域名集成测试
 
-目标：后端达到出口条件后，用一个小而明确的激活提交将插件切到 Hosted App，并在正式域名的受控灰度中完成跨端验证。
+目标：先用 Developer Mode App 验证 Hosted App-only 插件边界；后端达到出口条件后，再以一个小而明确的公开发布提交完成正式 OAuth 和跨端验证。
 
 改动文件：
 
@@ -1629,13 +1621,14 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 
 任务：
 
-- [ ] 创建并验证指向真实 Hosted App 的 `.app.json`。
-- [ ] 仅在 `.app.json` 有效后，在 manifest 中添加 `apps`。
-- [ ] 将 Phase 1 已准备的 OAuth Setup、单一 Skill 和 Starter Prompts 正式启用。
-- [ ] 从公开 manifest 移除本地 `mcpServers` 引用。
-- [ ] 从公开插件包移除 `.mcp.json`、bootstrap 和 API Token 配置入口。
-- [ ] 运行官方 cachebuster helper，并通过 CLI 重装开发版本。
-- [ ] 使用 Developer Mode 接入 `https://mcp.anchisesdata.com/mcp`。
+- [x] 创建并验证指向真实 Developer Mode App 的 `.app.json`。
+- [x] 在 `.app.json` 有效后，在 manifest 中添加 `apps`。
+- [x] 启用单一 Skill 和 Starter Prompts。
+- [x] 从 manifest 移除本地 `mcpServers` 引用。
+- [x] 从插件包移除 `.mcp.json`、bootstrap、旧 prompts、API Token 配置和本地 Python 运行时。
+- [x] 运行官方 cachebuster helper，并通过 CLI 重装开发版本。
+- [ ] 在新任务中验证重新加载后的 Skill/App 真实调用。
+- [x] 使用 Developer Mode 接入 `https://mcp.anchisesdata.com/mcp`。
 - [ ] 至少准备两个普通用户和一个审核 fixture 用户。
 - [ ] 测试 Google、Email/Password、撤销和重新授权。
 - [ ] 测试 Work Web、ChatGPT Web/移动端和 Codex。
@@ -1650,7 +1643,7 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - [ ] 测试用户 A/B 隔离。
 - [ ] 测试 SQL 注入、DDL/DML、系统 schema 和慢查询。
 - [ ] 检查所有工具响应和日志中的 PII/secrets。
-- [ ] 执行现有 44 个测试和新增服务端测试。
+- [ ] 执行当前 Hosted App-only 插件测试和新增服务端测试。
 
 验证：
 
@@ -1660,13 +1653,13 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - Codex 可选下载 CSV，但不是基础流程必需项；
 - 新用户首次调用可以触发 OAuth；
 - 新插件版本完整使用 Hosted App；
-- 尚未升级的旧用户仍可通过 legacy 链路工作。
+- 插件包中不存在本地 stdio 或用户 API Token 入口。
 
-出口条件：激活版本在正式域名受控灰度中通过所有关键路径，零已知跨用户数据泄漏，零 Token 泄漏，并已验证旧用户兼容性。
+出口条件：激活版本在正式域名受控灰度中通过所有关键路径，零已知跨用户数据泄漏，零 Token 泄漏；无需维持新包内的旧运行时兼容性。
 
-### Phase 8：兼容迁移、安装源清理与公开切换
+### Phase 8：安装源清理与公开切换
 
-目标：在保留现有用户迁移窗口的前提下发布激活版本，清理三层发布冲突，并统一后续开发源。
+目标：发布 Hosted App-only 版本，清理三层发布冲突，并统一后续开发源。
 
 任务：
 
@@ -1674,16 +1667,14 @@ GitHub `Stock-Data-Desk` marketplace 继续保留为开发和回归测试来源�
 - [ ] 确认 repo marketplace 名称为 `Stock-Data-Desk`。
 - [ ] 确认 marketplace source 指向 `./plugins/stock-data-desk`。
 - [ ] 通过 CLI 移除错误 personal 安装，不手工改 Codex 缓存。
-- [ ] 仅在 Phase 7 验收后，在 `qa-v2-auth` 中提交插件激活改动；Phase 8 验证通过后再将该分支合并回 `main`。
+- [ ] 仅在 Phase 7 验收后，在 `qa-v2-auth` 中提交公开发布改动；Phase 8 验证通过后再将该分支合并回 `main`。
 - [ ] 运行官方 cachebuster helper 更新插件版本。
 - [ ] 从 `Stock-Data-Desk` marketplace 重新安装。
 - [ ] 在新任务中验证插件加载新 Skill/App。
-- [ ] 删除或移出公开包内的本地 `.mcp.json` 和 bootstrap 依赖。
-- [ ] 从新插件版本删除 `api_token`、setup/reset Token 和本地配置文案。
-- [ ] 保持旧 `/v1/*` Token contract 和 `https://anchisesdata.com/anchises-stock-qa` 在迁移窗口内可用。
-- [ ] 分别监控 Hosted OAuth 新链路和 legacy Token 旧链路的活跃用户、错误率与调用量。
-- [ ] 通知可识别的旧用户升级；达到预先定义的低活跃阈值后再决定 legacy 下线日期。
-- [ ] legacy 下线前提供明确错误、迁移说明和支持入口，不静默断开。
+- [x] 删除公开包内的本地 `.mcp.json`、bootstrap、脚本和依赖。
+- [x] 从新插件版本删除 `api_token`、setup/reset Token 和本地配置文案。
+- [ ] 发布说明明确新版本只支持 Hosted App，旧版用户升级后必须完成新的 Hosted OAuth 连接。
+- [ ] 停止旧插件 Token 入口并监控是否还有意外流量；不把它作为新版本发布的兼容承诺。
 
 本地更新流程必须使用：
 
@@ -1696,7 +1687,7 @@ codex plugin add stock-data-desk@Stock-Data-Desk
 
 不得通过手工编辑 `marketplace.json` 或插件安装缓存完成日常更新。
 
-出口条件：`codex plugin list` 只显示正确来源；新安装/升级用户只使用 Hosted App；未升级用户在约定迁移窗口内仍可使用旧链路。
+出口条件：`codex plugin list` 只显示正确来源；新安装/升级用户只使用 Hosted App；公开材料不承诺旧 stdio/Token 链路。
 
 ### Phase 9：Plugin Directory 提交
 
@@ -1794,10 +1785,10 @@ codex plugin add stock-data-desk@Stock-Data-Desk
 
 ### 15.4 插件与发布
 
-- [ ] 只有一个 Skill。
-- [ ] 公开 manifest 不引用本地 stdio MCP。
-- [ ] manifest、Skill、README 和目录文案一致。
-- [ ] Plugin validator 通过。
+- [x] 只有一个 Skill。
+- [x] 公开 manifest 不引用本地 stdio MCP。
+- [x] manifest、Skill、README 和目录文案一致。
+- [x] Plugin validator 通过。
 - [ ] 五正三负审核案例通过。
 - [ ] `@personal`、`@Stock-Data-Desk` 和 Directory 职责清晰无冲突。
 
@@ -1818,32 +1809,30 @@ codex plugin add stock-data-desk@Stock-Data-Desk
 | 公开插件安装后大多数用户无权限 | 用户困惑、差评或审核问题 | listing 预先披露；提供 metadata/demo、申请入口和稳定 pending 状态 |
 | 白名单 Email 被伪造或错误规范化 | 越权获得真实数据 | 只信任 verified Email；HMAC 精确匹配；命中后绑定 `(issuer, subject)` 对应的 `user_id` |
 | OAuth 登录被误当成产品授权 | 任意注册用户消耗服务资源 | 新用户默认 pending；每次调用检查 entitlement 和统一安全限额 |
-| 插件准备代码过早合并到公开安装源 | 新用户安装到尚无可用后端的版本 | 准备提交与激活提交分离；Phase 7 验收后才发布激活提交 |
+| Developer Mode 代码过早合并到公开安装源 | 新用户安装到尚无正式 OAuth 的版本 | Developer Mode 准备提交与公开发布提交分离；Phase 7 验收后才发布 |
 | 任意 SQL 导致数据泄漏或资源消耗 | 安全和成本风险 | allowlist、只读校验、超时、limit、成本和并发控制 |
 | 用户重试导致重复扣额 | 计费争议 | `request_id` 幂等 ledger |
 | OAuth Token 被错误转发给 Data API | audience 混乱 | 使用内部 Delegation JWT 或服务内 UserContext |
 | 日志记录具体投资查询 | 隐私风险 | 默认只记聚合 query class，不记 Prompt/SQL/结果 |
 | 工具 schema 发布后发生破坏性修改 | 已发布插件不可用 | additive contract、版本审核、旧字段保留 |
-| 本地旧插件和 Hosted App 同时暴露重复工具 | 调用不稳定 | 公开 manifest 移除 `mcpServers`，统一 Hosted App |
+| 本地旧插件和 Hosted App 同时暴露重复工具 | 调用不稳定 | manifest 不含 `mcpServers`，新包统一 Hosted App；开发机移除旧安装来源 |
 | 审核账号依赖 MFA/邮件或数据持续变化 | 审核无法复现 | 单独无 MFA、`full_v1` 工具权限、隔离且稳定的 `review_fixture` 数据作用域 |
 
 ## 17. 回滚策略
 
 ### 发布前
 
-- 插件准备改动保留在功能分支或未公开版本，当前可用安装链路保持不变；
+- Hosted App-only 改动保留在功能分支或未公开版本，`main` 和用户既有缓存不会被远程改写；
 - 正式域名默认由 beta allowlist、feature flag 或网关规则保护；
 - 后端保留上一稳定 revision 和快速流量切回能力；
-- Data API 新旧认证通过后端 feature flag 并存；
-- Hosted MCP 未达到出口条件前，不发布插件激活提交，也不删除现有本地实现。
+- Hosted MCP 未达到出口条件前，不提交公开发布版本；功能分支不为此恢复本地实现。
 
 ### 发布切换时
 
 - 先在正式域名的受控灰度中完成 Hosted MCP、OAuth 和单一 Skill 验证；
-- 再合并插件激活提交，从新插件版本移除本地 MCP；
-- 新插件不再引用用户 API Token，旧 Token 端点继续服务未迁移版本；
+- 再合并公开发布提交；新插件始终只有 Hosted App，不引用用户 API Token；
 - 若激活版本异常，先停止新版本放量并回滚插件来源或后端 revision，不更换域名；
-- 只有在旧链路活跃度达到下线标准并完成通知后，才关闭 legacy Token 路径。
+- 不通过向新包重新加入 stdio MCP 或 Token 配置来回滚。
 
 ### 发布后
 
@@ -1877,10 +1866,10 @@ codex plugin add stock-data-desk@Stock-Data-Desk
 
 ## 19. 推荐的实际执行起点
 
-正式实施时，从以下三个任务开始，完成后再迁移完整股票查询工具：
+接下来的实际实施从以下三个任务继续：
 
-1. **Phase 1 插件准备提交**：先重写单一 Skill、manifest 目标字段和工具 contract；保留当前 `.mcp.json`/`mcpServers`，不激活 Hosted App。
-2. **Phase 2 VPS 后端与 SQLite 骨架**：由项目方在 VPS 的独立目录或仓库创建 Hosted MCP，部署到最终 `mcp.anchisesdata.com`，初始化本地持久化 `authz.db`、备份和恢复流程；`auth.anchisesdata.com` 由 Auth0 Custom Domain 托管，不部署到 VPS。
+1. **完成插件准备提交**：提交当前 Hosted App-only 单一 Skill、manifest、contract、mock 测试和旧本地运行时删除改动，但不发布到 Plugin Directory。
+2. **Phase 2 VPS 后端与 SQLite 骨架**：由项目方在 VPS 的独立目录或仓库完善 Hosted MCP，部署到最终 `mcp.anchisesdata.com`，初始化本地持久化 `authz.db`、备份和恢复流程；`auth.anchisesdata.com` 由 Auth0 Custom Domain 托管，不部署到 VPS。
 3. **Phase 3 Auth0 最小闭环**：完成 Google 与 Email/Password 注册/登录，让一个受控测试工具完成“未登录 -> Auth0 OAuth -> `(issuer, subject)` 映射内部 `user_id` -> SQLite entitlement 检查 -> 返回连接状态”。
 
-以上三个任务通过后，按 Phase 4–6 实现 Data API 身份委托、Hosted MCP 和用量治理；Phase 7 才创建真实 `.app.json`、移除公开 `mcpServers` 并完成插件激活。这个顺序允许插件代码先行，同时避免后端尚未可用时影响现有用户或新安装用户。
+插件准备提交完成后，按 Phase 4–6 实现 Data API 身份委托、Hosted MCP 和用量治理；Phase 7 完成正式 OAuth 跨端验收，Phase 8 才合并 `main` 并进入公开发布流程。真实 `.app.json` 与 Hosted App-only 边界已经建立，后续不再恢复本地 `mcpServers`。

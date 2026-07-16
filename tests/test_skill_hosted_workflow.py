@@ -55,6 +55,9 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "paste the api",
             "absolute csv path",
             "must perform at least one web search",
+            ".mcp.json",
+            "stdio",
+            "rollback",
         ):
             self.assertNotIn(forbidden, text)
         self.assertIn("never ask the user to paste passwords", text)
@@ -87,14 +90,24 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("company report", text)
         self.assertIn("allow_implicit_invocation: true", text)
 
-    def test_manifest_connects_real_app_and_keeps_legacy_rollback(self) -> None:
+    def test_manifest_connects_real_app_without_local_mcp(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         app_manifest = json.loads(APP_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "stock-data-desk")
         self.assertEqual(manifest["apps"], "./.app.json")
-        self.assertEqual(manifest["mcpServers"], "./.mcp.json")
-        self.assertTrue((PLUGIN_ROOT / ".mcp.json").exists())
-        self.assertTrue((PLUGIN_ROOT / "mcp" / "bootstrap.py").exists())
+        self.assertNotIn("mcpServers", manifest)
+        for removed in (
+            ".mcp.json",
+            "config.example.toml",
+            "requirements.txt",
+            "mcp/bootstrap.py",
+            "mcp/server.py",
+            "scripts/ask_stock.py",
+            "scripts/init_config.sh",
+            "scripts/remote_api.py",
+            "prompts/query-planning.md",
+        ):
+            self.assertFalse((PLUGIN_ROOT / removed).exists(), removed)
         self.assertEqual(set(app_manifest), {"apps"})
         self.assertEqual(set(app_manifest["apps"]), {"stock_data_desk"})
         app = app_manifest["apps"]["stock_data_desk"]
@@ -117,6 +130,9 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(len(interface["defaultPrompt"]), 3)
         self.assertTrue(any("cached AI company report" in prompt for prompt in interface["defaultPrompt"]))
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
+        self.assertEqual(interface["capabilities"], ["Interactive", "Read", "Write"])
+        self.assertNotIn("developer mode", interface["longDescription"].lower())
+        self.assertNotIn("anonymous_dev", interface["longDescription"])
         copy = json.dumps(manifest).lower()
         for stale in ("mysql", "api token", "pandas", "user-configured"):
             self.assertNotIn(stale, copy)
@@ -126,7 +142,6 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             SKILL,
             OPENAI_YAML,
             *sorted((SKILL_ROOT / "references").glob("*.md")),
-            *sorted((PLUGIN_ROOT / "prompts").glob("*.md")),
             GOLDEN_CASES,
             REVIEWER_CASES,
         ]
@@ -149,7 +164,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         }
         self.assertNotIn("anchises", json.dumps(user_facing).lower())
 
-    def test_old_brand_only_remains_in_approved_technical_compatibility(self) -> None:
+    def test_old_brand_only_remains_in_approved_technical_metadata(self) -> None:
         excluded = {PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"}
         allowed_line_markers = (
             "://",

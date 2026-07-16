@@ -9,10 +9,6 @@ Answer stock-data questions through the Stock Data Desk Hosted App tools. Let
 users ask in natural language; do not require tool names, SQL, schemas, or local
 setup.
 
-When both Hosted App and bundled stdio tools are visible, prefer the Hosted App
-tools for this workflow. Treat the bundled stdio MCP as a development rollback
-path, not the normal v2 user experience.
-
 ## Check access
 
 1. Call `get_connection_status` once before an access-sensitive workflow.

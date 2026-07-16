@@ -17,7 +17,7 @@ workflow does not require a local database or credentials in chat.
 .agents/plugins/marketplace.json
 plugins/stock-data-desk/
   .codex-plugin/plugin.json
-  .mcp.json                     # Phase 1 compatibility and rollback only
+  .app.json                     # Hosted App connection
   contracts/
   skills/stock-data-desk/
   assets/
@@ -27,17 +27,15 @@ tests/
   mock_services.py
 ```
 
-The development package includes `.app.json` for the private Developer Mode
-App. It keeps `.mcp.json` as a rollback path until Auth0 and the production
-OAuth flow pass end-to-end validation.
+The development package is a single Hosted App plus one Skill. It does not ship
+a local stdio MCP, API Token setup, or Python data runtime.
 
 ## Offline test suite
 
-Use the plugin-managed Python environment because the legacy regression suite
-also exercises its existing data-analysis dependencies:
-
 ```bash
-plugins/stock-data-desk/.venv/bin/python -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 The test suite starts loopback-only mock Auth0, Hosted MCP, and Stock Data API
@@ -54,8 +52,8 @@ codex plugin add stock-data-desk@Stock-Data-Desk
 ```
 
 The future public installation source is the universal Plugin Directory. Do not
-publish the Phase 1 branch or remove the compatibility MCP until the activation
-phase has passed production OAuth and Hosted MCP validation.
+publish the current `anonymous_dev` build until production OAuth, allowlist
+enforcement, and user-isolation validation are complete.
 
 ## Design plan
 

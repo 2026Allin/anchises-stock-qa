@@ -1,6 +1,0 @@
-pandas
-sqlalchemy
-pymysql
-mcp
-tabulate
-tomli; python_version < "3.11"

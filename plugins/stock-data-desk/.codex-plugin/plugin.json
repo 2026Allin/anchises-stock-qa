@@ -1,6 +1,6 @@
 {
   "name": "stock-data-desk",
-  "version": "0.2.0-beta.1+codex.20260715200845",
+  "version": "0.2.0-beta.1+codex.20260716031609",
   "description": "Screen stocks and read cached AI company reports.",
   "author": {
     "name": "Stock Data Desk",
@@ -13,16 +13,15 @@
     "stocks",
     "screening",
     "market-data",
-    "oauth",
-    "read-only"
+    "company-reports",
+    "csv-export"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
   "apps": "./.app.json",
   "interface": {
     "displayName": "Stock Data Desk",
     "shortDescription": "Screen stocks and read cached AI company reports.",
-    "longDescription": "Stock Data Desk provides stock screening, historical comparison, read-only SQL, cached English AI company reports with PDFs, and temporary CSV exports across Work, ChatGPT, and Codex. The private Developer Mode App currently uses anonymous development access; hosted OAuth and per-user approval remain prepared for a later activation.",
+    "longDescription": "Screen, compare, and rank stocks across supported exchanges; inspect historical data with bounded read-only queries; read cached English AI company reports with PDFs; and create temporary CSV exports in Work, ChatGPT, and Codex.",
     "developerName": "Stock Data Desk",
     "category": "Productivity",
     "brandColor": "#334155",
@@ -31,7 +30,8 @@
     "logoDark": "./assets/logo.png",
     "capabilities": [
       "Interactive",
-      "Read"
+      "Read",
+      "Write"
     ],
     "websiteURL": "https://anchisesdata.com/stock-qa",
     "privacyPolicyURL": "https://anchisesdata.com/privacy",
