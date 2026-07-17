@@ -6,9 +6,11 @@
 - Skill: `anchises-analysis` / `$anchises-analysis`
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Version: `0.3.0-beta.1`
+- Version: `0.4.0-beta.1`
 - Marketplace: `Anchises-Analysis`
-- Hosted MCP: `0.5.1`
+- Hosted MCP: `0.6.0`
+- Data API: `0.3.0`
+- Export policy: `stock-data-export-v1`
 - Prompt pack: `5.1`
 - Tools: 12
 
@@ -20,19 +22,22 @@ Python package name, and VPS service names remain unchanged.
 1. Plugin and Skill directories, names, and manifests agree.
 2. `agents/openai.yaml` explicitly invokes `$anchises-analysis`.
 3. The checked-in live snapshot contains exactly 12 tools, including
-   `resolve_company_identity`, and the preparation schema requires exchange,
-   ticker, company name, and output locale.
+   `resolve_company_identity`, and both stock-row tools publish a null-only
+   `next_cursor`.
 4. Company-name, ticker-only, contextual, ambiguous, share-class, external,
    inactive/delisted, Fund, no-web, privacy, and hidden-prompt scenarios pass.
 5. Structured data is never claimed outside ASX, CSE, NASDAQ, NYSE, TSX, and
    TSXV.
-6. CSV copy states a 60-minute default and a 60-3600 second explicit range.
-7. Full unit/mock/live tests, Skill validation, and plugin validation pass.
-8. Cachebuster update and local reinstall succeed.
+6. The Skill reads only `eligible_by_query`, never exports SQL, never
+   reconstructs later rows, and does not split fields or partitions.
+7. CSV copy states selective research-subset limits, a 60-minute default, and a
+   60-3600 second explicit range.
+8. Full unit/mock/live tests, Skill validation, and plugin validation pass.
+9. Cachebuster update and local reinstall succeed.
 
 ## Manual Portal and Developer Mode gates
 
-1. Refresh the existing Developer Mode App so it discovers the 0.5.1 tool set.
+1. Refresh the existing Developer Mode App so it discovers the 0.6.0 schemas.
 2. Confirm the App ID value did not change; record the newly generated Version
    ID if the Portal creates one.
 3. Test from a new task to avoid prior Skill or descriptor state.
@@ -43,6 +48,7 @@ Python package name, and VPS service names remain unchanged.
 
 ## Rollback boundary
 
-The 0.3 plugin requires the MCP 0.5 contract. If production discovery no longer
-shows the expected 12 tools or four required preparation inputs, stop the
-release rather than publishing against a mismatched schema.
+The 0.4 plugin requires the MCP 0.6 contract. If production discovery no longer
+shows the expected 12 tools, null stock-row cursors, `eligible_by_query`, or
+four required report-preparation inputs, stop the release rather than
+publishing against a mismatched schema.

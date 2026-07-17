@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Submission-ready public copy for `Anchises Analysis 0.3.0-beta.1`.
+Submission-ready public copy for `Anchises Analysis 0.4.0-beta.1`.
 
 ## Identity
 
@@ -9,24 +9,26 @@ Submission-ready public copy for `Anchises Analysis 0.3.0-beta.1`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.3.0-beta.1
+- Version: 0.4.0-beta.1
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- MCP version: 0.5.1
+- MCP version: 0.6.0
+- Data API version: 0.3.0
+- Export policy: `stock-data-export-v1`
 - Authentication: not required
 
 ## Short description
 
-Live company research and structured stock-market analysis.
+Live company research and server-side stock-market analysis.
 
 ## Long description
 
-Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Discover supported exchanges and current data dates, screen and rank stocks, inspect schemas, run bounded read-only SQL, compare historical price, momentum, and volume, and create temporary CSV exports. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports are analytical research, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials, and all callers use shared service limits. CSV URLs are short-lived bearer links and should not be shared.
+Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Full matched stock-data ranges can be used server-side for filtering, statistics, rankings, and aggregation; the conversation displays at most the first 200 rows in the current sort order and provides no subsequent row-level pages. Temporary CSV downloads are available only for selective small research subsets, never complete exchange-day partitions or raw SQL results. Export eligibility uses query shape plus row, column, cell, Top-N, and ticker limits rather than a market-percentage limit. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports and market analysis are informational, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials and has no account-linked cross-session cumulative budget; shared short-term service limits still apply. CSV URLs are short-lived bearer links and should not be shared.
 
 ## Starter prompts
 
 1. Research Apple, verify its primary listing, and generate a fresh source-linked company report.
-2. Research the company discussed above, then analyze its latest 30-day price and volume trends.
-3. Screen supported exchanges for strong momentum and unusual volume, then export the ranked results as CSV.
+2. Analyze NYSE advance/decline counts, averages, and distributions using the full market.
+3. Rank the NASDAQ Top 100 by dollar volume and export only the key research fields as CSV.
 
 ## Links
 
@@ -56,6 +58,16 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - MCP prepares a prompt; the Host performs web research and writes the report.
 - The final report remains in the current conversation and is not written back
   to MCP.
+- Full matched stock-data ranges may be analyzed, filtered, ranked, and
+  aggregated on the server.
+- The Host displays at most the first 200 rows in the current sort order and
+  does not provide later row-level pages.
+- Only selective small research subsets can be downloaded; complete
+  exchange-day partitions and SQL results cannot be exported.
+- Export rules use fixed row, column, cell, Top-N, and ticker limits rather
+  than a percentage of a market.
+- Public noauth access has no account-linked cross-session cumulative budget;
+  shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.
 - Reports and market analysis are analytical information, not investment advice
   or official company disclosure.
@@ -64,18 +76,19 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 
 | Surface | Expected result |
 |---|---|
-| `/health` | HTTP 200; version 0.5.1; ready; public access; authentication not required |
-| MCP initialize | Anchises Analysis 0.5.1 |
+| `/health` | HTTP 200; version 0.6.0; ready; public access; authentication not required |
+| MCP initialize | Anchises Analysis 0.6.0 |
 | `tools/list` | Exactly 12 noauth tools |
 | Identity resolver | resolved / ambiguous / not_found_in_supported_markets |
 | Report preparation | Four required inputs; Prompt pack 5.1; Host action |
-| CSV | Default 60 minutes; explicit 60-3600 seconds |
+| Stock rows | Full-range server analysis; at most 200 displayed; no next-page cursor |
+| CSV | Selective screen only; policy `stock-data-export-v1`; default 60 minutes |
 
 ## Portal notes
 
 Submit and scan the production MCP URL directly. Do not submit the local
 Developer Mode App as the public Directory target. Refresh the Developer Mode
-App after the MCP tool-set change and test in a new task before submission.
+App after the MCP schema change and test in a new task before submission.
 
 Before submission, complete exact CSP validation even though this release has
 no custom component UI.

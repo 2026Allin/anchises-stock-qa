@@ -47,7 +47,19 @@ EXPECTED_TOOLS = [
     "prepare_company_report_generation",
     "create_csv_export",
 ]
-PAGINATED_TOOLS = {"list_stock_tables", "screen_stocks", "run_readonly_sql"}
+PAGE_TOOLS = {"list_stock_tables", "screen_stocks", "run_readonly_sql"}
+POLICY_ERROR_CODES = {
+    "export_requires_selective_query",
+    "export_row_limit_exceeded",
+    "export_column_limit_exceeded",
+    "export_cell_limit_exceeded",
+    "export_complete_partition_not_allowed",
+    "export_top_n_limit_exceeded",
+    "export_ticker_limit_exceeded",
+    "query_not_exportable",
+    "query_policy_expired",
+    "query_partition_limit_exceeded",
+}
 
 
 def _property_schemas(schema: dict) -> list[dict]:
@@ -78,7 +90,7 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.5.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.6.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
@@ -97,7 +109,10 @@ class HostedContractTest(unittest.TestCase):
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "public_noauth")
         self.assertEqual(source["server_name"], "Anchises Analysis")
-        self.assertEqual(source["server_version"], "0.5.1")
+        self.assertEqual(source["server_version"], "0.6.0")
+        self.assertIn("first 200 rows", source["instructions"])
+        self.assertIn("no next-page cursor", source["instructions"])
+        self.assertIn("Raw SQL results cannot be exported", source["instructions"])
         self.assertIn("resolve a company name or ticker", source["instructions"])
         self.assertIn("Company-report requests always use", source["instructions"])
         self.assertIn("host must perform live web research", source["instructions"])
@@ -125,10 +140,12 @@ class HostedContractTest(unittest.TestCase):
                 "rate_limited",
                 "concurrency_limited",
                 "query_rejected",
+                "query_requires_bounded_analysis",
                 "resource_not_found",
                 "result_too_large",
                 "temporarily_unavailable",
-            },
+            }
+            | POLICY_ERROR_CODES,
         )
 
     def test_anonymous_descriptors_have_strict_schemas_metadata_and_annotations(self) -> None:
@@ -199,10 +216,10 @@ class HostedContractTest(unittest.TestCase):
             self.assertEqual(descriptor["annotations"]["readOnlyHint"], expected)
             self.assertEqual(descriptor["annotations"]["idempotentHint"], expected)
 
-    def test_only_paginated_tools_publish_complete_page_schema(self) -> None:
+    def test_page_tools_publish_complete_page_schema(self) -> None:
         for descriptor in self.descriptors:
             page = descriptor["outputSchema"]["properties"].get("page")
-            if descriptor["name"] in PAGINATED_TOOLS:
+            if descriptor["name"] in PAGE_TOOLS:
                 self.assertIsNotNone(page)
                 self.assertEqual(
                     set(page["required"]),
@@ -210,6 +227,90 @@ class HostedContractTest(unittest.TestCase):
                 )
             else:
                 self.assertIsNone(page)
+
+    def test_stock_row_pages_have_null_only_next_cursor(self) -> None:
+        for name in ("screen_stocks", "run_readonly_sql"):
+            page = descriptor_by_name(name)["outputSchema"]["properties"]["page"]
+            next_cursor = page["properties"]["next_cursor"]
+            self.assertEqual(next_cursor["type"], "null")
+
+    def test_screen_0_6_inputs_analysis_and_export_policy_are_strict(self) -> None:
+        descriptor = descriptor_by_name("screen_stocks")
+        schema = descriptor["inputSchema"]
+        properties = schema["properties"]
+        self.assertEqual(
+            set(properties),
+            {
+                "exchanges",
+                "as_of_date",
+                "start_date",
+                "end_date",
+                "fields",
+                "filters",
+                "sort",
+                "top_n",
+                "base_query_id",
+                "page_size",
+            },
+        )
+        self.assertNotIn("cursor", properties)
+        self.assertEqual(set(schema["required"]), {"filters"})
+        self.assertEqual(properties["top_n"]["maximum"], 200)
+        self.assertEqual(properties["page_size"]["maximum"], 200)
+        self.assertIn("Cannot be combined with as_of_date", properties["start_date"]["description"])
+        self.assertIn("Cannot be combined with as_of_date", properties["end_date"]["description"])
+
+        validator = Draft202012Validator(schema)
+        valid = {
+            "exchanges": ["NASDAQ"],
+            "start_date": "2025-07-17",
+            "end_date": "2026-07-17",
+            "fields": ["Price_Close", "Volume"],
+            "filters": [],
+            "sort": [{"field": "Volume", "direction": "desc"}],
+            "top_n": 100,
+            "page_size": 100,
+        }
+        self.assertFalse(list(validator.iter_errors(valid)))
+        self.assertTrue(
+            list(validator.iter_errors({**valid, "cursor": "legacy-cursor"}))
+        )
+
+        data = descriptor["outputSchema"]["properties"]["data"]["properties"]
+        analysis = data["analysis"]["properties"]
+        self.assertEqual(analysis["display_row_limit"]["const"], 200)
+        self.assertEqual(analysis["row_pagination_available"]["const"], False)
+        self.assertEqual(analysis["server_side_analysis_supported"]["const"], True)
+        policy = data["export_policy"]["properties"]
+        self.assertIn("eligible_by_query", policy)
+        self.assertNotIn("eligible", policy)
+        self.assertEqual(policy["source_tool_required"]["const"], "screen_stocks")
+        limits = policy["limits"]["properties"]
+        expected = {
+            "max_rows": 1000,
+            "max_columns": 25,
+            "max_cells": 20000,
+            "max_top_n": 200,
+            "max_explicit_tickers": 50,
+            "complete_exchange_day_allowed": False,
+        }
+        for key, value in expected.items():
+            self.assertEqual(limits[key]["const"], value)
+
+    def test_sql_is_non_pageable_bounded_and_not_exportable(self) -> None:
+        descriptor = descriptor_by_name("run_readonly_sql")
+        properties = descriptor["inputSchema"]["properties"]
+        self.assertEqual(set(properties), {"sql", "max_rows"})
+        self.assertEqual(properties["max_rows"]["maximum"], 200)
+        self.assertNotIn("cursor", properties)
+        self.assertNotIn("page_size", properties)
+        self.assertIn("cannot be exported", descriptor["inputSchema"]["description"])
+        policy = descriptor["outputSchema"]["properties"]["data"]["properties"][
+            "export_policy"
+        ]["properties"]
+        self.assertEqual(policy["source_tool_required"]["const"], "screen_stocks")
+        self.assertIn("eligible_by_query", policy)
+        self.assertNotIn("eligible", policy)
 
     def test_screen_filter_value_is_strict_and_between_runtime_shape_is_documented(self) -> None:
         schema = descriptor_by_name("screen_stocks")["inputSchema"]
@@ -261,6 +362,10 @@ class HostedContractTest(unittest.TestCase):
             {"query_id": query_id, "expires_in_seconds": 60.5},
         ):
             self.assertTrue(list(validator.iter_errors(invalid)), invalid)
+        self.assertIn(
+            "screen_stocks result",
+            descriptor_by_name("create_csv_export")["description"],
+        )
 
     def test_company_identity_resolution_contract_is_strict_and_bounded(self) -> None:
         descriptor = descriptor_by_name("resolve_company_identity")
@@ -410,6 +515,19 @@ class HostedContractTest(unittest.TestCase):
         invalid_error["errors"]["rate_limited"]["retryable"] = "yes"
         with self.assertRaisesRegex(ContractError, "retryable"):
             validate_contract(invalid_error)
+
+        legacy_eligible = copy.deepcopy(self.contract)
+        screen = next(
+            tool for tool in legacy_eligible["tools"]
+            if tool["name"] == "screen_stocks"
+        )
+        policy = screen["outputSchema"]["properties"]["data"]["properties"][
+            "export_policy"
+        ]["properties"]
+        policy["eligible"] = policy.pop("eligible_by_query")
+        _rehash(legacy_eligible)
+        with self.assertRaisesRegex(ContractError, "eligible_by_query"):
+            validate_contract(legacy_eligible)
 
     def test_anonymous_profile_is_independent_from_backend_mode_name(self) -> None:
         self.assertEqual(

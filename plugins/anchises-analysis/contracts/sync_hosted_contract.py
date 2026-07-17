@@ -37,7 +37,7 @@ DEFAULT_OUTPUT = Path(__file__).with_name("hosted-mcp-v1.json")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
-CONTRACT_VERSION = "1.5.0-draft"
+CONTRACT_VERSION = "1.6.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -65,6 +65,29 @@ EXPECTED_OAUTH_TOOL_SCOPES = {
     "resolve_company_identity": ["stock.read"],
     "prepare_company_report_generation": ["stock.read"],
     "create_csv_export": ["export.create"],
+}
+EXPECTED_ERRORS = {
+    "invalid_scope": {"retryable": False},
+    "access_pending": {"retryable": False},
+    "access_denied": {"retryable": False},
+    "usage_limit_exceeded": {"retryable": False},
+    "rate_limited": {"retryable": True},
+    "concurrency_limited": {"retryable": True},
+    "query_rejected": {"retryable": False},
+    "query_requires_bounded_analysis": {"retryable": False},
+    "resource_not_found": {"retryable": False},
+    "export_requires_selective_query": {"retryable": False},
+    "export_row_limit_exceeded": {"retryable": False},
+    "export_column_limit_exceeded": {"retryable": False},
+    "export_cell_limit_exceeded": {"retryable": False},
+    "export_complete_partition_not_allowed": {"retryable": False},
+    "export_top_n_limit_exceeded": {"retryable": False},
+    "export_ticker_limit_exceeded": {"retryable": False},
+    "query_not_exportable": {"retryable": False},
+    "query_policy_expired": {"retryable": False},
+    "query_partition_limit_exceeded": {"retryable": False},
+    "result_too_large": {"retryable": False},
+    "temporarily_unavailable": {"retryable": True},
 }
 
 
@@ -181,7 +204,7 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "anchises-analysis-contract-sync/1.5",
+            "User-Agent": "anchises-analysis-contract-sync/1.6",
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -296,7 +319,7 @@ def fetch_contract(
                 "capabilities": {},
                 "clientInfo": {
                     "name": "anchises-analysis-contract-sync",
-                    "version": "1.5.0",
+                    "version": "1.6.0",
                 },
             },
             1,
@@ -332,6 +355,7 @@ def fetch_contract(
     contract["oauth"]["tool_scopes"] = copy.deepcopy(
         EXPECTED_OAUTH_TOOL_SCOPES
     )
+    contract["errors"] = copy.deepcopy(EXPECTED_ERRORS)
     contract["runtime"]["snapshot_mode"] = mode
     contract["source"].update(
         {

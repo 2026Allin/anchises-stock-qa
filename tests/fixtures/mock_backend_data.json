@@ -20,22 +20,31 @@
     {"name": "ticker", "type": "string", "description": "Exchange ticker symbol."},
     {"name": "exchange", "type": "string", "description": "Exchange code."},
     {"name": "price_close", "type": "number", "description": "Closing price for the data date."},
+    {"name": "price_change_pct_1day", "type": "number", "description": "One-day percentage price change."},
     {"name": "price_change_pct_30day", "type": "number", "description": "Thirty-day percentage price change."},
+    {"name": "volume", "type": "number", "description": "Trading volume for the data date."},
+    {"name": "dollar_volume", "type": "number", "description": "Closing price multiplied by trading volume."},
+    {"name": "market_cap", "type": "number", "description": "Market capitalization."},
     {"name": "volume_change_pct_over_avg10day", "type": "number", "description": "Volume change relative to the ten-day average."}
   ],
   "tables": [
     {"table_name": "daily_20260717_nasdaq", "exchange": "NASDAQ", "date": "2026-07-17"},
+    {"table_name": "daily_20260717_nyse", "exchange": "NYSE", "date": "2026-07-17"},
     {"table_name": "daily_20260717_asx", "exchange": "ASX", "date": "2026-07-17"},
-    {"table_name": "daily_20260617_nasdaq", "exchange": "NASDAQ", "date": "2026-06-17"}
+    {"table_name": "daily_20260617_nasdaq", "exchange": "NASDAQ", "date": "2026-06-17"},
+    {"table_name": "daily_20250717_nasdaq", "exchange": "NASDAQ", "date": "2025-07-17"}
   ],
   "table_columns": [
     {"name": "ticker", "type": "VARCHAR"},
     {"name": "price_close", "type": "DECIMAL"},
+    {"name": "price_change_pct_1day", "type": "DECIMAL"},
+    {"name": "volume", "type": "BIGINT"},
+    {"name": "dollar_volume", "type": "DECIMAL"},
     {"name": "price_change_pct_30day", "type": "DECIMAL"}
   ],
   "screen_rows": [
-    {"ticker": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ", "price_close": 212.5, "price_change_pct_30day": 12.3, "volume_change_pct_over_avg10day": 55.0},
-    {"ticker": "BGL", "name": "Bellevue Gold Limited", "exchange": "ASX", "price_close": 1.52, "price_change_pct_30day": 18.1, "volume_change_pct_over_avg10day": 92.0}
+    {"date": "2026-07-17", "ticker": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ", "price_close": 212.5, "price_change_pct_1day": 5.8, "price_change_pct_30day": 12.3, "volume": 52000000, "dollar_volume": 11050000000, "market_cap": 3200000000000, "volume_change_pct_over_avg10day": 55.0},
+    {"date": "2026-07-17", "ticker": "BGL", "name": "Bellevue Gold Limited", "exchange": "ASX", "price_close": 1.52, "price_change_pct_1day": 6.2, "price_change_pct_30day": 18.1, "volume": 7200000, "dollar_volume": 10944000, "market_cap": 1800000000, "volume_change_pct_over_avg10day": 92.0}
   ],
   "sql_rows": [
     {"ticker": "AAPL", "exchange": "NASDAQ", "start_close": 200.0, "end_close": 212.5, "return_pct": 6.25},

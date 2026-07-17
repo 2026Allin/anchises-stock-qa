@@ -40,6 +40,7 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("references/answer-format.md"),
     Path("references/company-report-workflow.md"),
     Path("references/company-resolution.md"),
+    Path("references/market-data-policy.md"),
     Path("references/mining-report-quality.md"),
     Path("references/query-interpretation.md"),
     Path("references/workflow.md"),
@@ -341,7 +342,8 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(len(names), 12)
         self.assertEqual(set(names), EXPECTED_TOOLS)
         self.assertEqual(contract["source"]["server_name"], "Anchises Analysis")
-        self.assertEqual(contract["source"]["server_version"], "0.5.1")
+        self.assertEqual(contract["contract_version"], "1.6.0-draft")
+        self.assertEqual(contract["source"]["server_version"], "0.6.0")
         self.assertEqual(contract["source"]["sync_state"], "live")
         self.assertRegex(contract["source"]["descriptor_sha256"], r"^[0-9a-f]{64}$")
 
@@ -364,16 +366,82 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         )
 
     def test_csv_export_guidance_publishes_default_and_allowed_lifetimes(self) -> None:
-        combined = _skill_bundle_text()
+        combined = " ".join(_skill_bundle_text().split())
         self.assertIn("default 60-minute", combined)
         self.assertIn("60 through 3600 seconds", combined)
         self.assertIn("`expires_in_seconds`", combined)
+        self.assertIn("1,000 rows", combined)
+        self.assertIn("25 total columns", combined)
+        self.assertIn("20,000", combined)
+        self.assertIn("50 tickers", combined)
+        self.assertIn("at most 22 additional fields", combined)
+
+    def test_market_data_policy_uses_only_the_new_export_gate(self) -> None:
+        combined = " ".join(_skill_bundle_text().split())
+        self.assertIn("data.export_policy.eligible_by_query", combined)
+        self.assertIn("Never read or infer eligibility from a legacy `eligible` field", combined)
+        self.assertNotIn("current screen or SQL workflow", combined)
+        self.assertIn("Never export a SQL query ID", combined)
+        self.assertIn("page.next_cursor` is always null", combined)
+        self.assertIn("Do not retrieve row 201 onward", combined)
+        self.assertIn("Do not evade a refusal by splitting fields", combined)
+
+    def test_policy_errors_have_safe_recovery_instructions(self) -> None:
+        combined = _skill_bundle_text()
+        for code in (
+            "export_requires_selective_query",
+            "export_row_limit_exceeded",
+            "export_column_limit_exceeded",
+            "export_cell_limit_exceeded",
+            "export_complete_partition_not_allowed",
+            "export_top_n_limit_exceeded",
+            "export_ticker_limit_exceeded",
+            "query_not_exportable",
+            "query_policy_expired",
+            "query_partition_limit_exceeded",
+            "query_requires_bounded_analysis",
+            "result_too_large",
+            "temporarily_unavailable",
+        ):
+            self.assertIn(f"`{code}`", combined)
+        self.assertIn("rerun the original structured screen", combined)
+        self.assertIn("download is temporarily unavailable", combined)
+
+    def test_normal_analyst_requests_are_policy_transparent(self) -> None:
+        cases = _golden_cases()
+        all_cases = cases["positive"] + cases["negative"]
+        by_id = {case["id"]: case for case in all_cases}
+        required = {
+            "structured-screen",
+            "nasdaq-dollar-volume-top-100",
+            "watchlist-40-tickers",
+            "single-stock-one-year",
+            "historical-sql-fallback",
+            "broad-result-preview",
+            "csv-export",
+            "complete-row-table-no-pagination",
+            "complete-partition-export-rejected",
+            "sql-query-not-exportable",
+            "query-policy-expired",
+        }
+        self.assertTrue(required.issubset(by_id))
+        self.assertIn("without leading with export-policy language", by_id["structured-screen"]["expected_behavior"])
+        self.assertEqual(
+            by_id["nasdaq-dollar-volume-top-100"]["expected_arguments"][
+                "screen_stocks"
+            ]["top_n"],
+            100,
+        )
+        self.assertIn("40 values", by_id["watchlist-40-tickers"]["expected_behavior"])
+        self.assertIn("paired start_date and end_date", by_id["single-stock-one-year"]["expected_behavior"])
+        self.assertIn("no next page", by_id["broad-result-preview"]["expected_behavior"])
 
     def test_openai_metadata_matches_renamed_skill(self) -> None:
         text = OPENAI_YAML.read_text(encoding="utf-8")
         self.assertIn('display_name: "Anchises Analysis"', text)
         self.assertIn("$anchises-analysis", text)
-        self.assertIn("fresh source-linked company report", text)
+        self.assertIn("NASDAQ Top 100 by dollar volume", text)
+        self.assertIn("field-selected research subset", text)
         self.assertIn("allow_implicit_invocation: true", text)
 
     def test_manifest_connects_same_app_id_with_renamed_key(self) -> None:
@@ -393,7 +461,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.3.0-beta.1")
+        self.assertEqual(manifest["version"], "0.4.0-beta.1")
         self.assertNotIn("+codex.", manifest["version"])
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
         interface = manifest["interface"]
@@ -403,13 +471,18 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             interface["defaultPrompt"],
             [
                 "Research Apple, verify its primary listing, and generate a fresh source-linked company report.",
-                "Research the company discussed above, then analyze its latest 30-day price and volume trends.",
-                "Screen supported exchanges for strong momentum and unusual volume, then export the ranked results as CSV.",
+                "Analyze NYSE advance/decline counts, averages, and distributions using the full market.",
+                "Rank the NASDAQ Top 100 by dollar volume and export only the key research fields as CSV.",
             ],
         )
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
         self.assertIn("ASX, CSE, NASDAQ, NYSE, TSX, and TSXV", interface["longDescription"])
         self.assertIn("does not persist", interface["longDescription"])
+        self.assertIn("first 200 rows", interface["longDescription"])
+        self.assertIn("no subsequent row-level pages", interface["longDescription"])
+        self.assertIn("selective small research subsets", interface["longDescription"])
+        self.assertIn("rather than a market-percentage limit", interface["longDescription"])
+        self.assertIn("no account-linked cross-session cumulative budget", interface["longDescription"])
 
     def test_developer_mode_app_is_not_public_submission_target(self) -> None:
         normalized = " ".join(PLUGIN_README.read_text(encoding="utf-8").split())
@@ -454,6 +527,14 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "fund-not-eligible",
             "external-no-web-verification",
             "mining-financial-quality",
+            "nasdaq-dollar-volume-top-100",
+            "watchlist-40-tickers",
+            "single-stock-one-year",
+            "broad-result-preview",
+            "complete-row-table-no-pagination",
+            "complete-partition-export-rejected",
+            "sql-query-not-exportable",
+            "query-policy-expired",
         }
         self.assertTrue(required_ids.issubset({case["id"] for case in all_cases}))
 

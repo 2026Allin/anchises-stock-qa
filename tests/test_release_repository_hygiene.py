@@ -40,6 +40,8 @@ class ReleaseRepositoryHygieneTest(unittest.TestCase):
             "用户无需",
             "历史方案 / 未来 OAuth 规划",
             "不得复制到当前 Plugin Directory",
+            "Hosted MCP 0.6.0",
+            "stock-data-export-v1",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, preface)
@@ -53,7 +55,7 @@ class ReleaseRepositoryHygieneTest(unittest.TestCase):
             / "anchises-analysis"
             / ".codex-plugin"
             / "plugin.json",
-            ROOT / "docs" / "anchises-analysis-0.3.0-beta.1-release-notes.md",
+            ROOT / "docs" / "anchises-analysis-0.4.0-beta.1-release-notes.md",
         )
         forbidden_phrases = (
             "approved-access beta",

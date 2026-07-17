@@ -1,6 +1,6 @@
 {
   "name": "anchises-analysis",
-  "version": "0.3.0-beta.1",
+  "version": "0.4.0-beta.1",
   "description": "Research public companies with live web sources and analyze stock-market data.",
   "author": {
     "name": "Anchises Capital",
@@ -22,8 +22,8 @@
   "apps": "./.app.json",
   "interface": {
     "displayName": "Anchises Analysis",
-    "shortDescription": "Live company research and structured stock-market analysis.",
-    "longDescription": "Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Discover supported exchanges and current data dates, screen and rank stocks, inspect schemas, run bounded read-only SQL, compare historical price, momentum, and volume, and create temporary CSV exports. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports are analytical research, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials, and all callers use shared service limits. CSV URLs are short-lived bearer links and should not be shared.",
+    "shortDescription": "Live company research and server-side stock-market analysis.",
+    "longDescription": "Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Full matched stock-data ranges can be used server-side for filtering, statistics, rankings, and aggregation; the conversation displays at most the first 200 rows in the current sort order and provides no subsequent row-level pages. Temporary CSV downloads are available only for selective small research subsets, never complete exchange-day partitions or raw SQL results. Export eligibility uses query shape plus row, column, cell, Top-N, and ticker limits rather than a market-percentage limit. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports and market analysis are informational, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials and has no account-linked cross-session cumulative budget; shared short-term service limits still apply. CSV URLs are short-lived bearer links and should not be shared.",
     "developerName": "Anchises Capital",
     "category": "Productivity",
     "brandColor": "#334155",
@@ -40,8 +40,8 @@
     "termsOfServiceURL": "https://anchisesdata.com/terms",
     "defaultPrompt": [
       "Research Apple, verify its primary listing, and generate a fresh source-linked company report.",
-      "Research the company discussed above, then analyze its latest 30-day price and volume trends.",
-      "Screen supported exchanges for strong momentum and unusual volume, then export the ranked results as CSV."
+      "Analyze NYSE advance/decline counts, averages, and distributions using the full market.",
+      "Rank the NASDAQ Top 100 by dollar volume and export only the key research fields as CSV."
     ]
   }
 }

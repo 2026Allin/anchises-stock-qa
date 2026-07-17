@@ -33,10 +33,13 @@
 ## Dates
 
 - “Latest” or no date: use each market's value from `get_latest_dates`.
-- A specific day: use that source date and report when it is unavailable.
-- “Since” a date: use a range ending at the latest available data date.
-- “Last month”: use the previous calendar month.
-- “Past month”: use a rolling one-month range ending at the latest data date.
+- A specific day: use `as_of_date` and report when it is unavailable.
+- “Since” a date: use both `start_date` and `end_date`, ending at the latest
+  available data date.
+- “Last month”: use paired boundaries for the previous calendar month.
+- “Past month”: use paired boundaries for a rolling one-month range ending at
+  the latest data date.
+- Never send one range boundary alone or combine a range with `as_of_date`.
 - Do not confuse the current calendar date with `data_date`.
 
 ## Filters
@@ -53,12 +56,32 @@ For “strong momentum” or another qualitative request, choose a transparent
 ranking from available schema fields, state the definition, and avoid inventing
 an absolute threshold the user did not request.
 
+## Analyst requests
+
+Complete ordinary analyst requests without first explaining export policy:
+
+- Translate “volume above one million and gain above five percent” into two
+  AND-combined filters.
+- Translate “NASDAQ dollar-volume Top 100” into an explicit descending sort,
+  `top_n=100`, and only the fields needed to explain the ranking.
+- Treat a 30-50 ticker watchlist as one exact `in` filter, not many requests.
+- Use one paired date range for a single stock's one-year history.
+- Use SQL aggregation for whole-NYSE advance/decline counts, averages, and
+  distributions when a structured screen cannot return the statistic.
+- For a broad match, analyze the complete matched range server-side and show
+  only the first 200 rows in the current sort order.
+- Create a CSV only after selecting a small set of necessary fields and reading
+  `eligible_by_query=true`.
+
+Explain product boundaries only when the user asks for a complete row-level
+table, row 201 onward, a next page, or a large/full-partition download.
+
 ## Ranking and evidence
 
 - Use returned numeric fields for ranking and calculations.
 - Preserve the denominator for rates and probabilities.
 - Report missing values and whether rows were excluded.
-- When a result is truncated, label it as partial or fetch subsequent pages
-  before making a whole-market claim.
+- When rows are truncated, distinguish complete-range server-side analysis from
+  the displayed preview. Do not fetch or reconstruct subsequent stock rows.
 - Add external news context only when the user requests it and live browsing is
   available.

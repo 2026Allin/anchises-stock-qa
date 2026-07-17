@@ -32,10 +32,10 @@
     },
     {
       "id": "positive-csv-export",
-      "prompt": "Export the immediately preceding stock screen as CSV using the default expiration.",
+      "prompt": "Export the immediately preceding Apple stock screen as CSV using only the displayed research fields and the default expiration.",
       "expected_workflow": ["create_csv_export"],
-      "expected_shape": ["download_url", "expires_at", "bytes", "default lifetime of 60 minutes"],
-      "fixture_data": "Use the real query_id from the preceding screen and omit expires_in_seconds so the default 60-minute lifetime applies."
+      "expected_shape": ["export_policy.eligible_by_query=true", "download_url", "expires_at", "bytes", "default lifetime of 60 minutes"],
+      "fixture_data": "Use the real query_id from the preceding selective screen, never a SQL query_id, and omit expires_in_seconds so the default 60-minute lifetime applies."
     }
   ],
   "negative": [

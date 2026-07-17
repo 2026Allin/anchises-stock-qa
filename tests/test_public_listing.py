@@ -48,6 +48,10 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("https://anchisesdata.com/support", self.listing)
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
+        self.assertIn("Version: 0.4.0-beta.1", self.listing)
+        self.assertIn("MCP version: 0.6.0", self.listing)
+        self.assertIn("Data API version: 0.3.0", self.listing)
+        self.assertIn("stock-data-export-v1", self.listing)
 
     def test_listing_uses_the_exact_starter_prompts(self) -> None:
         prompts = self.manifest["interface"]["defaultPrompt"]
@@ -67,12 +71,50 @@ class PublicListingTest(unittest.TestCase):
             "does not persist",
             "official filings or investment advice",
             "no Anchises Analysis account or credentials",
-            "shared service limits",
+            "shared short-term service limits",
             "short-lived bearer links",
             "ASX, CSE, NASDAQ, NYSE, TSX, and TSXV",
+            "first 200 rows",
+            "no subsequent row-level pages",
+            "selective small research subsets",
+            "rather than a market-percentage limit",
+            "no account-linked cross-session cumulative budget",
         ):
             with self.subTest(disclosure=disclosure):
                 self.assertIn(disclosure, description)
+
+    def test_public_copy_describes_server_analysis_and_selective_exports(self) -> None:
+        normalized_listing = " ".join(self.listing.split())
+        for expected in (
+            "Full matched stock-data ranges may be analyzed",
+            "at most the first 200 rows",
+            "does not provide later row-level pages",
+            "Only selective small research subsets can be downloaded",
+            "complete exchange-day partitions and SQL results cannot be exported",
+            "rather than a percentage of a market",
+            "no account-linked cross-session cumulative budget",
+        ):
+            self.assertIn(expected, normalized_listing)
+
+        release_surfaces = [
+            self.manifest["interface"]["longDescription"],
+            self.listing,
+            (ROOT / "README.md").read_text(encoding="utf-8"),
+            (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8"),
+            (ROOT / "docs" / "anchises-analysis-0.4.0-beta.1-release-notes.md").read_text(
+                encoding="utf-8"
+            ),
+        ]
+        forbidden = (
+            "download complete exchange data",
+            "200,000-row export",
+            "fetch the next stock page",
+            "export SQL results as CSV",
+        )
+        for text in release_surfaces:
+            lowered = text.lower()
+            for phrase in forbidden:
+                self.assertNotIn(phrase.lower(), lowered)
 
     def test_production_logo_assets_are_frozen(self) -> None:
         expected = {

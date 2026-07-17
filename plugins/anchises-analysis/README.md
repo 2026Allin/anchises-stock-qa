@@ -10,10 +10,12 @@ research and structured stock-market analysis.
 - Explicit invocation: `$anchises-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.3.0-beta.1`
+- Target semantic version: `0.4.0-beta.1`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- Hosted MCP version: `0.5.1`
+- Hosted MCP version: `0.6.0`
+- Data API version: `0.3.0`
+- Export policy: `stock-data-export-v1`
 - Prompt pack: `5.1`
 
 The Developer Mode App ID value in `.app.json` is intentionally unchanged. Its
@@ -75,7 +77,16 @@ The 12 Hosted MCP tools are:
 - `create_csv_export`
 
 CSV exports default to 3600 seconds (60 minutes) and may be explicitly set from
-60 through 3600 seconds.
+60 through 3600 seconds. Full matched ranges may be analyzed server-side, but
+only the first 200 stock rows are shown and no later row-level pages are
+available.
+
+CSV downloads are limited to selective `screen_stocks` research subsets.
+`data.export_policy.eligible_by_query` is the only export gate. One file is
+limited to 1,000 rows, 25 total columns, 20,000 cells, Top-N 200, or 50 exact
+tickers; `EXCHANGE`, `Date`, and `TICKER` are added automatically and count
+toward the column limit. Complete exchange-day partitions and SQL query IDs are
+not exportable.
 
 ## Contract sync
 
@@ -86,9 +97,10 @@ credential-free, read-only JSON-RPC client:
 .venv/bin/python plugins/anchises-analysis/contracts/sync_hosted_contract.py --check
 ```
 
-The snapshot must contain exactly 12 strict descriptors, the company-identity
-resolver, a four-required-field prepare schema, noauth security, and Prompt
-pack `5.1`.
+The snapshot must contain exactly 12 strict descriptors, MCP `0.6.0`, the
+company-identity resolver, a four-required-field prepare schema, noauth
+security, Prompt pack `5.1`, null stock-row cursors, and
+`eligible_by_query` export policy metadata.
 
 ## Validation
 

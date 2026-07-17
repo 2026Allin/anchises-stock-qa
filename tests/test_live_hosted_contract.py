@@ -47,7 +47,7 @@ class LiveHostedContractTest(unittest.TestCase):
                 "capabilities": {},
                 "clientInfo": {
                     "name": f"anchises-analysis-{label}",
-                    "version": "0.3.0",
+                    "version": "0.4.0",
                 },
             },
             1,
@@ -76,15 +76,15 @@ class LiveHostedContractTest(unittest.TestCase):
         ).validate(structured)
         return structured
 
-    def test_health_and_handshake_publish_0_5_1(self) -> None:
+    def test_health_and_handshake_publish_0_6_0(self) -> None:
         request = Request(
             HEALTH,
-            headers={"User-Agent": "anchises-analysis-live-health/0.3"},
+            headers={"User-Agent": "anchises-analysis-live-health/0.4"},
         )
         with urlopen(request, timeout=20) as response:
             health = json.loads(response.read().decode("utf-8"))
         self.assertTrue(health["ok"])
-        self.assertEqual(health["version"], "0.5.1")
+        self.assertEqual(health["version"], "0.6.0")
         self.assertEqual(health["status"], "ready")
         self.assertEqual(health["access_mode"], "public_noauth")
         self.assertEqual(health["authentication"], "not_required")
@@ -94,7 +94,7 @@ class LiveHostedContractTest(unittest.TestCase):
             initialized["serverInfo"],
             {
                 "name": "Anchises Analysis",
-                "version": "0.5.1",
+                "version": "0.6.0",
                 "websiteUrl": "https://anchisesdata.com/stock-qa",
             },
         )
@@ -131,10 +131,26 @@ class LiveHostedContractTest(unittest.TestCase):
         codes = [item["code"] for item in exchanges["data"]["exchanges"]]
         self.assertEqual(codes, ["ASX", "CSE", "NASDAQ", "NYSE", "TSX", "TSXV"])
 
-        self._tool_call(client, request_id, "get_latest_dates", {"exchanges": ["NASDAQ"]})
+        latest = self._tool_call(
+            client,
+            request_id,
+            "get_latest_dates",
+            {"exchanges": ["NASDAQ"]},
+        )
         request_id += 1
-        self._tool_call(client, request_id, "get_stock_schema", {"exchange": "NASDAQ"})
+        schema = self._tool_call(
+            client,
+            request_id,
+            "get_stock_schema",
+            {"exchange": "NASDAQ"},
+        )
         request_id += 1
+        field_names = [item["name"] for item in schema["data"]["fields"]]
+        ticker_field = next(name for name in field_names if name.casefold() == "ticker")
+        price_field = next(
+            name for name in field_names
+            if name.casefold() in {"price_close", "close"}
+        )
 
         tables = self._tool_call(
             client,
@@ -156,23 +172,49 @@ class LiveHostedContractTest(unittest.TestCase):
             client,
             request_id,
             "screen_stocks",
-            {"exchanges": ["NASDAQ"], "filters": [], "page_size": 1},
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": [price_field],
+                "filters": [
+                    {
+                        "field": ticker_field,
+                        "operator": "eq",
+                        "value": "AAPL",
+                    }
+                ],
+                "sort": [{"field": ticker_field, "direction": "asc"}],
+                "top_n": 1,
+                "page_size": 1,
+            },
         )
         request_id += 1
+        self.assertIsNone(screen["page"]["next_cursor"])
+        self.assertTrue(screen["data"]["export_policy"]["eligible_by_query"])
+        self.assertEqual(
+            screen["data"]["export_policy"]["policy_version"],
+            "stock-data-export-v1",
+        )
+        aggregate_sql = f'SELECT COUNT(*) AS "row_count" FROM "{table_name}"'
         self._tool_call(
             client,
             request_id,
             "validate_readonly_sql",
-            {"sql": f'SELECT * FROM "{table_name}" LIMIT 1'},
+            {"sql": aggregate_sql},
         )
         request_id += 1
-        self._tool_call(
+        sql_result = self._tool_call(
             client,
             request_id,
             "run_readonly_sql",
-            {"sql": f'SELECT * FROM "{table_name}" LIMIT 1', "max_rows": 1},
+            {"sql": aggregate_sql, "max_rows": 1},
         )
         request_id += 1
+        self.assertIsNone(sql_result["page"]["next_cursor"])
+        self.assertFalse(sql_result["data"]["export_policy"]["eligible_by_query"])
+        self.assertEqual(
+            sql_result["data"]["export_policy"]["reasons"],
+            ["query_not_exportable"],
+        )
 
         resolved = self._tool_call(
             client,
@@ -210,13 +252,72 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertTrue(export["data"]["download_url"].startswith("https://"))
         download = Request(
             export["data"]["download_url"],
-            headers={"User-Agent": "anchises-analysis-live-csv/0.3"},
+            headers={"User-Agent": "anchises-analysis-live-csv/0.4"},
         )
         with urlopen(download, timeout=30) as response:
             body = response.read()
             content_type = response.headers.get("Content-Type", "")
         self.assertTrue(body)
         self.assertIn("text/csv", content_type)
+
+        latest_value = latest["data"]["latest_dates"]["NASDAQ"]
+        latest_date = (
+            latest_value["latest_date"]
+            if isinstance(latest_value, dict)
+            else latest_value
+        )
+        broad = self._tool_call(
+            client,
+            request_id + 1,
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "as_of_date": latest_date,
+                "fields": [price_field],
+                "filters": [],
+                "sort": [{"field": ticker_field, "direction": "asc"}],
+                "page_size": 1,
+            },
+        )
+        self.assertIsNone(broad["page"]["next_cursor"])
+        self.assertFalse(broad["data"]["export_policy"]["eligible_by_query"])
+        self.assertTrue(
+            broad["data"]["export_policy"]["contains_complete_partition"]
+        )
+
+        refused = client.call(
+            "tools/call",
+            {
+                "name": "create_csv_export",
+                "arguments": {"query_id": broad["data"]["query_id"]},
+            },
+            request_id + 2,
+        )
+        self.assertTrue(refused["isError"])
+        self.assertIn(
+            refused["_meta"]["anchises/error_code"],
+            {
+                "export_complete_partition_not_allowed",
+                "export_requires_selective_query",
+            },
+        )
+
+    def test_screen_runtime_rejects_one_sided_range_unsorted_top_n_and_cursor(self) -> None:
+        client, _ = self._client("screen-invalid")
+        cases = (
+            {"filters": [], "start_date": "2026-07-01", "page_size": 1},
+            {"filters": [], "top_n": 10, "page_size": 1},
+            {"filters": [], "cursor": "legacy", "page_size": 1},
+        )
+        for request_id, arguments in enumerate(cases, 2):
+            with self.subTest(arguments=arguments):
+                result = client.call(
+                    "tools/call",
+                    {"name": "screen_stocks", "arguments": arguments},
+                    request_id,
+                )
+                self.assertTrue(result["isError"])
+                self.assertNotIn("data", result.get("structuredContent", {}))
 
     def test_company_identity_resolution_business_states(self) -> None:
         client, _ = self._client("identity")

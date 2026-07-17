@@ -13,13 +13,23 @@ Include as applicable:
 - source `data_date` or historical range
 - exchange scope and canonical company identity
 - actual filters or ranking definition
-- rows examined and returned
+- matched rows and displayed rows
 - missing-value handling
-- pagination, truncation, quota, or service warnings
+- preview state, truncation, quota, or service warnings
 
 For a ranking, show a compact table of the strongest evidence rows. For a rate
 or probability, state numerator, denominator, and percentage. Do not imply that
-a fixture, sample, or first page represents an entire market.
+a fixture or displayed preview represents every row. When the complete matched
+range was used server-side, say:
+
+> I used the full matched range for server-side analysis. Below are only the
+> first 200 rows in the current sort order. Row-level next pages are not
+> available, but I can continue to calculate statistics, filters, rankings, and
+> aggregates over the full result.
+
+In Chinese, prefer:
+
+> 我已使用完整命中范围进行服务端分析。下面仅展示当前排序下的前 200 条；不提供后续行级分页，但仍可以继续对完整结果进行统计、筛选、排名和聚合。
 
 For a company outside ASX, CSE, NASDAQ, NYSE, TSX, and TSXV, clearly say that
 Anchises structured stock data does not cover that listing. Do not present web
@@ -42,11 +52,26 @@ quantitative market data and state the stock-data date or range.
 
 ## Exports
 
-When `create_csv_export` is used, provide the returned HTTPS download link and
-exact expiry. Call it a temporary export. If no lifetime was requested, state
-that the default lifetime is 60 minutes. A requested lifetime must be from 60
-through 3600 seconds. Do not invent a local path or promise availability after
-expiry.
+Use `create_csv_export` only after a selective `screen_stocks` result reports
+`eligible_by_query=true`. Provide the returned HTTPS link and exact expiry.
+Call it a temporary export. If no lifetime was requested, state that the default
+lifetime is 60 minutes. A requested lifetime must be from 60 through 3600
+seconds. Do not invent a local path or promise availability after expiry.
+
+When an export is ineligible, do not call it missing permission, exhausted
+quota, or a system failure. Say:
+
+> This result can still be analyzed in the current conversation, but it does
+> not meet the small research-subset export conditions. Specify tickers, a
+> Top-N, filters, and the fields you need, and I can prepare a more focused CSV.
+
+In Chinese, prefer:
+
+> 这份结果可以继续在当前会话中分析，但不符合研究型小规模导出条件。你可以指定 ticker、Top-N、筛选指标和需要的字段，我可以为更精确的结果生成 CSV。
+
+If only CSV creation returns `temporarily_unavailable`, say that download is
+temporarily unavailable while the existing analysis and displayed results
+remain usable.
 
 ## Caveat
 

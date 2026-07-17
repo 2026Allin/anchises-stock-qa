@@ -28,6 +28,20 @@ class MarketplaceManifestTest(unittest.TestCase):
         self.assertFalse((plugin_root / ".mcp.json").exists())
         self.assertTrue((plugin_root / "skills" / "anchises-analysis").is_dir())
 
+        manifest = json.loads(
+            (plugin_root / ".codex-plugin" / "plugin.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        contract = json.loads(
+            (plugin_root / "contracts" / "hosted-mcp-v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(manifest["version"], "0.4.0-beta.1")
+        self.assertEqual(contract["source"]["server_version"], "0.6.0")
+        self.assertEqual(contract["source"]["access_mode"], "public_noauth")
+
 
 if __name__ == "__main__":
     unittest.main()

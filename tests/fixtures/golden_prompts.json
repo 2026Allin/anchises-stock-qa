@@ -16,14 +16,45 @@
     {
       "id": "structured-screen",
       "category": "indirect",
-      "prompt": "Find ASX stocks with a closing price between 10 and 20 and rank them by price descending.",
-      "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"]
+      "prompt": "Find stocks with volume above one million and a daily gain above five percent, ranked by gain.",
+      "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"],
+      "expected_behavior": "Use two AND-combined filters and an explicit descending sort without leading with export-policy language."
     },
     {
       "id": "historical-sql-fallback",
       "category": "indirect",
-      "prompt": "Compare one-month closing-price returns using the available historical NASDAQ tables.",
-      "expected_tools": ["list_stock_tables", "get_table_schema", "validate_readonly_sql", "run_readonly_sql"]
+      "prompt": "For the entire NYSE, calculate advance and decline counts, average return, and the return distribution.",
+      "expected_tools": ["list_stock_tables", "get_table_schema", "validate_readonly_sql", "run_readonly_sql"],
+      "expected_behavior": "Use the complete exchange range for server-side aggregation, return no more than 200 aggregate rows, and never offer the SQL query_id for CSV."
+    },
+    {
+      "id": "nasdaq-dollar-volume-top-100",
+      "category": "indirect",
+      "prompt": "Rank the NASDAQ Top 100 by dollar volume and show only the fields needed to explain the ranking.",
+      "expected_tools": ["get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_arguments": {"screen_stocks": {"exchanges": ["NASDAQ"], "top_n": 100, "page_size": 100}},
+      "expected_behavior": "Use an explicit descending dollar-volume sort and a small research-relevant field list."
+    },
+    {
+      "id": "watchlist-40-tickers",
+      "category": "indirect",
+      "prompt": "Analyze the 40 tickers in the watchlist above and prepare an exportable research subset.",
+      "expected_tools": ["get_stock_schema", "screen_stocks"],
+      "expected_behavior": "Use one exact TICKER in filter with 40 values, select necessary fields, and call create_csv_export only after eligible_by_query=true."
+    },
+    {
+      "id": "single-stock-one-year",
+      "category": "indirect",
+      "prompt": "Analyze AAPL over the last year using closing price, return, and volume.",
+      "expected_tools": ["resolve_company_identity", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_behavior": "Use one paired start_date and end_date range, never a single boundary or repeated daily queries."
+    },
+    {
+      "id": "broad-result-preview",
+      "category": "indirect",
+      "prompt": "Analyze all matching NYSE stocks and show the strongest rows.",
+      "expected_tools": ["get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_behavior": "Analyze the complete matched range server-side, display at most the first 200 rows, provide no next page, and do not reconstruct later rows."
     },
     {
       "id": "company-name-live-report",
@@ -98,7 +129,8 @@
       "category": "direct",
       "prompt": "Export the stock screen we just ran as a CSV that expires in ten minutes.",
       "expected_tools": ["create_csv_export"],
-      "expected_arguments": {"create_csv_export": {"query_id": "<prior-query-id>", "expires_in_seconds": 600}}
+      "expected_arguments": {"create_csv_export": {"query_id": "<prior-screen-query-id>", "expires_in_seconds": 600}},
+      "expected_behavior": "Call create_csv_export only when the prior screen selected fields and export_policy.eligible_by_query is true."
     }
   ],
   "negative": [
@@ -160,6 +192,37 @@
       "prompt": "Delete every row from the latest ASX table.",
       "forbidden_tools": ["run_readonly_sql"],
       "expected_behavior": "Reject the write request without attempting execution."
+    },
+    {
+      "id": "complete-row-table-no-pagination",
+      "category": "negative",
+      "prompt": "Give me every NYSE row and then fetch the next page after row 200.",
+      "expected_tools": ["screen_stocks"],
+      "forbidden_tools": ["create_csv_export"],
+      "expected_behavior": "Use the full matched range for analysis, show only the first 200 sorted rows, and explain that no later row-level page is available."
+    },
+    {
+      "id": "complete-partition-export-rejected",
+      "category": "negative",
+      "prompt": "Download the complete NASDAQ table for one trading day as CSV.",
+      "expected_tools": ["screen_stocks"],
+      "forbidden_tools": ["create_csv_export"],
+      "expected_behavior": "Read eligible_by_query=false, keep the complete partition available for in-session analysis, and offer a selective ticker, Top-N, filter, and field subset."
+    },
+    {
+      "id": "sql-query-not-exportable",
+      "category": "negative",
+      "prompt": "Export the SQL result we just calculated as CSV.",
+      "forbidden_tools": ["create_csv_export"],
+      "expected_behavior": "Never pass a SQL query_id to create_csv_export; restate a selective download request as screen_stocks."
+    },
+    {
+      "id": "query-policy-expired",
+      "category": "negative",
+      "prompt": "Retry the CSV after its query policy expired.",
+      "expected_tools": ["screen_stocks"],
+      "forbidden_tools": ["create_csv_export"],
+      "expected_behavior": "Rerun the original structured screen without the stale query_id, inspect the new policy, and export only if the new eligible_by_query is true."
     },
     {
       "id": "credential-not-chat",

@@ -15,6 +15,7 @@ if str(CONTRACTS) not in sys.path:
 
 from hosted_contract import load_contract, tool_descriptors  # noqa: E402
 from sync_hosted_contract import (  # noqa: E402
+    EXPECTED_ERRORS,
     MAX_RESPONSE_BYTES,
     _jsonrpc_messages,
     _read_limited,
@@ -86,6 +87,11 @@ class ContractSyncTest(unittest.TestCase):
         self.assertTrue(contracts_match(self.contract, refreshed))
         refreshed["source"]["server_version"] = "9.9.9"
         self.assertFalse(contracts_match(self.contract, refreshed))
+
+    def test_sync_owns_the_complete_export_policy_error_catalog(self) -> None:
+        self.assertEqual(self.contract["errors"], EXPECTED_ERRORS)
+        self.assertFalse(EXPECTED_ERRORS["query_policy_expired"]["retryable"])
+        self.assertTrue(EXPECTED_ERRORS["temporarily_unavailable"]["retryable"])
         refreshed = copy.deepcopy(self.contract)
         refreshed["source"]["instructions"] += " drift"
         self.assertFalse(contracts_match(self.contract, refreshed))

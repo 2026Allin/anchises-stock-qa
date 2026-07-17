@@ -1,6 +1,6 @@
 ---
 name: anchises-analysis
-description: Research public companies and analyze stock-market data through the Anchises Analysis Hosted App. Use for company 调研、研究、背调, company reports, business models, assets, products, customers, competition, financial position, capital structure, management, catalysts, risks, and direct live report generation; also use for company-name or ticker resolution, exchange discovery, prices, technical indicators, momentum or volume screens, rankings, historical comparisons, read-only stock SQL, CSV exports, and mixed company-research plus market-data requests. Do not use the company-report workflow for official filings or news-only requests.
+description: Research public companies and analyze stock-market data through the Anchises Analysis Hosted App. Use for company 调研、研究、背调, company reports, business models, assets, products, customers, competition, financial position, capital structure, management, catalysts, risks, and direct live report generation; also use for company-name or ticker resolution, exchange discovery, prices, technical indicators, full-range server-side market analysis, momentum or volume screens, rankings, historical comparisons, bounded read-only stock SQL, selective research CSV exports, and mixed company-research plus market-data requests. Do not use the company-report workflow for official filings or news-only requests.
 ---
 
 # Anchises Analysis
@@ -16,7 +16,8 @@ limits. Do not ask the user to sign in.
 
 1. Call `get_connection_status` once before an access-sensitive workflow.
 2. Continue when `status` is `active`; treat quota as shared global service
-   capacity, not the user's personal allowance.
+   capacity, not the user's personal allowance. Public access has no
+   account-linked cross-session cumulative budget.
 3. If an authentication challenge or identity-specific access state appears,
    stop and explain that the public service cannot complete the request. Do not
    start an authorization flow or ask for credentials.
@@ -104,16 +105,18 @@ research, but do not imply that structured stock data exists for it.
    `get_table_schema` to confirm coverage and fields.
 7. Use `validate_readonly_sql` followed by `run_readonly_sql` only when the
    request cannot be represented by `screen_stocks`.
-8. Follow opaque cursors when a complete answer requires more pages; never call
-   the first page a complete market result.
-9. Call `create_csv_export` only for a real `query_id` from the current screen
-   or SQL workflow and only when the user requests a CSV. Omit
-   `expires_in_seconds` for the default 60-minute lifetime; otherwise pass an
-   integer from 60 through 3600 seconds.
+8. Use the complete matched range for server-side filtering, counting,
+   statistics, ranking, and aggregation. Show at most the first 200 rows in the
+   current sort order. Stock rows have no next-page cursor.
+9. Call `create_csv_export` only when the user asks for a CSV and the immediately
+   preceding `screen_stocks` result has
+   `data.export_policy.eligible_by_query=true`. Never export a SQL query ID.
 
 Read [references/query-interpretation.md](references/query-interpretation.md)
 for intent, dates, filters, rankings, and mixed requests. Read
 [references/workflow.md](references/workflow.md) for tool contracts and errors.
+Read [references/market-data-policy.md](references/market-data-policy.md) before
+handling broad results, row-level pagination, SQL, or CSV download requests.
 
 ## Surface behavior
 
@@ -134,8 +137,10 @@ for intent, dates, filters, rankings, and mixed requests. Read
 - Keep SQL to one `SELECT` or `WITH ... SELECT`. Never attempt writes, DDL,
   procedures, locks, file access, sleeps, benchmarks, system schemas, or
   unlisted tables.
-- Treat cursors, query IDs, and export URLs as short-lived bearer capabilities.
-  Never share, edit, or reuse them outside the related workflow.
+- Treat metadata cursors, query IDs, and export URLs as short-lived bearer
+  capabilities. Never share, edit, or reuse them outside the related workflow.
+  Do not use cursors, repeated sorts, split filters, or local stitching to
+  reconstruct stock rows beyond the displayed preview.
 - Ground numeric claims in returned data. Disclose data dates, filters, row
   counts, missing values, warnings, and truncation.
 - Treat reports and stock analysis as analytical information, not financial
@@ -148,11 +153,20 @@ Follow safe returned guidance without probing hidden state:
 - `rate_limited` or `concurrency_limited`: follow supplied retry guidance.
 - `usage_limit_exceeded`: state the returned reset information.
 - `query_rejected`: revise to a safe bounded screen or read-only query.
+- `query_requires_bounded_analysis`: replace raw row enumeration with a
+  server-side aggregate or a query for no more than 50 exact tickers.
 - `resource_not_found`: rerun the original workflow only when needed; do not
   edit an opaque capability.
-- `result_too_large`: narrow, paginate, or offer an allowed export.
-- `service_not_activated`, HTTP 503, or `temporarily_unavailable`: stop and
-  suggest retrying later without an automatic loop.
+- `query_policy_expired`: rerun the original structured screen and re-read its
+  new export policy; do not reuse the old query ID.
+- Export-policy errors: keep analyzing in the conversation and help the user
+  choose a smaller ticker, Top-N, filter, and field subset.
+- `result_too_large` or `query_partition_limit_exceeded`: narrow or aggregate
+  the request; do not paginate or partition it into a reconstructed dataset.
+- `temporarily_unavailable` during CSV creation: explain that only the download
+  is temporarily unavailable and continue using the existing analysis.
+- `service_not_activated` or HTTP 503: stop and suggest retrying later without
+  an automatic loop.
 
 ## Answer
 

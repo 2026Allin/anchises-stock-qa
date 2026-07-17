@@ -210,10 +210,16 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertIn("price_change_pct_30day", [field["name"] for field in schema["data"]["fields"]])
         arguments = {
             "exchanges": ["NASDAQ", "ASX"],
-            "filters": [
-                {"field": "price_change_pct_30day", "operator": "gt", "value": 10}
+            "fields": [
+                "price_close",
+                "price_change_pct_1day",
+                "volume",
             ],
-            "sort": [{"field": "price_change_pct_30day", "direction": "desc"}],
+            "filters": [
+                {"field": "volume", "operator": "gt", "value": 1000000},
+                {"field": "price_change_pct_1day", "operator": "gt", "value": 5},
+            ],
+            "sort": [{"field": "price_change_pct_1day", "direction": "desc"}],
             "page_size": 20,
         }
         Draft202012Validator(
@@ -225,6 +231,16 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(structured["data"]["query_id"], "qry_screen_0001")
         self.assertEqual(structured["page"]["row_count"], 2)
         self.assertFalse(structured["page"]["truncated"])
+        self.assertIsNone(structured["page"]["next_cursor"])
+        self.assertEqual(
+            structured["data"]["analysis"]["query_classification"],
+            "filtered",
+        )
+        self.assertTrue(structured["data"]["export_policy"]["eligible_by_query"])
+        self.assertEqual(
+            structured["data"]["export_policy"]["policy_version"],
+            "stock-data-export-v1",
+        )
 
     def test_mock_tools_list_matches_materialized_contract(self) -> None:
         status, body, _ = _request(
@@ -264,11 +280,37 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(status, 200)
         result = self._assert_success_schema("run_readonly_sql", body)
         self.assertEqual(result["data"]["query_id"], "qry_sql_0001")
+        self.assertIsNone(result["page"]["next_cursor"])
+        self.assertEqual(
+            result["data"]["analysis"]["query_classification"],
+            "sql_analysis",
+        )
+        self.assertFalse(result["data"]["export_policy"]["eligible_by_query"])
+        self.assertEqual(
+            result["data"]["export_policy"]["reasons"],
+            ["query_not_exportable"],
+        )
 
     def test_positive_5_temporary_csv_export(self) -> None:
         status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": ["price_close", "price_change_pct_30day", "volume"],
+                "filters": [{"field": "ticker", "operator": "eq", "value": "AAPL"}],
+                "sort": [{"field": "ticker", "direction": "asc"}],
+                "page_size": 10,
+            },
+        )
+        self.assertEqual(status, 200)
+        screen = self._assert_success_schema("screen_stocks", body)
+        self.assertTrue(screen["data"]["export_policy"]["eligible_by_query"])
+        status, body, _ = self._mcp_call(
             "create_csv_export",
-            {"query_id": "qry_screen_0001", "expires_in_seconds": 600},
+            {
+                "query_id": screen["data"]["query_id"],
+                "expires_in_seconds": 600,
+            },
         )
         self.assertEqual(status, 200)
         export = self._assert_success_schema("create_csv_export", body)["data"]
@@ -278,6 +320,187 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("text/csv", headers["Content-Type"])
         self.assertIn("AAPL,NASDAQ", csv_body)
+
+    def test_screen_top_n_watchlist_and_non_pageable_preview(self) -> None:
+        status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": ["dollar_volume", "price_close"],
+                "filters": [],
+                "sort": [{"field": "dollar_volume", "direction": "desc"}],
+                "top_n": 100,
+                "page_size": 100,
+            },
+        )
+        self.assertEqual(status, 200)
+        ranked = self._assert_success_schema("screen_stocks", body)
+        self.assertEqual(
+            ranked["data"]["analysis"]["query_classification"],
+            "bounded_top_n",
+        )
+        self.assertEqual(ranked["data"]["analysis"]["matched_row_count"], 100)
+        self.assertTrue(ranked["data"]["analysis"]["result_is_preview"])
+        self.assertFalse(
+            ranked["data"]["analysis"]["row_pagination_available"]
+        )
+        self.assertIsNone(ranked["page"]["next_cursor"])
+        self.assertTrue(ranked["data"]["export_policy"]["eligible_by_query"])
+
+        tickers = [f"T{i:02d}" for i in range(40)]
+        status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": ["price_close", "volume"],
+                "filters": [
+                    {"field": "ticker", "operator": "in", "value": tickers}
+                ],
+                "sort": [{"field": "ticker", "direction": "asc"}],
+                "page_size": 40,
+            },
+        )
+        watchlist = self._assert_success_schema("screen_stocks", body)
+        self.assertEqual(
+            watchlist["data"]["analysis"]["query_classification"],
+            "ticker_list",
+        )
+        self.assertTrue(watchlist["data"]["export_policy"]["eligible_by_query"])
+
+        too_many = [f"T{i:02d}" for i in range(51)]
+        status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": ["price_close", "volume"],
+                "filters": [
+                    {"field": "ticker", "operator": "in", "value": too_many}
+                ],
+                "sort": [{"field": "ticker", "direction": "asc"}],
+            },
+        )
+        oversized = self._assert_success_schema("screen_stocks", body)
+        self.assertFalse(oversized["data"]["export_policy"]["eligible_by_query"])
+        self.assertEqual(
+            oversized["data"]["export_policy"]["reasons"],
+            ["export_ticker_limit_exceeded"],
+        )
+
+    def test_complete_partition_remains_analyzable_but_not_exportable(self) -> None:
+        status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "as_of_date": "2026-07-17",
+                "fields": ["price_close", "volume"],
+                "filters": [],
+                "sort": [{"field": "ticker", "direction": "asc"}],
+                "page_size": 200,
+            },
+        )
+        broad = self._assert_success_schema("screen_stocks", body)
+        self.assertEqual(
+            broad["data"]["analysis"]["matched_row_count"],
+            5000,
+        )
+        self.assertTrue(broad["data"]["analysis"]["server_side_analysis_supported"])
+        self.assertFalse(broad["data"]["export_policy"]["eligible_by_query"])
+        self.assertTrue(
+            broad["data"]["export_policy"]["contains_complete_partition"]
+        )
+        self.assertEqual(
+            broad["data"]["export_policy"]["reasons"],
+            ["export_complete_partition_not_allowed"],
+        )
+        self.assertIsNone(broad["page"]["next_cursor"])
+
+        status, body, _ = self._mcp_call(
+            "create_csv_export",
+            {"query_id": broad["data"]["query_id"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["result"]["isError"])
+        self.assertEqual(
+            body["result"]["structuredContent"]["error"]["code"],
+            "export_complete_partition_not_allowed",
+        )
+
+    def test_screen_runtime_rejects_invalid_range_top_n_and_legacy_cursor(self) -> None:
+        cases = (
+            {"filters": [], "start_date": "2026-01-01"},
+            {"filters": [], "top_n": 10},
+            {"filters": [], "cursor": "legacy-cursor"},
+        )
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                status, body, _ = self._mcp_call("screen_stocks", arguments)
+                self.assertEqual(status, 200)
+                self.assertTrue(body["result"]["isError"])
+                self.assertEqual(
+                    body["result"]["structuredContent"]["error"]["code"],
+                    "query_rejected",
+                )
+
+    def test_export_policy_errors_are_stable_and_safe(self) -> None:
+        expected = {
+            "qry_not_selective_0001": "export_requires_selective_query",
+            "qry_row_limit_0001": "export_row_limit_exceeded",
+            "qry_column_limit_0001": "export_column_limit_exceeded",
+            "qry_cell_limit_0001": "export_cell_limit_exceeded",
+            "qry_complete_partition_0001": "export_complete_partition_not_allowed",
+            "qry_topn_limit_0001": "export_top_n_limit_exceeded",
+            "qry_ticker_limit_0001": "export_ticker_limit_exceeded",
+            "qry_expired_policy_0001": "query_policy_expired",
+            "qry_partition_limit_0001": "query_partition_limit_exceeded",
+            "qry_result_too_large_0001": "result_too_large",
+            "qry_temp_unavailable_0001": "temporarily_unavailable",
+        }
+        for query_id, code in expected.items():
+            with self.subTest(code=code):
+                status, body, _ = self._mcp_call(
+                    "create_csv_export",
+                    {"query_id": query_id},
+                )
+                self.assertEqual(status, 200)
+                self.assertTrue(body["result"]["isError"])
+                error = body["result"]["structuredContent"]["error"]
+                self.assertEqual(error["code"], code)
+                self.assertNotIn(query_id, json.dumps(body))
+                self.assertEqual(
+                    error["retryable"],
+                    code == "temporarily_unavailable",
+                )
+
+    def test_expired_policy_requires_a_fresh_screen_before_export(self) -> None:
+        status, body, _ = self._mcp_call(
+            "create_csv_export",
+            {"query_id": "qry_expired_policy_0001"},
+        )
+        self.assertEqual(
+            body["result"]["structuredContent"]["error"]["code"],
+            "query_policy_expired",
+        )
+
+        status, body, _ = self._mcp_call(
+            "screen_stocks",
+            {
+                "exchanges": ["NASDAQ"],
+                "fields": ["price_close", "volume"],
+                "filters": [{"field": "ticker", "operator": "eq", "value": "AAPL"}],
+                "sort": [{"field": "ticker", "direction": "asc"}],
+            },
+        )
+        refreshed = self._assert_success_schema("screen_stocks", body)
+        self.assertTrue(refreshed["data"]["export_policy"]["eligible_by_query"])
+        self.assertNotEqual(
+            refreshed["data"]["query_id"],
+            "qry_expired_policy_0001",
+        )
+        status, body, _ = self._mcp_call(
+            "create_csv_export",
+            {"query_id": refreshed["data"]["query_id"]},
+        )
+        self._assert_success_schema("create_csv_export", body)
 
     def test_positive_6_company_identity_resolution_states(self) -> None:
         status, body, _ = self._mcp_call(
@@ -413,7 +636,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertIn("invalid_token", challenges[0])
         self.assertNotIn("access_token", json.dumps(body).lower())
 
-    def test_negative_2_write_sql_and_cross_user_export_are_safe(self) -> None:
+    def test_negative_2_write_sql_sql_export_and_cross_user_export_are_safe(self) -> None:
         status, body, _ = self._mcp_call(
             "run_readonly_sql",
             {"sql": "UPDATE daily_20260717_nasdaq SET price_close = 0"},
@@ -423,6 +646,21 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(
             body["result"]["structuredContent"]["error"]["code"],
             "query_rejected",
+        )
+        status, body, _ = self._mcp_call(
+            "run_readonly_sql",
+            {"sql": "SELECT COUNT(*) AS row_count FROM daily_20260717_nasdaq"},
+        )
+        sql_result = self._assert_success_schema("run_readonly_sql", body)
+        status, body, _ = self._mcp_call(
+            "create_csv_export",
+            {"query_id": sql_result["data"]["query_id"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["result"]["isError"])
+        self.assertEqual(
+            body["result"]["structuredContent"]["error"]["code"],
+            "query_not_exportable",
         )
         status, body, _ = self._mcp_call(
             "create_csv_export", {"query_id": "qry_owned_by_someone_else"}

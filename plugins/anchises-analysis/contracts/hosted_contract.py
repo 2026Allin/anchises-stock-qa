@@ -86,6 +86,132 @@ def _string_list(value: Any, label: str, *, allow_empty: bool = True) -> List[st
     return value
 
 
+def _schema_properties(schema: Dict[str, Any], label: str) -> Dict[str, Any]:
+    return _object(schema.get("properties"), f"{label}.properties")
+
+
+def _validate_stock_access_policy(tools: List[Dict[str, Any]]) -> None:
+    """Validate cross-tool invariants introduced by stock-data-export-v1."""
+
+    by_name = {tool["name"]: tool for tool in tools}
+    required_tools = {"screen_stocks", "run_readonly_sql", "create_csv_export"}
+    missing = required_tools - set(by_name)
+    if missing:
+        raise ContractError(
+            f"stock access policy tools are missing: {sorted(missing)}"
+        )
+
+    screen = by_name["screen_stocks"]
+    screen_input = _schema_properties(screen["inputSchema"], "screen_stocks.inputSchema")
+    expected_screen_inputs = {
+        "exchanges",
+        "as_of_date",
+        "start_date",
+        "end_date",
+        "fields",
+        "filters",
+        "sort",
+        "top_n",
+        "base_query_id",
+        "page_size",
+    }
+    if set(screen_input) != expected_screen_inputs:
+        raise ContractError(
+            "screen_stocks input properties do not match the 0.6 contract"
+        )
+    if set(screen["inputSchema"].get("required", [])) != {"filters"}:
+        raise ContractError("screen_stocks must require filters")
+    if screen_input["top_n"].get("maximum") != 200:
+        raise ContractError("screen_stocks top_n maximum must be 200")
+    if screen_input["page_size"].get("maximum") != 200:
+        raise ContractError("screen_stocks page_size maximum must be 200")
+
+    sql = by_name["run_readonly_sql"]
+    sql_input = _schema_properties(sql["inputSchema"], "run_readonly_sql.inputSchema")
+    if set(sql_input) != {"sql", "max_rows"}:
+        raise ContractError(
+            "run_readonly_sql must accept only sql and max_rows"
+        )
+    if sql_input["max_rows"].get("maximum") != 200:
+        raise ContractError("run_readonly_sql max_rows maximum must be 200")
+
+    expected_analysis = {
+        "matched_row_count",
+        "displayed_row_count",
+        "display_row_limit",
+        "result_is_preview",
+        "row_pagination_available",
+        "server_side_analysis_supported",
+        "query_classification",
+    }
+    expected_policy = {
+        "policy_version",
+        "eligible_by_query",
+        "classification",
+        "contains_complete_partition",
+        "reasons",
+        "source_tool_required",
+        "limits",
+    }
+    expected_limits = {
+        "max_rows": 1000,
+        "max_columns": 25,
+        "max_cells": 20000,
+        "max_top_n": 200,
+        "max_explicit_tickers": 50,
+        "complete_exchange_day_allowed": False,
+    }
+    for tool_name in ("screen_stocks", "run_readonly_sql"):
+        output = by_name[tool_name]["outputSchema"]
+        output_properties = _schema_properties(output, f"{tool_name}.outputSchema")
+        page = _object(output_properties.get("page"), f"{tool_name}.page")
+        page_properties = _schema_properties(page, f"{tool_name}.page")
+        if page_properties.get("next_cursor", {}).get("type") != "null":
+            raise ContractError(f"{tool_name} next_cursor must allow only null")
+
+        data = _object(output_properties.get("data"), f"{tool_name}.data")
+        data_properties = _schema_properties(data, f"{tool_name}.data")
+        analysis = _object(data_properties.get("analysis"), f"{tool_name}.analysis")
+        if set(_schema_properties(analysis, f"{tool_name}.analysis")) != expected_analysis:
+            raise ContractError(f"{tool_name} analysis schema is incomplete")
+
+        policy = _object(
+            data_properties.get("export_policy"),
+            f"{tool_name}.export_policy",
+        )
+        policy_properties = _schema_properties(
+            policy, f"{tool_name}.export_policy"
+        )
+        if set(policy_properties) != expected_policy or "eligible" in policy_properties:
+            raise ContractError(
+                f"{tool_name} must publish eligible_by_query and no legacy eligible field"
+            )
+        if policy_properties["source_tool_required"].get("const") != "screen_stocks":
+            raise ContractError(
+                f"{tool_name} export source must be screen_stocks"
+            )
+        limits = _schema_properties(
+            _object(policy_properties["limits"], f"{tool_name}.export_policy.limits"),
+            f"{tool_name}.export_policy.limits",
+        )
+        for key, expected in expected_limits.items():
+            if limits.get(key, {}).get("const") != expected:
+                raise ContractError(
+                    f"{tool_name} export policy limit {key} must be {expected!r}"
+                )
+
+    export = by_name["create_csv_export"]
+    export_input = _schema_properties(
+        export["inputSchema"], "create_csv_export.inputSchema"
+    )
+    if set(export_input) != {"query_id", "expires_in_seconds"}:
+        raise ContractError(
+            "create_csv_export must accept only query_id and expires_in_seconds"
+        )
+    if set(export["inputSchema"].get("required", [])) != {"query_id"}:
+        raise ContractError("create_csv_export must require query_id")
+
+
 def mode_profiles(contract: Dict[str, Any]) -> Dict[str, str]:
     """Return backend mode names mapped to stable plugin behavior profiles."""
 
@@ -231,6 +357,7 @@ def validate_contract(contract: Dict[str, Any]) -> None:
 
     if len(names) != len(set(names)):
         raise ContractError("tool names must be unique")
+    _validate_stock_access_policy(tools)
     scopes_supported = _string_list(
         oauth.get("scopes_supported"),
         "oauth.scopes_supported",

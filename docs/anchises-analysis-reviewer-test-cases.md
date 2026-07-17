@@ -36,10 +36,12 @@ Expected: the resolver reports no supported-market match; the Host verifies LSE
 
 ## Positive 5 — CSV export
 
-> Export the immediately preceding stock screen as CSV using the default expiration.
+> Export the immediately preceding Apple stock screen as CSV using only the displayed research fields and the default expiration.
 
-Expected: use the real preceding `query_id`, omit `expires_in_seconds`, and
-describe the returned link as a temporary export with a 60-minute default.
+Expected: confirm the preceding `screen_stocks` result has
+`export_policy.eligible_by_query=true`, use its real `query_id`, omit
+`expires_in_seconds`, and describe the returned link as a temporary export
+with a 60-minute default. Do not export a SQL query ID.
 
 ## Negative 1 — Write SQL
 

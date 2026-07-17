@@ -3,9 +3,14 @@
 > 当前发布状态（2026-07-16）：本文档保留为历史架构记录和未来 OAuth
 > 规划，不再定义首个公开版本。当前发布已冻结为 `public_noauth`，用户无需
 > 登录，所有 12 个生产工具使用 `noauth`，额度为共享服务容量。当前发布计划
-> 以 `docs/stocks-info-marketplace-release-plan.md` 为准。本文下方涉及 Auth0、
+> 以 `docs/anchises-analysis-marketplace-release-plan.md` 为准。本文下方涉及 Auth0、
 > allowlist、pending entitlement、审核账号和 OAuth 登录的内容均属于未来版本，
 > 不得复制到当前 Plugin Directory listing、Skill 或审核说明中。
+>
+> 本文下方旧有的股票行级 cursor 分页、SQL 导出和大规模 CSV 设计同样已经
+> 失效。Hosted MCP 0.6.0 只显示前 200 条股票行且不提供下一页；完整命中范围
+> 仅参与服务端分析，CSV 只允许符合 `stock-data-export-v1` 的小规模
+> `screen_stocks` 研究子集。
 
 - 状态：历史方案 / 未来 OAuth 规划
 - 日期：2026-07-15

@@ -46,7 +46,7 @@ def _base64url_sha256(value: str) -> str:
 
 
 class MockServiceHandler(BaseHTTPRequestHandler):
-    server_version = "AnchisesAnalysisMock/0.5"
+    server_version = "AnchisesAnalysisMock/0.6"
 
     @property
     def base_url(self) -> str:
@@ -390,6 +390,47 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             result["page"] = page
         return result
 
+    @staticmethod
+    def _analysis(
+        matched: int | None,
+        displayed: int,
+        classification: str,
+    ) -> Dict[str, Any]:
+        return {
+            "matched_row_count": matched,
+            "displayed_row_count": displayed,
+            "display_row_limit": 200,
+            "result_is_preview": matched is None or matched > displayed,
+            "row_pagination_available": False,
+            "server_side_analysis_supported": True,
+            "query_classification": classification,
+        }
+
+    @staticmethod
+    def _export_policy(
+        *,
+        eligible: bool,
+        classification: str,
+        contains_complete_partition: bool | None,
+        reasons: list[str],
+    ) -> Dict[str, Any]:
+        return {
+            "policy_version": "stock-data-export-v1",
+            "eligible_by_query": eligible,
+            "classification": classification,
+            "contains_complete_partition": contains_complete_partition,
+            "reasons": reasons,
+            "source_tool_required": "screen_stocks",
+            "limits": {
+                "max_rows": 1000,
+                "max_columns": 25,
+                "max_cells": 20000,
+                "max_top_n": 200,
+                "max_explicit_tickers": 50,
+                "complete_exchange_day_allowed": False,
+            },
+        }
+
     def _tool_response(
         self,
         name: str,
@@ -476,21 +517,119 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 }
             )
         if name == "screen_stocks":
-            for item in arguments.get("filters", []):
+            start_date = arguments.get("start_date")
+            end_date = arguments.get("end_date")
+            as_of_date = arguments.get("as_of_date")
+            if bool(start_date) != bool(end_date):
+                return "query_rejected", "start_date and end_date must be provided together."
+            if as_of_date and (start_date or end_date):
+                return "query_rejected", "as_of_date cannot be combined with a date range."
+            if "cursor" in arguments:
+                return "query_rejected", "Stock row cursors are not supported."
+            top_n = arguments.get("top_n")
+            if top_n is not None and not arguments.get("sort"):
+                return "query_rejected", "top_n requires an explicit sort."
+            if top_n is not None and not 1 <= int(top_n) <= 200:
+                return "query_rejected", "top_n must be between 1 and 200."
+            if int(arguments.get("page_size", 200)) > 200:
+                return "query_rejected", "page_size cannot exceed 200."
+
+            filters = arguments.get("filters", [])
+            for item in filters:
                 if item.get("operator") == "between" and len(item.get("value", [])) != 2:
                     return "query_rejected", "between requires exactly two ordered values."
-            rows = self.fixture["screen_rows"]
+
+            ticker_count = 0
+            for item in filters:
+                if str(item.get("field", "")).casefold() != "ticker":
+                    continue
+                value = item.get("value")
+                if item.get("operator") == "in" and isinstance(value, list):
+                    ticker_count = len(value)
+                elif item.get("operator") == "eq":
+                    ticker_count = 1
+
+            if top_n is not None:
+                classification = "bounded_top_n"
+                query_id = "qry_screen_topn_0001"
+                matched = int(top_n)
+            elif ticker_count:
+                classification = "ticker_list"
+                query_id = "qry_screen_tickers_0001"
+                matched = ticker_count
+            elif filters:
+                classification = "filtered"
+                query_id = "qry_screen_0001"
+                matched = len(self.fixture["screen_rows"])
+            else:
+                classification = "broad_preview"
+                query_id = "qry_screen_broad_0001"
+                matched = 5000
+
+            exchanges = arguments.get("exchanges") or []
+            contains_complete_partition = bool(
+                len(exchanges) == 1
+                and as_of_date
+                and not filters
+                and top_n is None
+            )
+            fields = arguments.get("fields") or []
+            total_columns = len(fields) + 3
+            reasons: list[str] = []
+            if contains_complete_partition:
+                reasons.append("export_complete_partition_not_allowed")
+            elif classification == "broad_preview":
+                reasons.append("export_requires_selective_query")
+            elif not fields:
+                reasons.append("export_requires_selective_query")
+            elif ticker_count > 50:
+                reasons.append("export_ticker_limit_exceeded")
+            elif total_columns > 25:
+                reasons.append("export_column_limit_exceeded")
+            elif matched > 1000:
+                reasons.append("export_row_limit_exceeded")
+            elif matched * total_columns > 20000:
+                reasons.append("export_cell_limit_exceeded")
+            eligible = not reasons
+            policy = self._export_policy(
+                eligible=eligible,
+                classification=classification,
+                contains_complete_partition=contains_complete_partition,
+                reasons=reasons,
+            )
+            self.server.query_policies[query_id] = policy  # type: ignore[attr-defined]
+
+            source_rows = self.fixture["screen_rows"]
+            preview_limit = min(int(arguments.get("page_size", 200)), 200)
+            if top_n is not None:
+                preview_limit = min(preview_limit, int(top_n))
+            rows = source_rows[:preview_limit]
+            automatic_fields = ["exchange", "date", "ticker"]
+            selected_fields = fields or [
+                key for key in source_rows[0] if key not in automatic_fields
+            ]
+            columns = list(dict.fromkeys([*automatic_fields, *selected_fields]))
+            projected_rows = [
+                {key: row.get(key) for key in columns}
+                for row in rows
+            ]
             return self._envelope(
                 {
-                    "query_id": "qry_screen_0001",
-                    "columns": list(rows[0]),
-                    "rows": rows,
+                    "query_id": query_id,
+                    "columns": columns,
+                    "rows": projected_rows,
+                    "analysis": self._analysis(
+                        matched,
+                        len(projected_rows),
+                        classification,
+                    ),
+                    "export_policy": policy,
                 },
                 page={
-                    "row_count": len(rows),
+                    "row_count": len(projected_rows),
                     "next_cursor": None,
-                    "total_count": len(rows),
-                    "truncated": False,
+                    "total_count": matched,
+                    "truncated": matched > len(projected_rows),
                 },
             )
         if name == "validate_readonly_sql":
@@ -514,6 +653,17 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                     "query_id": "qry_sql_0001",
                     "columns": list(rows[0]),
                     "rows": rows,
+                    "analysis": self._analysis(
+                        len(rows),
+                        len(rows),
+                        "sql_analysis",
+                    ),
+                    "export_policy": self._export_policy(
+                        eligible=False,
+                        classification="sql_analysis",
+                        contains_complete_partition=None,
+                        reasons=["query_not_exportable"],
+                    ),
                 },
                 page={
                     "row_count": len(rows),
@@ -693,8 +843,21 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             )
         if name == "create_csv_export":
             query_id = arguments.get("query_id")
-            if query_id not in {"qry_screen_0001", "qry_sql_0001"}:
+            if query_id == "qry_sql_0001":
+                return "query_not_exportable", "SQL query results cannot be exported."
+            special_error = self.server.special_query_errors.get(query_id)  # type: ignore[attr-defined]
+            if special_error:
+                return special_error, "The export request does not satisfy the current query policy."
+            policy = self.server.query_policies.get(query_id)  # type: ignore[attr-defined]
+            if policy is None:
                 return "resource_not_found", "Export source is unavailable."
+            if not policy["eligible_by_query"]:
+                code = (
+                    policy["reasons"][0]
+                    if policy["reasons"]
+                    else "export_requires_selective_query"
+                )
+                return code, "The result is still available for analysis but is not an exportable research subset."
             expires_in_seconds = arguments.get("expires_in_seconds", 3600)
             expires_at = datetime(
                 2026, 7, 14, 12, tzinfo=timezone.utc
@@ -748,6 +911,27 @@ class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisS
         self.httpd.contract = contract  # type: ignore[attr-defined]
         self.httpd.access_mode = access_mode  # type: ignore[attr-defined]
         self.httpd.authorization_codes = {}  # type: ignore[attr-defined]
+        self.httpd.query_policies = {  # type: ignore[attr-defined]
+            "qry_screen_0001": MockServiceHandler._export_policy(
+                eligible=True,
+                classification="filtered",
+                contains_complete_partition=False,
+                reasons=[],
+            )
+        }
+        self.httpd.special_query_errors = {  # type: ignore[attr-defined]
+            "qry_expired_policy_0001": "query_policy_expired",
+            "qry_row_limit_0001": "export_row_limit_exceeded",
+            "qry_column_limit_0001": "export_column_limit_exceeded",
+            "qry_cell_limit_0001": "export_cell_limit_exceeded",
+            "qry_complete_partition_0001": "export_complete_partition_not_allowed",
+            "qry_topn_limit_0001": "export_top_n_limit_exceeded",
+            "qry_ticker_limit_0001": "export_ticker_limit_exceeded",
+            "qry_not_selective_0001": "export_requires_selective_query",
+            "qry_partition_limit_0001": "query_partition_limit_exceeded",
+            "qry_result_too_large_0001": "result_too_large",
+            "qry_temp_unavailable_0001": "temporarily_unavailable",
+        }
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
 
     def __enter__(self) -> "MockAnchisesAnalysisServices":

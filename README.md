@@ -7,19 +7,20 @@ the `anchises-analysis` plugin package published by Anchises Capital. The plugin
 connects to the public Hosted MCP at `https://mcp.anchisesdata.com/mcp` through
 the existing Developer Mode App ID.
 
-Current release target: `0.3.0-beta.1`.
+Current release target: `0.4.0-beta.1`.
 
-## What changed in 0.3
+## What changed in 0.4
 
-- Public brand, plugin slug, Skill name, and directories are now Anchises
-  Analysis / `anchises-analysis`.
-- Company names, tickers, and chat references resolve to a canonical exchange,
-  ticker, and company name before downstream calls.
-- Every company-research request starts live Host web research directly.
-- The Hosted MCP contract is `0.5.1`, uses Prompt pack `5.1`, and exposes 12
-  tools including `resolve_company_identity`.
-- Structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV. Verified
-  companies outside those markets may still receive live public-source research.
+- The Hosted MCP contract is `0.6.0`, the Data API contract is `0.3.0`,
+  and stock exports use policy `stock-data-export-v1`.
+- Full matched ranges can participate in server-side filtering, statistics,
+  ranking, and aggregation while the Host displays at most the first 200 rows.
+- Stock-row previews have no next-page cursor and must not be reconstructed
+  through split queries, changing sorts, or local stitching.
+- CSV is limited to selective `screen_stocks` research subsets. SQL query IDs
+  and complete exchange-day partitions cannot be exported.
+- Company identity resolution and live Host-side company research remain
+  unchanged from the 0.3 release.
 
 ## Repository layout
 
@@ -75,6 +76,6 @@ codex plugin add anchises-analysis@Anchises-Analysis
 After changing plugin content, run the cachebuster helper before reinstalling
 and start a new Codex task so the new Skill and MCP schema are loaded.
 
-See [release notes](docs/anchises-analysis-0.3.0-beta.1-release-notes.md),
+See [release notes](docs/anchises-analysis-0.4.0-beta.1-release-notes.md),
 [Directory listing](docs/anchises-analysis-plugin-directory-listing.md), and
 [reviewer cases](docs/anchises-analysis-reviewer-test-cases.md).
