@@ -168,5 +168,101 @@
       "expires_at": "2026-07-07T12:00:00Z",
       "is_expired": true
     }
+  },
+  "company_report_generation": {
+    "BGL": {
+      "status": "ready",
+      "selected_sector": "Mining / Metals / Exploration",
+      "prompt_id": "mining_metals_exploration_company_search",
+      "company": {
+        "exchange": "ASX",
+        "ticker": "BGL",
+        "company_name": "Bellevue Gold Limited",
+        "website": "https://bellevuegold.com.au/",
+        "is_active": true,
+        "instrument_type": "Common Stock",
+        "company_type": "Operating Company",
+        "classifier_sector": "Mining / Metals / Exploration",
+        "classifier_industry": "Gold",
+        "classifier_sector_updated_at": "2026-07-10T00:00:00Z",
+        "classifier_sector_source": "fixture",
+        "instrument_verification_required": false
+      }
+    },
+    "AAPL": {
+      "status": "ready",
+      "selected_sector": "Semiconductors, Compute & Advanced Hardware",
+      "prompt_id": "semiconductors_compute_advanced_hardware_company_search",
+      "company": {
+        "exchange": "NASDAQ",
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "website": "https://www.apple.com/",
+        "is_active": true,
+        "instrument_type": "Common Stock",
+        "company_type": "Operating Company",
+        "classifier_sector": "Semiconductors, Compute & Advanced Hardware",
+        "classifier_industry": "Consumer Electronics",
+        "classifier_sector_updated_at": "2026-07-10T00:00:00Z",
+        "classifier_sector_source": "fixture",
+        "instrument_verification_required": false
+      }
+    },
+    "AIA": {
+      "status": "ready",
+      "selected_sector": "Others",
+      "prompt_id": "others_generic_company_search",
+      "company": {
+        "exchange": "ASX",
+        "ticker": "AIA",
+        "company_name": "Auckland International Airport Limited",
+        "website": "https://corporate.aucklandairport.co.nz/",
+        "is_active": true,
+        "instrument_type": "Common Stock",
+        "company_type": "Operating Company",
+        "classifier_sector": "Others",
+        "classifier_industry": "Airport Operations",
+        "classifier_sector_updated_at": "2026-07-10T00:00:00Z",
+        "classifier_sector_source": "fixture",
+        "instrument_verification_required": false
+      }
+    },
+    "OLD": {
+      "status": "ready",
+      "selected_sector": "Mining / Metals / Exploration",
+      "prompt_id": "mining_metals_exploration_company_search",
+      "company": {
+        "exchange": "ASX",
+        "ticker": "OLD",
+        "company_name": "Old Gold Limited",
+        "website": null,
+        "is_active": true,
+        "instrument_type": "Common Stock",
+        "company_type": "Operating Company",
+        "classifier_sector": "Mining / Metals / Exploration",
+        "classifier_industry": "Gold",
+        "classifier_sector_updated_at": "2026-07-10T00:00:00Z",
+        "classifier_sector_source": "fixture",
+        "instrument_verification_required": false
+      }
+    },
+    "1TTDB": {
+      "status": "not_eligible",
+      "message": "The security is inactive or delisted and is not eligible for live generation.",
+      "company": {
+        "exchange": "ASX",
+        "ticker": "1TTDB",
+        "company_name": "Inactive Fixture Security",
+        "website": null,
+        "is_active": false,
+        "instrument_type": "Common Stock",
+        "company_type": "Operating Company",
+        "classifier_sector": "Others",
+        "classifier_industry": null,
+        "classifier_sector_updated_at": null,
+        "classifier_sector_source": null,
+        "instrument_verification_required": false
+      }
+    }
   }
 }

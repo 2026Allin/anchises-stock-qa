@@ -139,10 +139,14 @@ def validate_contract(contract: Dict[str, Any]) -> None:
         "protocol_version",
         "server_name",
         "server_version",
+        "instructions",
+        "sync_state",
         "synced_at",
         "descriptor_sha256",
     ):
         _nonempty_string(source.get(key), f"source.{key}")
+    if source["sync_state"] not in {"live", "target_pending_mcp_publish"}:
+        raise ContractError("source.sync_state must be live or target_pending_mcp_publish")
     supported_modes = _string_list(
         runtime.get("supported_modes"),
         "runtime.supported_modes",

@@ -44,6 +44,7 @@ EXPECTED_TOOLS = [
     "validate_readonly_sql",
     "run_readonly_sql",
     "get_latest_company_report",
+    "prepare_company_report_generation",
     "create_csv_export",
 ]
 PAGINATED_TOOLS = {"list_stock_tables", "screen_stocks", "run_readonly_sql"}
@@ -77,24 +78,29 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.2.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.4.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
-            ["closed", "anonymous_dev", "oauth"],
+            ["closed", "public_noauth", "oauth"],
         )
-        self.assertEqual(runtime["snapshot_mode"], "anonymous_dev")
+        self.assertEqual(runtime["snapshot_mode"], "public_noauth")
         self.assertEqual(
             mode_profiles(self.contract),
             {
                 "closed": PROFILE_UNAVAILABLE,
-                "anonymous_dev": PROFILE_ANONYMOUS,
+                "public_noauth": PROFILE_ANONYMOUS,
                 "oauth": PROFILE_AUTHENTICATED,
             },
         )
         source = self.contract["source"]
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
-        self.assertEqual(source["access_mode"], "anonymous_dev")
+        self.assertEqual(source["access_mode"], "public_noauth")
+        self.assertEqual(source["server_name"], "Stocks Info")
+        self.assertRegex(source["server_version"], r"^0\.4\.\d+$")
+        self.assertIn("missing or expired", source["instructions"])
+        self.assertIn("host must perform live web research", source["instructions"])
+        self.assertEqual(source["sync_state"], "live")
         self.assertRegex(source["descriptor_sha256"], r"^[0-9a-f]{64}$")
         production = self.contract["production"]
         self.assertEqual(production["mcp_endpoint"], source["mcp_endpoint"])
@@ -107,7 +113,7 @@ class HostedContractTest(unittest.TestCase):
 
     def test_tool_names_order_and_error_codes_are_stable(self) -> None:
         self.assertEqual([item["name"] for item in self.descriptors], EXPECTED_TOOLS)
-        self.assertEqual(len(self.descriptors), 11)
+        self.assertEqual(len(self.descriptors), 12)
         self.assertEqual(
             set(self.contract["errors"]),
             {
@@ -151,6 +157,27 @@ class HostedContractTest(unittest.TestCase):
                 self.assertFalse(descriptor["annotations"]["openWorldHint"])
                 for prop in _property_schemas(descriptor["inputSchema"]):
                     self.assertIn("description", prop)
+
+    def test_public_success_schemas_omit_internal_identifiers(self) -> None:
+        forbidden = {
+            "request_id",
+            "user_id",
+            "principal",
+            "principal_id",
+            "connection_id",
+            "policy",
+            "access_policy",
+            "data_scope",
+        }
+        for descriptor in self.descriptors:
+            property_names = {
+                name
+                for schema in _property_schemas(descriptor["outputSchema"])
+                for name in schema.get("properties", {})
+            }
+            property_names.update(descriptor["outputSchema"].get("properties", {}))
+            with self.subTest(tool=descriptor["name"]):
+                self.assertFalse(forbidden & property_names)
 
     def test_future_oauth_security_is_materialized_at_top_level_and_meta(self) -> None:
         self.assertEqual(
@@ -210,6 +237,30 @@ class HostedContractTest(unittest.TestCase):
         self.assertFalse(list(validator.iter_errors({"sql": "SELECT 1"})))
         self.assertTrue(list(validator.iter_errors({"sql": "SELECT 1", "max_rows": 10})))
 
+    def test_csv_export_lifetime_defaults_to_60_minutes_and_is_bounded(self) -> None:
+        schema = descriptor_by_name("create_csv_export")["inputSchema"]
+        lifetime = schema["properties"]["expires_in_seconds"]
+        self.assertEqual(lifetime["minimum"], 60)
+        self.assertEqual(lifetime["maximum"], 3600)
+        self.assertEqual(lifetime["default"], 3600)
+        self.assertEqual(lifetime["examples"], [60, 600, 3600])
+        self.assertIn("60-minute", lifetime["description"])
+        validator = Draft202012Validator(schema)
+        query_id = "qry_screen_0001"
+        for valid in (
+            {"query_id": query_id},
+            {"query_id": query_id, "expires_in_seconds": 60},
+            {"query_id": query_id, "expires_in_seconds": 600},
+            {"query_id": query_id, "expires_in_seconds": 3600},
+        ):
+            self.assertFalse(list(validator.iter_errors(valid)), valid)
+        for invalid in (
+            {"query_id": query_id, "expires_in_seconds": 59},
+            {"query_id": query_id, "expires_in_seconds": 3601},
+            {"query_id": query_id, "expires_in_seconds": 60.5},
+        ):
+            self.assertTrue(list(validator.iter_errors(invalid)), invalid)
+
     def test_company_report_contract_and_projection_are_bounded(self) -> None:
         descriptor = descriptor_by_name("get_latest_company_report")
         schema = descriptor["inputSchema"]
@@ -244,6 +295,74 @@ class HostedContractTest(unittest.TestCase):
             "internal_id",
         ):
             self.assertNotIn(forbidden, serialized)
+        offer = descriptor["outputSchema"]["properties"]["data"]["properties"][
+            "generation_offer"
+        ]
+        self.assertEqual(
+            offer["properties"]["reason"]["enum"],
+            ["not_found", "expired"],
+        )
+        self.assertEqual(
+            offer["properties"]["tool_name"]["const"],
+            "prepare_company_report_generation",
+        )
+        self.assertEqual(
+            set(offer["required"]),
+            {
+                "reason",
+                "available",
+                "requires_user_confirmation",
+                "tool_name",
+                "arguments",
+            },
+        )
+
+    def test_company_report_generation_contract_is_host_side_and_bounded(self) -> None:
+        descriptor = descriptor_by_name("prepare_company_report_generation")
+        self.assertIn("missing or expired", descriptor["description"])
+        self.assertTrue(descriptor["annotations"]["readOnlyHint"])
+        self.assertTrue(descriptor["annotations"]["idempotentHint"])
+        self.assertFalse(descriptor["annotations"]["openWorldHint"])
+
+        input_schema = descriptor["inputSchema"]
+        validator = Draft202012Validator(input_schema)
+        self.assertFalse(
+            list(
+                validator.iter_errors(
+                    {
+                        "exchange": "NASDAQ",
+                        "ticker": "AAPL",
+                        "output_locale": "zh-CN",
+                    }
+                )
+            )
+        )
+        for invalid in (
+            {"exchange": "NASDAQ", "ticker": "AAPL"},
+            {
+                "exchange": "NASDAQ",
+                "ticker": "AAPL",
+                "output_locale": "zh_CN",
+            },
+            {
+                "exchange": "nasdaq",
+                "ticker": "AAPL",
+                "output_locale": "zh-CN",
+            },
+        ):
+            self.assertTrue(list(validator.iter_errors(invalid)), invalid)
+
+        data = descriptor["outputSchema"]["properties"]["data"]["properties"]
+        self.assertEqual(
+            data["status"]["enum"],
+            ["ready", "company_not_found", "not_eligible"],
+        )
+        self.assertEqual(data["prompt_text"]["maxLength"], 25_000)
+        self.assertEqual(data["prompt_version"]["enum"], ["5.0", None])
+        self.assertEqual(
+            data["next_action"]["enum"],
+            ["run_host_web_research", None],
+        )
 
     def test_unknown_modes_tools_and_placeholder_credentials_are_rejected(self) -> None:
         with self.assertRaises(ContractError):
@@ -268,7 +387,7 @@ class HostedContractTest(unittest.TestCase):
             validate_contract(invalid_mode)
 
         invalid_profile = copy.deepcopy(self.contract)
-        invalid_profile["runtime"]["profiles"]["anonymous_dev"] = "other"
+        invalid_profile["runtime"]["profiles"]["public_noauth"] = "other"
         with self.assertRaisesRegex(ContractError, "unsupported profile"):
             validate_contract(invalid_profile)
 
@@ -282,22 +401,29 @@ class HostedContractTest(unittest.TestCase):
         with self.assertRaisesRegex(ContractError, "retryable"):
             validate_contract(invalid_error)
 
-    def test_future_anonymous_mode_name_is_one_mapping_change(self) -> None:
+    def test_anonymous_profile_is_independent_from_backend_mode_name(self) -> None:
+        self.assertEqual(
+            mode_profile(self.contract, "public_noauth"),
+            PROFILE_ANONYMOUS,
+        )
+        with self.assertRaisesRegex(ContractError, "unsupported access mode"):
+            mode_profile(self.contract, "anonymous_dev")
+
         renamed = copy.deepcopy(self.contract)
-        renamed["runtime"]["supported_modes"].append("public_noauth")
-        renamed["runtime"]["profiles"]["public_noauth"] = PROFILE_ANONYMOUS
-        renamed["runtime"]["snapshot_mode"] = "public_noauth"
-        renamed["source"]["access_mode"] = "public_noauth"
+        renamed["runtime"]["supported_modes"].append("future_public_mode")
+        renamed["runtime"]["profiles"]["future_public_mode"] = PROFILE_ANONYMOUS
+        renamed["runtime"]["snapshot_mode"] = "future_public_mode"
+        renamed["source"]["access_mode"] = "future_public_mode"
         validate_contract(renamed)
         self.assertEqual(
-            mode_profile(renamed, "public_noauth"),
+            mode_profile(renamed, "future_public_mode"),
             PROFILE_ANONYMOUS,
         )
         self.assertTrue(
             all(
                 descriptor["securitySchemes"] == [{"type": "noauth"}]
                 for descriptor in tool_descriptors(
-                    renamed, access_mode="public_noauth"
+                    renamed, access_mode="future_public_mode"
                 )
             )
         )

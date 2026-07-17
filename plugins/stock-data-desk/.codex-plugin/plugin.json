@@ -1,9 +1,10 @@
 {
   "name": "stock-data-desk",
-  "version": "0.2.0-beta.1+codex.20260716040852",
-  "description": "Screen stocks and read cached AI company reports.",
+  "version": "0.2.0-beta.1",
+  "description": "Research public companies and analyze stock-market data.",
   "author": {
-    "name": "Stock Data Desk",
+    "name": "Anchises Capital",
+    "email": "tech@anchisesgroup.com",
     "url": "https://anchisesdata.com"
   },
   "homepage": "https://anchisesdata.com/stock-qa",
@@ -11,6 +12,7 @@
   "license": "MIT",
   "keywords": [
     "stocks",
+    "company-research",
     "screening",
     "market-data",
     "company-reports",
@@ -19,10 +21,10 @@
   "skills": "./skills/",
   "apps": "./.app.json",
   "interface": {
-    "displayName": "Stock Data Desk",
-    "shortDescription": "Screen stocks and read cached AI company reports.",
-    "longDescription": "Screen, compare, and rank stocks across supported exchanges; inspect historical data with bounded read-only queries; read cached English AI company reports with PDFs; and create temporary CSV exports in Work, ChatGPT, and Codex.",
-    "developerName": "Stock Data Desk",
+    "displayName": "Stocks Info",
+    "shortDescription": "Research public companies and analyze stock-market data.",
+    "longDescription": "Stocks Info provides public-company research and stock-market analysis across supported exchanges. Retrieve cached English AI-generated company reports and PDFs; cache status may be active, expired, or not found. When a report is missing or expired, users can confirm source-linked live web research that stays only in the current conversation and is not uploaded, cached, saved, or converted into a cached PDF. Discover exchanges and current data dates, screen and rank stocks, inspect schemas, run bounded read-only SQL, compare historical price, momentum, and volume, and export completed queries to temporary CSV files. Reports are analytical research, not official filings or investment advice. Stocks Info offers credential-free public access: no Stocks Info account or credentials are required, and all users use shared service limits. CSV URLs are short-lived bearer links and should not be shared.",
+    "developerName": "Anchises Capital",
     "category": "Productivity",
     "brandColor": "#334155",
     "composerIcon": "./assets/composer-icon.png",
@@ -37,9 +39,9 @@
     "privacyPolicyURL": "https://anchisesdata.com/privacy",
     "termsOfServiceURL": "https://anchisesdata.com/terms",
     "defaultPrompt": [
-      "Summarize the latest cached AI company report for ASX BGL and include its PDF.",
-      "Find the strongest momentum stocks in the latest data.",
-      "Compare unusual volume across supported exchanges."
+      "Research NASDAQ:AAPL. If its cached report is missing or expired, generate a fresh source-linked company report.",
+      "Research ASX:BGL, then compare its latest 30-day price and volume trends using clearly dated market data.",
+      "Screen the latest data for strong momentum and unusual volume, rank the results across exchanges, and export them as CSV."
     ]
   }
 }

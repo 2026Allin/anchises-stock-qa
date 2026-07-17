@@ -1,7 +1,7 @@
 {
   "name": "Stock-Data-Desk",
   "interface": {
-    "displayName": "Stock Data Desk"
+    "displayName": "Stocks Info"
   },
   "plugins": [
     {

@@ -1,6 +1,13 @@
 # Stock Data Desk Hosted MCP 与 OAuth 完整改造方案
 
-- 状态：实施中（Hosted App-only 插件边界已冻结）
+> 当前发布状态（2026-07-16）：本文档保留为历史架构记录和未来 OAuth
+> 规划，不再定义首个公开版本。当前发布已冻结为 `public_noauth`，用户无需
+> 登录，所有 12 个生产工具使用 `noauth`，额度为共享服务容量。当前发布计划
+> 以 `docs/stocks-info-marketplace-release-plan.md` 为准。本文下方涉及 Auth0、
+> allowlist、pending entitlement、审核账号和 OAuth 登录的内容均属于未来版本，
+> 不得复制到当前 Plugin Directory listing、Skill 或审核说明中。
+
+- 状态：历史方案 / 未来 OAuth 规划
 - 日期：2026-07-15
 - 目标版本：首个可公开分发的 Plugin Directory 版本
 - 实施状态：`qa-v2-auth` 已完成插件侧契约、全离线 mock 测试和 Phase 7A Developer Mode App 激活；本地 stdio MCP 与 API Token 客户端已从该分支移除。真实 Auth0 Tenant、OAuth 白名单和公开发布尚未激活
@@ -1257,13 +1264,19 @@ Hosted App 尚未创建时，不得提前在 `plugin.json` 中添加 `apps`。`.
 {
   "apps": {
     "stock_data_desk": {
-      "id": "plugin_asdk_app_6a5754cdf4ac8191a27ec8854675482a"
+      "id": "plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a"
     }
   }
 }
 ```
 
 其中 `id` 必须来自 ChatGPT Developer Mode 中用正式 MCP URL 创建的真实 App。这里不填写 MCP URL、OAuth client secret、服务端 API key 或用户 Token；MCP URL 和 OAuth 配置由 App/提交门户管理。占位 ID 不能进入公开插件版本。
+当前底层 App connector ID 为
+`asdk_app_6a58a0d4059c8191a6a06438e698154a`；`.app.json` 使用平台资源中与之对应的
+`plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a`。
+当前 Developer Mode App version ID 为
+`asdk_app_v_6a58a0dd4d7081918a73fd2c41c097ad`；该版本标识只用于开发审计，
+不写入 `.app.json`。
 
 ### 12.2 目标产品文案
 

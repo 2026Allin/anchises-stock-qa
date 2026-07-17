@@ -187,7 +187,8 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(status, 200)
         structured = self._assert_success_schema("get_connection_status", body)
         self.assertEqual(structured["status"], "active")
-        self.assertEqual(structured["access_policy"], "full_v1")
+        self.assertEqual(structured["authentication"], "oauth")
+        self.assertEqual(structured["coverage"], "approved_stock_data")
 
     def test_positive_2_market_discovery_and_latest_dates(self) -> None:
         status, body, _ = self._mcp_call("get_available_exchanges")
@@ -272,6 +273,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(status, 200)
         export = self._assert_success_schema("create_csv_export", body)["data"]
         self.assertTrue(export["download_url"].startswith(self.services.base_url))
+        self.assertEqual(export["expires_at"], "2026-07-14T12:10:00Z")
         status, csv_body, headers = _request(export["download_url"])
         self.assertEqual(status, 200)
         self.assertIn("text/csv", headers["Content-Type"])
@@ -288,6 +290,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(active["data"]["report"]["lang"], "en")
         self.assertEqual(active["data"]["report"]["source"], "macmini")
         self.assertFalse(active["data"]["content_truncated"])
+        self.assertNotIn("generation_offer", active["data"])
         status, pdf, headers = _request(active["data"]["pdf_download_url"])
         self.assertEqual(status, 200)
         self.assertIn("application/pdf", headers["Content-Type"])
@@ -301,6 +304,14 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertTrue(expired["data"]["report"]["is_expired"])
         self.assertTrue(expired["warnings"])
         self.assertIsNotNone(expired["data"]["pdf_download_url"])
+        self.assertEqual(
+            expired["data"]["generation_offer"]["reason"],
+            "expired",
+        )
+        self.assertEqual(
+            expired["data"]["generation_offer"]["arguments"],
+            {"exchange": "ASX", "ticker": "OLD"},
+        )
 
         status, body, _ = self._mcp_call(
             "get_latest_company_report", {"exchange": "ASX", "ticker": "NONE"}
@@ -309,6 +320,75 @@ class MockHostedEndToEndTest(unittest.TestCase):
         self.assertEqual(missing["data"]["status"], "not_found")
         self.assertIsNone(missing["data"]["report"])
         self.assertIsNone(missing["data"]["pdf_download_url"])
+        self.assertEqual(
+            missing["data"]["generation_offer"]["reason"],
+            "not_found",
+        )
+
+    def test_positive_7_prepare_company_report_generation_states(self) -> None:
+        status, body, _ = self._mcp_call(
+            "prepare_company_report_generation",
+            {
+                "exchange": "NASDAQ",
+                "ticker": "AAPL",
+                "output_locale": "zh-CN",
+            },
+        )
+        self.assertEqual(status, 200)
+        ready = self._assert_success_schema(
+            "prepare_company_report_generation", body
+        )["data"]
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(
+            ready["selected_sector"],
+            "Semiconductors, Compute & Advanced Hardware",
+        )
+        self.assertEqual(ready["prompt_version"], "5.0")
+        self.assertEqual(ready["next_action"], "run_host_web_research")
+        self.assertIn("Output locale: zh-CN", ready["prompt_text"])
+        self.assertLessEqual(len(ready["prompt_text"]), 25_000)
+
+        status, body, _ = self._mcp_call(
+            "prepare_company_report_generation",
+            {
+                "exchange": "ASX",
+                "ticker": "AIA",
+                "output_locale": "en",
+            },
+        )
+        others = self._assert_success_schema(
+            "prepare_company_report_generation", body
+        )
+        self.assertEqual(others["data"]["selected_sector"], "Others")
+        self.assertEqual(others["warnings"], [])
+
+        status, body, _ = self._mcp_call(
+            "prepare_company_report_generation",
+            {
+                "exchange": "ASX",
+                "ticker": "1TTDB",
+                "output_locale": "en",
+            },
+        )
+        ineligible = self._assert_success_schema(
+            "prepare_company_report_generation", body
+        )["data"]
+        self.assertEqual(ineligible["status"], "not_eligible")
+        self.assertIsNone(ineligible["prompt_text"])
+
+        status, body, _ = self._mcp_call(
+            "prepare_company_report_generation",
+            {
+                "exchange": "NASDAQ",
+                "ticker": "DOESNOTEXIST",
+                "output_locale": "en",
+            },
+        )
+        missing = self._assert_success_schema(
+            "prepare_company_report_generation", body
+        )["data"]
+        self.assertEqual(missing["status"], "company_not_found")
+        self.assertIsNone(missing["company"])
 
     def test_company_report_truncation_is_explicit_and_projection_is_safe(self) -> None:
         status, body, _ = self._mcp_call(
@@ -384,8 +464,20 @@ class MockHostedEndToEndTest(unittest.TestCase):
         )
         self.assertNotIn("rows", body["result"]["structuredContent"])
 
-    def test_anonymous_dev_requires_no_token_and_publishes_noauth(self) -> None:
-        with MockStockDataDeskServices(access_mode="anonymous_dev") as services:
+    def test_public_noauth_requires_no_token_and_publishes_noauth(self) -> None:
+        with MockStockDataDeskServices(access_mode="public_noauth") as services:
+            refreshed = fetch_contract(
+                f"{services.base_url}/mcp",
+                base_contract=self.contract,
+                expected_mode="public_noauth",
+            )
+            self.assertEqual(refreshed["source"]["sync_state"], "live")
+            self.assertEqual(
+                refreshed["source"]["instructions"],
+                self.contract["source"]["instructions"],
+            )
+            self.assertEqual(len(refreshed["tools"]), 12)
+
             status, body, headers = _request(
                 f"{services.base_url}/mcp",
                 method="POST",
@@ -400,7 +492,9 @@ class MockHostedEndToEndTest(unittest.TestCase):
             self.assertNotIn("WWW-Authenticate", headers)
             structured = body["result"]["structuredContent"]
             self.assertEqual(structured["status"], "active")
-            self.assertEqual(structured["access_policy"], "anonymous_dev_v1")
+            self.assertEqual(structured["authentication"], "not_required")
+            self.assertEqual(structured["coverage"], "all_supported_exchanges")
+            self.assertEqual(structured["limits"]["rate"]["scope"], "global")
 
             status, listed, _ = _request(
                 f"{services.base_url}/mcp",
@@ -408,7 +502,7 @@ class MockHostedEndToEndTest(unittest.TestCase):
                 payload={"jsonrpc": "2.0", "id": 21, "method": "tools/list", "params": {}},
             )
             self.assertEqual(status, 200)
-            self.assertEqual(len(listed["result"]["tools"]), 11)
+            self.assertEqual(len(listed["result"]["tools"]), 12)
             for descriptor in listed["result"]["tools"]:
                 self.assertEqual(descriptor["securitySchemes"], [{"type": "noauth"}])
 
@@ -442,6 +536,14 @@ class MockHostedEndToEndTest(unittest.TestCase):
                 (
                     "get_latest_company_report",
                     {"exchange": "ASX", "ticker": "BGL"},
+                ),
+                (
+                    "prepare_company_report_generation",
+                    {
+                        "exchange": "NASDAQ",
+                        "ticker": "AAPL",
+                        "output_locale": "zh-CN",
+                    },
                 ),
                 ("create_csv_export", {"query_id": "qry_screen_0001"}),
             ]

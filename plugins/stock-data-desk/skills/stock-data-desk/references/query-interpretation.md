@@ -19,17 +19,23 @@
 
 ## Company reports
 
-- Interpret “cached AI company report,” “AI company report,” or “your latest analysis” as
-  a request for `get_latest_company_report` when exchange and ticker are known.
-- Ask for or discover the exchange when the ticker could be listed on multiple
-  markets. Do not silently guess an exchange.
+- Interpret “调研,” “研究,” “背调,” “company research,” “company report,”
+  “investment research,” company overview, business model, assets, products,
+  customers, competition, financial position, capital structure, management,
+  catalysts, or risks as a company-report request.
+- Require both exchange and ticker. Ask the user for whichever is missing; do
+  not guess or silently discover a listing for this workflow.
 - Interpret a named `ondemand` or `macmini` source literally; otherwise use
   `auto`.
 - Interpret `1M`, `3M`, `6M`, `1Y`, `2Y`, or `MAX` only as the PDF chart range.
-- Do not map “annual report,” “10-K,” “20-F,” “filing,” “today's news,” “search
-  the web,” or “generate a new report” to the cached report tool.
-- `not_found` means no cached report is available. It is not permission to start
-  generation or search private data sources.
+- Treat “没有就生成,” “过期就重做,” “不是最新就生成,” “directly generate,”
+  “generate if missing,” or “generate if expired” as advance confirmation.
+- Do not map “annual report,” “10-K,” “20-F,” “filing,” or a news-only request
+  to the company-report workflow.
+- Use `zh-CN` for confirmed generation in Chinese unless the user explicitly
+  requests another locale; use `en` for English.
+- For a mixed company-research and technical-analysis request, finish the
+  company-report workflow first and then execute the requested market analysis.
 
 ## Filters
 

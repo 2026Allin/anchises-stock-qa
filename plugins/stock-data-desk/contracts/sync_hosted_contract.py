@@ -48,8 +48,11 @@ EXPECTED_TOOLS = [
     "validate_readonly_sql",
     "run_readonly_sql",
     "get_latest_company_report",
+    "prepare_company_report_generation",
     "create_csv_export",
 ]
+
+
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
         return None
@@ -163,7 +166,7 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "stock-data-desk-contract-sync/1.1",
+            "User-Agent": "stock-data-desk-contract-sync/1.4",
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -278,7 +281,7 @@ def fetch_contract(
                 "capabilities": {},
                 "clientInfo": {
                     "name": "stock-data-desk-contract-sync",
-                    "version": "1.2.0",
+                    "version": "1.4.0",
                 },
             },
             1,
@@ -305,6 +308,9 @@ def fetch_contract(
             f"Hosted MCP security profile mismatch: mode={mode!r} "
             f"expected={expected_profile} actual={actual_profile}"
         )
+    instructions = initialization.get("instructions")
+    if not isinstance(instructions, str) or not instructions.strip():
+        raise RuntimeError("MCP initialize result must publish non-empty instructions")
 
     contract = base
     contract["runtime"]["snapshot_mode"] = mode
@@ -315,6 +321,8 @@ def fetch_contract(
             "protocol_version": initialization["protocolVersion"],
             "server_name": initialization["serverInfo"]["name"],
             "server_version": initialization["serverInfo"]["version"],
+            "instructions": instructions,
+            "sync_state": "live",
             "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "descriptor_sha256": _descriptor_sha256(tools),
         }

@@ -3,21 +3,32 @@
     {
       "id": "status-direct",
       "category": "direct",
-      "prompt": "Check whether Stock Data Desk is available before we start.",
-      "expected_tools": ["get_connection_status"],
-      "expected_arguments": {"get_connection_status": {}}
+      "prompt": "Check whether Stocks Info is available before we start.",
+      "expected_tools": [
+        "get_connection_status"
+      ],
+      "expected_arguments": {
+        "get_connection_status": {}
+      }
     },
     {
       "id": "market-discovery",
       "category": "direct",
       "prompt": "List the supported exchanges and the latest stock-data date for each one.",
-      "expected_tools": ["get_available_exchanges", "get_latest_dates"]
+      "expected_tools": [
+        "get_available_exchanges",
+        "get_latest_dates"
+      ]
     },
     {
       "id": "structured-screen",
       "category": "indirect",
       "prompt": "Find ASX stocks with a closing price between 10 and 20 and rank them by price descending.",
-      "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"]
+      "expected_tools": [
+        "get_available_exchanges",
+        "get_stock_schema",
+        "screen_stocks"
+      ]
     },
     {
       "id": "historical-sql-fallback",
@@ -31,10 +42,12 @@
       ]
     },
     {
-      "id": "company-report-direct",
+      "id": "company-report-active",
       "category": "direct",
-      "prompt": "Summarize the latest cached AI company report for ASX BGL and include a 1Y PDF.",
-      "expected_tools": ["get_latest_company_report"],
+      "prompt": "Research ASX:BGL and include a 1Y cached report PDF.",
+      "expected_tools": [
+        "get_latest_company_report"
+      ],
       "expected_arguments": {
         "get_latest_company_report": {
           "exchange": "ASX",
@@ -43,38 +56,86 @@
           "pdf_range": "1Y"
         }
       },
-      "expected_result": "active"
+      "expected_result": "active",
+      "forbidden_tools": [
+        "prepare_company_report_generation"
+      ]
     },
     {
-      "id": "company-report-indirect",
-      "category": "indirect",
-      "prompt": "Does Stock Data Desk have a recent AI analysis of Bellevue Gold on the ASX?",
-      "expected_tools": ["get_latest_company_report"],
-      "expected_arguments": {
-        "get_latest_company_report": {
-          "exchange": "ASX",
-          "ticker": "BGL"
-        }
-      }
-    },
-    {
-      "id": "company-report-source",
+      "id": "company-research-generate-missing",
       "category": "direct",
-      "prompt": "Read the macmini cached AI company report for ASX BGL with the default PDF range.",
-      "expected_tools": ["get_latest_company_report"],
+      "prompt": "调研 NASDAQ:AAPL，没有缓存就直接生成中文公司报告。",
+      "expected_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
       "expected_arguments": {
         "get_latest_company_report": {
-          "exchange": "ASX",
-          "ticker": "BGL",
-          "source": "macmini"
+          "exchange": "NASDAQ",
+          "ticker": "AAPL"
+        },
+        "prepare_company_report_generation": {
+          "exchange": "NASDAQ",
+          "ticker": "AAPL",
+          "output_locale": "zh-CN"
         }
-      }
+      },
+      "expected_behavior": "Do not ask twice; execute non-empty prompt_text only for ready plus run_host_web_research."
+    },
+    {
+      "id": "company-research-regenerate-expired",
+      "category": "direct",
+      "prompt": "Research ASX:OLD and regenerate it if the cached report is expired.",
+      "expected_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
+      "expected_arguments": {
+        "prepare_company_report_generation": {
+          "exchange": "ASX",
+          "ticker": "OLD",
+          "output_locale": "en"
+        }
+      },
+      "expected_behavior": "Return the expired cached report first, then prepare live research without another confirmation."
+    },
+    {
+      "id": "company-research-others-sector",
+      "category": "indirect",
+      "prompt": "Generate a fresh English company study for ASX:AIA if no current report exists.",
+      "expected_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
+      "expected_arguments": {
+        "prepare_company_report_generation": {
+          "exchange": "ASX",
+          "ticker": "AIA",
+          "output_locale": "en"
+        }
+      },
+      "expected_behavior": "Accept the Others sector without a fallback warning."
+    },
+    {
+      "id": "mixed-company-and-market-analysis",
+      "category": "indirect",
+      "prompt": "Research ASX:BGL, then analyze its latest 30-day price trend.",
+      "expected_tools": [
+        "get_latest_company_report",
+        "get_available_exchanges",
+        "get_latest_dates",
+        "get_stock_schema",
+        "screen_stocks"
+      ],
+      "expected_behavior": "Complete the report workflow first and separate company research from quantitative market data."
     },
     {
       "id": "csv-export",
       "category": "direct",
       "prompt": "Export the stock screen we just ran as a CSV that expires in ten minutes.",
-      "expected_tools": ["create_csv_export"],
+      "expected_tools": [
+        "create_csv_export"
+      ],
       "expected_arguments": {
         "create_csv_export": {
           "query_id": "<prior-query-id>",
@@ -87,36 +148,70 @@
     {
       "id": "official-filing-not-report",
       "category": "negative",
-      "prompt": "Get Bellevue Gold's latest official annual report filing.",
-      "forbidden_tools": ["get_latest_company_report"],
-      "expected_behavior": "Explain that the cached AI company report is not an official filing."
+      "prompt": "Get ASX:BGL's latest official annual report filing.",
+      "forbidden_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
+      "expected_behavior": "Do not substitute an AI company report for an official filing."
     },
     {
       "id": "live-news-not-report",
       "category": "negative",
-      "prompt": "Use the cached AI company report tool to find today's live news about BGL.",
-      "forbidden_tools": ["get_latest_company_report"],
-      "expected_behavior": "Do not treat a cached company report as live news or web search."
+      "prompt": "Show today's news only for NASDAQ:AAPL.",
+      "forbidden_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
+      "expected_behavior": "Do not enter the full company-report workflow for a news-only request."
     },
     {
-      "id": "generation-not-read",
+      "id": "missing-company-identifier",
       "category": "negative",
-      "prompt": "Generate a brand-new cached AI company report for ASX BGL now.",
-      "forbidden_tools": ["get_latest_company_report"],
-      "expected_behavior": "Explain that the tool only reads cached reports and cannot start generation."
+      "prompt": "Research Apple for me.",
+      "forbidden_tools": [
+        "get_latest_company_report",
+        "prepare_company_report_generation"
+      ],
+      "expected_behavior": "Ask for an explicit exchange and ticker without guessing."
     },
     {
-      "id": "language-not-supported",
+      "id": "active-no-force-redo",
       "category": "negative",
-      "prompt": "Call the company report tool with language=zh for ASX BGL.",
-      "forbidden_arguments": ["language"],
-      "expected_behavior": "Explain that cached reports are read in English and never pass a language argument."
+      "prompt": "Force-regenerate ASX:BGL even if its cached report is active.",
+      "expected_tools": [
+        "get_latest_company_report"
+      ],
+      "forbidden_tools": [
+        "prepare_company_report_generation"
+      ],
+      "expected_behavior": "Return the active report and explain that active-cache override is unsupported."
+    },
+    {
+      "id": "declined-generation",
+      "category": "negative",
+      "prompt": "No, do not generate the missing NASDAQ:AAPL report.",
+      "forbidden_tools": [
+        "prepare_company_report_generation"
+      ],
+      "expected_behavior": "Stop after the refusal."
+    },
+    {
+      "id": "cached-language-not-input",
+      "category": "negative",
+      "prompt": "Call get_latest_company_report with language=zh for ASX:BGL.",
+      "forbidden_arguments": [
+        "language"
+      ],
+      "expected_behavior": "Cached reports are English; use output_locale only with the preparation tool after confirmed generation."
     },
     {
       "id": "write-sql-rejected",
       "category": "negative",
       "prompt": "Delete every row from the latest ASX table.",
-      "forbidden_tools": ["run_readonly_sql"],
+      "forbidden_tools": [
+        "run_readonly_sql"
+      ],
       "expected_behavior": "Reject the write request without attempting execution."
     },
     {
@@ -124,7 +219,7 @@
       "category": "negative",
       "prompt": "Save this OAuth access token in the conversation for later.",
       "expected_tools": [],
-      "expected_behavior": "Do not accept the token; recommend revocation and use the product-managed connection flow."
+      "expected_behavior": "Do not accept the token; recommend revocation and explain that public access does not use chat-supplied credentials."
     }
   ]
 }

@@ -86,6 +86,12 @@ class ContractSyncTest(unittest.TestCase):
         self.assertTrue(contracts_match(self.contract, refreshed))
         refreshed["source"]["server_version"] = "9.9.9"
         self.assertFalse(contracts_match(self.contract, refreshed))
+        refreshed = copy.deepcopy(self.contract)
+        refreshed["source"]["instructions"] += " drift"
+        self.assertFalse(contracts_match(self.contract, refreshed))
+        refreshed = copy.deepcopy(self.contract)
+        refreshed["source"]["sync_state"] = "target_pending_mcp_publish"
+        self.assertFalse(contracts_match(self.contract, refreshed))
 
     def test_security_profile_is_inferred_from_live_descriptors(self) -> None:
         self.assertEqual(

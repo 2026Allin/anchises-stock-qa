@@ -1,16 +1,23 @@
-# Stock Data Desk Marketplace
+# Stocks Info Marketplace
 
-<img src="plugins/stock-data-desk/assets/logo.png" alt="Stock Data Desk icon" width="96">
+<img src="plugins/stock-data-desk/assets/logo.png" alt="Stocks Info icon" width="96">
 
 This repository contains the `Stock-Data-Desk` development marketplace and the
-`Stock Data Desk` plugin package.
+`Stocks Info` plugin package. The marketplace and plugin IDs remain stable for
+upgrade compatibility; all user-visible product copy uses `Stocks Info`. The
+verified publisher for the public listing is `Anchises Capital`.
 
-The `qa-v2-auth` branch connects the plugin to the Hosted MCP service and keeps
-the plugin behavior independent from the backend's runtime mode name. The
-current live snapshot uses credential-free `anonymous_dev`; the backend also
-supports fail-closed and future OAuth operation. The product provides stock
-screening, comparison, historical research, reports, and temporary CSV exports
-in Work, ChatGPT, and Codex without a local database or credentials in chat.
+The `qa-v2-auth` branch and the immutable `v0.2.0-beta.1` tag are the release
+sources for the current beta; `main` intentionally remains unchanged. This
+release connects the plugin to the Hosted MCP service and keeps plugin behavior
+independent from the backend's runtime mode name. The current public release is
+frozen to credential-free `public_noauth`: users do
+not sign in, and quota represents shared service capacity rather than a
+personal allowance. The product provides stock screening, comparison,
+historical research, reports, and temporary CSV exports in Work, ChatGPT, and
+Codex without a local database or credentials in chat.
+CSV links default to a 60-minute lifetime and may be explicitly set from 60
+through 3600 seconds.
 
 ## Repository layout
 
@@ -40,9 +47,13 @@ python3 -m venv .venv
 ```
 
 The default test suite starts loopback-only mock Auth0, Hosted MCP, and Stock
-Data API endpoints for `closed`, `anonymous_dev`, and `oauth`. It never calls
+Data API endpoints for `closed`, `public_noauth`, and `oauth`. It never calls
 production services. An explicit, credential-free live contract check is
 available with `RUN_LIVE_MCP_TESTS=1`.
+
+The OAuth profile is retained only as future compatibility coverage. Switching
+production from `noauth` to OAuth requires a reviewed plugin update, fresh tool
+scanning, and matching public documentation.
 
 ## Development marketplace
 
@@ -50,14 +61,17 @@ The repository marketplace remains available for local development and
 regression testing:
 
 ```bash
-codex plugin marketplace add https://github.com/2026Allin/anchises-stock-qa
+codex plugin marketplace add https://github.com/2026Allin/anchises-stock-qa --ref v0.2.0-beta.1
 codex plugin add stock-data-desk@Stock-Data-Desk
 ```
 
-The future public installation source is the universal Plugin Directory. Freeze
-the intended public access profile and re-scan the real MCP descriptors before
-submission; changing `noauth` to OAuth after publication requires a reviewed
-plugin update.
+For branch-head testing before a tag is created, substitute
+`--ref qa-v2-auth`. Installing without `--ref` reads the older `main` branch
+and is not a valid beta-release verification.
+
+The future public installation source is the universal Plugin Directory. The
+submission must use the current credential-free profile; changing `noauth` to
+OAuth after publication requires a reviewed plugin update.
 
 ## Design plan
 

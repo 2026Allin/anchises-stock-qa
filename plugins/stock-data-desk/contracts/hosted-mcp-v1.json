@@ -1,27 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "contract_version": "1.2.0-draft",
+  "contract_version": "1.4.0-draft",
   "runtime": {
     "supported_modes": [
       "closed",
-      "anonymous_dev",
+      "public_noauth",
       "oauth"
     ],
-    "snapshot_mode": "anonymous_dev",
+    "snapshot_mode": "public_noauth",
     "profiles": {
       "closed": "unavailable",
-      "anonymous_dev": "anonymous",
+      "public_noauth": "anonymous",
       "oauth": "authenticated"
     }
   },
   "source": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
-    "access_mode": "anonymous_dev",
+    "access_mode": "public_noauth",
     "protocol_version": "2025-06-18",
-    "server_name": "anchises-stock-qa",
-    "server_version": "0.1.0",
-    "synced_at": "2026-07-15T18:46:31+00:00",
-    "descriptor_sha256": "41b4930a0df86a7e59635b27d378adf500db899023e3c44b2eb9aaaf5183baaa"
+    "server_name": "Stocks Info",
+    "server_version": "0.4.4",
+    "instructions": "Stocks Info is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. CSV download URLs are bearer capabilities and must not be shared. Cached company reports are AI-generated analysis, not official filings. When a cached report is missing or expired, the server can offer host-side live-research preparation and, after user confirmation, resolve the company and return one sector-specific prompt. Stocks Info does not search the web or write, cache, upload, save, or publish the resulting response; a compatible host must perform live web research and reply in the current conversation. Active cached reports do not receive a preparation offer, and the preparation tool independently rechecks and rejects them. Never ask users to paste credentials or tokens into chat.",
+    "sync_state": "live",
+    "synced_at": "2026-07-17T01:23:49+00:00",
+    "descriptor_sha256": "a62e3c80b9063ffe24bdc4fdff772ab04c04f35bf7965ce5def0615c538a60ba"
   },
   "production": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
@@ -84,6 +86,9 @@
       "get_latest_company_report": [
         "stock.read"
       ],
+      "prepare_company_report_generation": [
+        "stock.read"
+      ],
       "create_csv_export": [
         "export.create"
       ]
@@ -139,8 +144,8 @@
   "tools": [
     {
       "name": "get_connection_status",
-      "title": "Get Anchises connection status",
-      "description": "Use this when you need to check Anchises access, policy, and data scope. It does not query stock data.",
+      "title": "Get Stocks Info connection status",
+      "description": "Use this when you need to check whether Stocks Info public access is available, whether sign-in is required, and the published service limits. It does not query stock data.",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -150,11 +155,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "status": {
             "type": "string",
             "enum": [
@@ -176,31 +176,134 @@
             ],
             "format": "uri"
           },
-          "access_policy": {
-            "type": [
-              "string",
-              "null"
+          "authentication": {
+            "type": "string",
+            "enum": [
+              "not_required",
+              "oauth"
             ]
           },
-          "data_scope": {
+          "coverage": {
             "type": [
               "string",
               "null"
+            ],
+            "enum": [
+              "all_supported_exchanges",
+              "approved_stock_data",
+              null
+            ]
+          },
+          "limits": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "rate": {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "global",
+                          "user"
+                        ]
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "period_seconds": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "scope",
+                      "limit",
+                      "period_seconds"
+                    ]
+                  },
+                  "concurrency": {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "global",
+                          "user"
+                        ]
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "scope",
+                      "limit"
+                    ]
+                  },
+                  "query": {
+                    "type": "object",
+                    "properties": {
+                      "timeout_seconds": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "max_rows": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "timeout_seconds",
+                      "max_rows"
+                    ]
+                  },
+                  "csv": {
+                    "type": "object",
+                    "properties": {
+                      "max_bytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "max_bytes"
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "rate",
+                  "concurrency",
+                  "query",
+                  "csv"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "status",
           "message",
           "access_request_url",
-          "access_policy",
-          "data_scope"
+          "authentication",
+          "coverage",
+          "limits"
         ]
       },
       "annotations": {
-        "title": "Get Anchises connection status",
+        "title": "Get Stocks Info connection status",
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
@@ -232,11 +335,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -266,20 +364,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -345,11 +465,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -379,20 +494,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -446,11 +583,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -480,20 +612,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -596,11 +750,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -630,15 +779,38 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           },
           "page": {
             "type": "object",
@@ -677,7 +849,6 @@
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -738,11 +909,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -772,20 +938,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -1003,11 +1191,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -1052,15 +1235,38 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           },
           "page": {
             "type": "object",
@@ -1099,7 +1305,6 @@
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -1138,7 +1343,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100000,
-            "description": "Exactly one SELECT or WITH...SELECT statement using allowlisted stock tables. DDL, DML, comments, and multiple statements are rejected.",
+            "description": "Exactly one SELECT or WITH...SELECT statement using allowlisted stock tables. Double-quoted allowlisted table names are normalized to MySQL backticks; string values are unchanged. DDL, DML, comments, and multiple statements are rejected.",
             "examples": [
               "SELECT TICKER, Price_Close FROM daily_20260715_asx LIMIT 20"
             ]
@@ -1153,11 +1358,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -1208,20 +1408,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -1259,7 +1481,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100000,
-            "description": "Exactly one SELECT or WITH...SELECT statement using table names from list_stock_tables and columns from get_table_schema.",
+            "description": "Exactly one SELECT or WITH...SELECT statement using table names from list_stock_tables and columns from get_table_schema. Double-quoted allowlisted table names are normalized to MySQL backticks before execution; string values are unchanged.",
             "examples": [
               "SELECT TICKER, Price_Close FROM daily_20260715_asx ORDER BY Price_Close DESC LIMIT 20"
             ]
@@ -1303,11 +1525,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -1352,15 +1569,38 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           },
           "page": {
             "type": "object",
@@ -1399,7 +1639,6 @@
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -1430,7 +1669,7 @@
     {
       "name": "get_latest_company_report",
       "title": "Get latest English company report",
-      "description": "Use this when the user asks for the latest available English Anchises AI-generated company report and optional PDF for a known exchange and ticker. Do not use it for official annual reports, regulatory filings, live news, web search, or generating a new report.",
+      "description": "Use this when the user asks for the latest available English AI-generated company report and optional PDF for a known exchange and ticker. If the result is not_found or expired, use the returned generation_offer to offer preparation for a compatible host to perform live web research and compose a fresh response; ask for confirmation unless the user already requested that workflow when the cache is missing or expired. Active reports do not include a preparation offer. Do not use this tool for official annual reports, regulatory filings, or live news.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1494,7 +1733,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Read one latest cached English Anchises AI company report. This tool never starts report generation.",
+        "description": "Read one latest cached English AI-generated company report. This tool never starts web research or writes a new report; not_found and expired results may offer the host-side preparation tool, while active results do not.",
         "required": [
           "exchange",
           "ticker"
@@ -1503,11 +1742,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -1576,12 +1810,6 @@
                         "items": {
                           "type": "object",
                           "properties": {
-                            "id": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
                             "order": {
                               "type": "integer",
                               "minimum": 1
@@ -1595,7 +1823,6 @@
                           },
                           "additionalProperties": false,
                           "required": [
-                            "id",
                             "order",
                             "title",
                             "body"
@@ -1684,6 +1911,65 @@
               },
               "content_truncated": {
                 "type": "boolean"
+              },
+              "generation_offer": {
+                "type": "object",
+                "properties": {
+                  "available": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "not_found",
+                      "expired"
+                    ]
+                  },
+                  "requires_user_confirmation": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "tool_name": {
+                    "type": "string",
+                    "const": "prepare_company_report_generation"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "properties": {
+                      "exchange": {
+                        "type": "string",
+                        "enum": [
+                          "ASX",
+                          "CSE",
+                          "NASDAQ",
+                          "NYSE",
+                          "TSX",
+                          "TSXV"
+                        ]
+                      },
+                      "ticker": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "exchange",
+                      "ticker"
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "available",
+                  "reason",
+                  "requires_user_confirmation",
+                  "tool_name",
+                  "arguments"
+                ]
               }
             },
             "additionalProperties": false,
@@ -1705,20 +1991,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
@@ -1727,6 +2035,320 @@
       },
       "annotations": {
         "title": "Get latest English company report",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "securitySchemes": [
+          {
+            "type": "noauth"
+          }
+        ]
+      },
+      "securitySchemes": [
+        {
+          "type": "noauth"
+        }
+      ]
+    },
+    {
+      "name": "prepare_company_report_generation",
+      "title": "Prepare host-side company report research",
+      "description": "Use this when a cached company report is missing or expired and the user has confirmed that a compatible host should perform live web research and compose a fresh response, or when the original request already asks for that workflow if the cache is missing or expired. It resolves the company and sector, rechecks the latest cache, then returns the complete host-execution prompt. If an active report exists, it returns not_eligible without a prompt. Stocks Info does not search the web or write, cache, upload, save, or publish the resulting response.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "exchange": {
+            "type": "string",
+            "enum": [
+              "ASX",
+              "CSE",
+              "NASDAQ",
+              "NYSE",
+              "TSX",
+              "TSXV"
+            ],
+            "description": "Uppercase listing exchange for the company. Must be one of ASX, CSE, NASDAQ, NYSE, TSX, or TSXV.",
+            "examples": [
+              "ASX",
+              "NASDAQ"
+            ]
+          },
+          "ticker": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$",
+            "description": "Exchange-listed ticker symbol, using letters, numbers, dots, or hyphens; for example BGL or BRK.B.",
+            "examples": [
+              "BGL",
+              "BRK.B"
+            ]
+          },
+          "output_locale": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35,
+            "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+            "description": "Required BCP-47 language tag for the generated summary and section bodies. Fixed labels and the seven section headings remain English.",
+            "examples": [
+              "en",
+              "zh-CN"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Resolve one eligible public company and return a sector-specific report prompt for a compatible host to perform live web research only when the latest cached report is missing or expired. This input does not ask Stocks Info to generate or save a report.",
+        "required": [
+          "exchange",
+          "ticker",
+          "output_locale"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "data_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "company_not_found",
+                  "not_eligible"
+                ],
+                "description": "Preparation result. ready includes a host-execution prompt; the other states do not."
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "Safe user-facing explanation of the preparation result."
+              },
+              "company": {
+                "description": "Sanitized company and classification context, or null when the company is not found.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "exchange": {
+                        "type": "string",
+                        "enum": [
+                          "ASX",
+                          "CSE",
+                          "NASDAQ",
+                          "NYSE",
+                          "TSX",
+                          "TSXV"
+                        ]
+                      },
+                      "ticker": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$"
+                      },
+                      "company_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 500
+                      },
+                      "website": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "uri",
+                        "maxLength": 2048
+                      },
+                      "is_active": {
+                        "type": "boolean"
+                      },
+                      "instrument_type": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "company_type": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "classifier_sector": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 128
+                      },
+                      "classifier_industry": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 256
+                      },
+                      "classifier_sector_updated_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 64
+                      },
+                      "classifier_sector_source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 64
+                      },
+                      "instrument_verification_required": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "exchange",
+                      "ticker",
+                      "company_name",
+                      "website",
+                      "is_active",
+                      "instrument_type",
+                      "company_type",
+                      "classifier_sector",
+                      "classifier_industry",
+                      "classifier_sector_updated_at",
+                      "classifier_sector_source",
+                      "instrument_verification_required"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "selected_sector": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128,
+                "description": "Selected prompt-pack sector for a ready result; otherwise null."
+              },
+              "prompt_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128,
+                "description": "Stable sector-prompt identifier for a ready result; otherwise null."
+              },
+              "prompt_version": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "5.0",
+                  null
+                ],
+                "description": "Sector-prompt pack version for a ready result; otherwise null."
+              },
+              "prompt_text": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 25000,
+                "description": "Complete instructions for the compatible host's live web research and current-conversation response; null unless status is ready."
+              },
+              "next_action": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "run_host_web_research",
+                  null
+                ],
+                "description": "Signals that the compatible host\u2014not Stocks Info\u2014must perform live web research; null unless status is ready."
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "message",
+              "company",
+              "selected_sector",
+              "prompt_id",
+              "prompt_version",
+              "prompt_text",
+              "next_action"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20
+          },
+          "quota": {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
+              "remaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "data_date",
+          "data",
+          "warnings",
+          "quota"
+        ]
+      },
+      "annotations": {
+        "title": "Prepare host-side company report research",
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
@@ -1764,8 +2386,9 @@
             "minimum": 60,
             "maximum": 3600,
             "default": 3600,
-            "description": "Signed download lifetime in seconds. Defaults to 3600 (60 minutes).",
+            "description": "Signed download lifetime in seconds. Omit this field for the 3600-second (60-minute) default, or explicitly request any lifetime from 60 through 3600 seconds.",
             "examples": [
+              60,
               600,
               3600
             ]
@@ -1780,11 +2403,6 @@
       "outputSchema": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "pattern": "^req_[A-Za-z0-9_-]{8,128}$",
-            "description": "Server-generated request identifier for support and audit correlation."
-          },
           "data_date": {
             "type": [
               "string",
@@ -1829,20 +2447,42 @@
           "quota": {
             "type": "object",
             "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "user"
+                ]
+              },
               "remaining": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": "integer",
                 "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "period_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reset_at": {
+                "type": "string",
+                "format": "date-time"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "remaining",
+              "limit",
+              "period_seconds",
+              "reset_at"
+            ]
           }
         },
         "additionalProperties": false,
         "required": [
-          "request_id",
           "data_date",
           "data",
           "warnings",
