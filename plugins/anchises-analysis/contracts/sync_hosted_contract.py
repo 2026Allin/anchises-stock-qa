@@ -37,6 +37,7 @@ DEFAULT_OUTPUT = Path(__file__).with_name("hosted-mcp-v1.json")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+CONTRACT_VERSION = "1.5.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -47,10 +48,24 @@ EXPECTED_TOOLS = [
     "screen_stocks",
     "validate_readonly_sql",
     "run_readonly_sql",
-    "get_latest_company_report",
+    "resolve_company_identity",
     "prepare_company_report_generation",
     "create_csv_export",
 ]
+EXPECTED_OAUTH_TOOL_SCOPES = {
+    "get_connection_status": [],
+    "get_available_exchanges": ["stock.read"],
+    "get_latest_dates": ["stock.read"],
+    "get_stock_schema": ["schema.read"],
+    "list_stock_tables": ["schema.read"],
+    "get_table_schema": ["schema.read"],
+    "screen_stocks": ["stock.read"],
+    "validate_readonly_sql": ["stock.read"],
+    "run_readonly_sql": ["stock.read"],
+    "resolve_company_identity": ["stock.read"],
+    "prepare_company_report_generation": ["stock.read"],
+    "create_csv_export": ["export.create"],
+}
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -166,7 +181,7 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "stock-data-desk-contract-sync/1.4",
+            "User-Agent": "anchises-analysis-contract-sync/1.5",
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -280,8 +295,8 @@ def fetch_contract(
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
                 "clientInfo": {
-                    "name": "stock-data-desk-contract-sync",
-                    "version": "1.4.0",
+                    "name": "anchises-analysis-contract-sync",
+                    "version": "1.5.0",
                 },
             },
             1,
@@ -313,6 +328,10 @@ def fetch_contract(
         raise RuntimeError("MCP initialize result must publish non-empty instructions")
 
     contract = base
+    contract["contract_version"] = CONTRACT_VERSION
+    contract["oauth"]["tool_scopes"] = copy.deepcopy(
+        EXPECTED_OAUTH_TOOL_SCOPES
+    )
     contract["runtime"]["snapshot_mode"] = mode
     contract["source"].update(
         {

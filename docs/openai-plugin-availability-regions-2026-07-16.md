@@ -226,9 +226,9 @@ Official sources:
 - Zambia
 - Zimbabwe
 
-## Approved release decision for Stocks Info
+## Approved release decision for Anchises Analysis
 
-For `0.2.0-beta.1`, use broad public availability:
+For `0.3.0-beta.1`, use broad public availability:
 
 - select every country or region offered by the live plugin submission portal;
 - include the Americas, Europe, Southeast Asia, East Asia, Africa, Oceania,
@@ -238,8 +238,8 @@ For `0.2.0-beta.1`, use broad public availability:
 
 Complete the broad selection after:
 
-- the Product and Terms pages accurately describe missing or expired report
-  generation;
+- the Product and Terms pages accurately describe direct live Host research,
+  company-identity resolution, and temporary CSV export behavior;
 - any location-specific restrictions shown by the portal are accepted.
 
 If the portal has a `Select all` control, use it and review the resulting list.

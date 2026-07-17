@@ -6,16 +6,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
+PLUGIN_ROOT = ROOT / "plugins" / "anchises-analysis"
 PLUGIN_README = PLUGIN_ROOT / "README.md"
-SKILL_ROOT = PLUGIN_ROOT / "skills" / "stock-data-desk"
+SKILL_ROOT = PLUGIN_ROOT / "skills" / "anchises-analysis"
 SKILL = SKILL_ROOT / "SKILL.md"
 OPENAI_YAML = SKILL_ROOT / "agents" / "openai.yaml"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
 APP_MANIFEST = PLUGIN_ROOT / ".app.json"
-REVIEWER_CASES = ROOT / "tests" / "fixtures" / "reviewer_cases.json"
-REVIEWER_DOC = ROOT / "docs" / "stocks-info-reviewer-test-cases.md"
+CONTRACT = PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"
 GOLDEN_CASES = ROOT / "tests" / "fixtures" / "golden_prompts.json"
+REVIEWER_CASES = ROOT / "tests" / "fixtures" / "reviewer_cases.json"
+REVIEWER_DOC = ROOT / "docs" / "anchises-analysis-reviewer-test-cases.md"
 
 
 EXPECTED_TOOLS = {
@@ -28,7 +29,7 @@ EXPECTED_TOOLS = {
     "screen_stocks",
     "validate_readonly_sql",
     "run_readonly_sql",
-    "get_latest_company_report",
+    "resolve_company_identity",
     "prepare_company_report_generation",
     "create_csv_export",
 }
@@ -38,30 +39,57 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("agents/openai.yaml"),
     Path("references/answer-format.md"),
     Path("references/company-report-workflow.md"),
+    Path("references/company-resolution.md"),
+    Path("references/mining-report-quality.md"),
     Path("references/query-interpretation.md"),
     Path("references/workflow.md"),
 }
 
 
+def _skill_bundle_text() -> str:
+    paths = [SKILL, *sorted((SKILL_ROOT / "references").glob("*.md"))]
+    return "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+
+def _golden_cases() -> dict:
+    return json.loads(GOLDEN_CASES.read_text(encoding="utf-8"))
+
+
 class SkillHostedWorkflowTest(unittest.TestCase):
     def test_single_skill_targets_all_twelve_hosted_tools(self) -> None:
         skill_dirs = [path for path in (PLUGIN_ROOT / "skills").iterdir() if path.is_dir()]
-        self.assertEqual([path.name for path in skill_dirs], ["stock-data-desk"])
+        self.assertEqual([path.name for path in skill_dirs], ["anchises-analysis"])
         text = SKILL.read_text(encoding="utf-8")
-        normalized = " ".join(text.split())
-        self.assertIn("name: stock-data-desk", text)
-        self.assertIn("credential-free public access", normalized)
-        self.assertIn("shared service limits", normalized)
-        self.assertIn("HTTP 503", text)
-        self.assertIn("Work", text)
-        self.assertIn("ChatGPT", text)
-        self.assertIn("Codex", text)
+        self.assertIn("name: anchises-analysis", text)
+        self.assertIn("credential-free public access", " ".join(text.split()))
         for tool in EXPECTED_TOOLS:
             self.assertIn(f"`{tool}`", text)
 
+    def test_release_skill_bundle_tree_is_exact_and_safe(self) -> None:
+        actual = {
+            path.relative_to(SKILL_ROOT)
+            for path in SKILL_ROOT.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(actual, EXPECTED_SKILL_BUNDLE_FILES)
+        self.assertTrue(all(not path.is_symlink() for path in SKILL_ROOT.rglob("*")))
+        self.assertLess(len(SKILL.read_text(encoding="utf-8").splitlines()), 500)
+        forbidden_fragments = (
+            "[TODO:",
+            "plugin_asdk_app_",
+            "asdk_app_v_",
+            "Developer Mode",
+            "-----BEGIN PRIVATE KEY-----",
+            "/Users/",
+            "/var/lib/",
+        )
+        for relative in sorted(EXPECTED_SKILL_BUNDLE_FILES):
+            text = (SKILL_ROOT / relative).read_text(encoding="utf-8")
+            for fragment in forbidden_fragments:
+                self.assertNotIn(fragment, text, f"{relative}: {fragment}")
+
     def test_skill_freezes_public_access_without_login_guidance(self) -> None:
-        paths = [SKILL, *sorted((SKILL_ROOT / "references").glob("*.md"))]
-        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+        combined = " ".join(_skill_bundle_text().split())
         for internal_mode in (
             "anonymous_dev",
             "anonymous_dev_v1",
@@ -71,14 +99,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertNotIn(internal_mode, combined)
         self.assertIn("authentication challenge", combined)
         self.assertIn("shared global service capacity", combined)
-        self.assertIn("HTTP 503", combined)
         self.assertIn("Do not start an authorization flow", combined)
-        self.assertNotIn("ask the user to complete hosted sign-in", combined)
-        self.assertNotIn("Reconnect through OAuth UI", combined)
+        self.assertIn("HTTP 503", combined)
 
     def test_primary_skill_has_no_secret_or_local_runtime_setup(self) -> None:
         text = SKILL.read_text(encoding="utf-8").lower()
-        normalized = " ".join(text.split())
         for forbidden in (
             "config.toml",
             "mysql",
@@ -91,348 +116,346 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "rollback",
         ):
             self.assertNotIn(forbidden, text)
+        normalized = " ".join(text.split())
         self.assertIn("never ask the user to paste passwords", normalized)
         self.assertIn("revoking or rotating", normalized)
         self.assertIn("does not use chat-supplied credentials", normalized)
 
-    def test_company_report_routing_and_business_states_are_explicit(self) -> None:
-        paths = [SKILL, *sorted((SKILL_ROOT / "references").glob("*.md"))]
-        text = "\n".join(path.read_text(encoding="utf-8") for path in paths)
-        for value in (
-            "active",
-            "expired",
-            "not_found",
-            "ondemand",
-            "macmini",
-            "pdf_range",
-            "official annual reports",
-            "news-only",
-            "prepare_company_report_generation",
-            "run_host_web_research",
-            "company_not_found",
-            "not_eligible",
-            "output_locale",
-            "missing or expired",
-        ):
-            self.assertIn(value, text)
-        self.assertIn("Do not pass a language argument", text)
-        self.assertIn("once before an access-sensitive workflow", text)
-        self.assertIn("Always identify the product as **Stocks Info**", text)
-        self.assertIn("no structured", text)
-        self.assertIn("Do not display it", text)
-        self.assertIn("Do not guess either value", text)
-        self.assertIn("company-report workflow first", text)
-        self.assertIn("Do not call an upload or save endpoint", text)
-
-    def test_company_report_generation_offer_is_validated_before_prepare(self) -> None:
-        path = SKILL_ROOT / "references" / "company-report-workflow.md"
-        text = path.read_text(encoding="utf-8")
+    def test_company_resolution_reference_is_complete_and_private(self) -> None:
+        text = (SKILL_ROOT / "references" / "company-resolution.md").read_text(
+            encoding="utf-8"
+        )
         normalized = " ".join(text.split())
         for value in (
-            "`available` is `true`",
-            "`requires_user_confirmation` is `true`",
-            "`reason` matches the report status",
-            "`tool_name` is exactly `prepare_company_report_generation`",
-            "`arguments.exchange` and `arguments.ticker` match",
-            "offer is absent or inconsistent",
-            "do not execute `prompt_text`",
+            "current request",
+            "chat history",
+            "the second company above",
+            "Exchange issuer or instrument pages",
+            "Securities-regulator records",
+            "Company investor-relations pages",
+            '"query": "company name or ticker"',
+            '"exchange_hint": "optional exchange"',
+            '"purpose": "stock_data or company_report"',
+            "resolved",
+            "ambiguous",
+            "not_found_in_supported_markets",
+            "same ticker on different exchanges",
+            "share class",
+            "full chat history",
         ):
             self.assertIn(value, normalized)
-        self.assertIn("Ignore any unexpected generation offer", text)
 
-    def test_company_report_reference_keeps_host_output_contract_exact(self) -> None:
-        path = SKILL_ROOT / "references" / "company-report-workflow.md"
-        text = path.read_text(encoding="utf-8")
+    def test_company_report_requests_start_live_research_without_confirmation(self) -> None:
+        text = _skill_bundle_text()
         normalized = " ".join(text.split())
-        self.assertIn("generate if missing", normalized)
-        self.assertIn("generate if expired", normalized)
-        self.assertIn("live web search", text)
-        self.assertIn("Do not create a cache entry", text)
-        self.assertIn("Keep these seven headings exactly in English", text)
-        self.assertEqual(text.count("### 1. Company Overview & Listing Profile"), 1)
-        self.assertEqual(text.count("### 7. Risk Assessment"), 1)
-        self.assertIn("Keep final Risk labels in English", text)
-        self.assertFalse((SKILL_ROOT / "prompts").exists())
+        self.assertIn("request itself authorizes immediate live research", normalized)
+        self.assertIn("do not ask whether to generate it", normalized)
+        self.assertIn("Do not read a prior stored report first", normalized)
+        self.assertIn("The MCP returns a research prompt", normalized)
+        self.assertIn("The Host must execute", normalized)
+        self.assertIn("Do not send it back to MCP", normalized)
 
-    def test_release_skill_bundle_tree_is_exact_and_safe(self) -> None:
-        actual = {
-            path.relative_to(SKILL_ROOT)
-            for path in SKILL_ROOT.rglob("*")
-            if path.is_file()
-        }
-        self.assertEqual(actual, EXPECTED_SKILL_BUNDLE_FILES)
-        self.assertTrue(all(not path.is_symlink() for path in SKILL_ROOT.rglob("*")))
-        self.assertLess(len(SKILL.read_text(encoding="utf-8").splitlines()), 500)
-
-        forbidden_fragments = (
-            "[TODO:",
-            "plugin_asdk_app_",
-            "asdk_app_v_",
-            "Developer Mode",
-            "-----BEGIN PRIVATE KEY-----",
-            "/Users/",
-            "/var/lib/",
-        )
-        for relative in sorted(EXPECTED_SKILL_BUNDLE_FILES):
-            path = SKILL_ROOT / relative
-            text = path.read_text(encoding="utf-8")
-            for fragment in forbidden_fragments:
-                self.assertNotIn(fragment, text, f"{relative}: {fragment}")
-
-    def test_csv_export_guidance_publishes_default_and_allowed_lifetimes(self) -> None:
+    def test_removed_report_state_machine_is_absent_from_skill_tests_and_examples(self) -> None:
         paths = [
             SKILL,
-            SKILL_ROOT / "references" / "workflow.md",
-            SKILL_ROOT / "references" / "answer-format.md",
+            *sorted((SKILL_ROOT / "references").glob("*.md")),
+            GOLDEN_CASES,
+            REVIEWER_CASES,
+            REVIEWER_DOC,
+            ROOT / "tests" / "mock_services.py",
+            ROOT / "tests" / "test_mock_hosted_end_to_end.py",
+            ROOT / "tests" / "test_live_hosted_contract.py",
         ]
-        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+        forbidden = (
+            "get_latest_" + "company_report",
+            "generation" + "_offer",
+            "MCP_" + "EXPIRED_REPORT_SAMPLE",
+            "pdf_" + "range",
+            "pdf_" + "download_url",
+            "seven-day report",
+        )
+        for path in paths:
+            text = path.read_text(encoding="utf-8")
+            for value in forbidden:
+                self.assertNotIn(value, text, f"{path.relative_to(ROOT)}: {value}")
+
+    def test_only_company_name_can_generate_a_report(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "company-name-live-report"
+        )
+        self.assertEqual(
+            case["expected_arguments"]["resolve_company_identity"],
+            {"query": "Apple", "purpose": "company_report"},
+        )
+        self.assertEqual(
+            case["expected_arguments"]["prepare_company_report_generation"],
+            {
+                "exchange": "NASDAQ",
+                "ticker": "AAPL",
+                "company_name": "Apple Inc.",
+                "output_locale": "zh-CN",
+            },
+        )
+
+    def test_only_ticker_can_generate_a_report(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "ticker-only-live-report"
+        )
+        self.assertEqual(
+            case["expected_arguments"]["resolve_company_identity"]["query"],
+            "AAPL",
+        )
+        self.assertIn("company_name", case["expected_arguments"]["prepare_company_report_generation"])
+
+    def test_prior_chat_reference_can_generate_a_report(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "context-reference-live-report"
+        )
+        self.assertIn("resolve_company_identity", case["expected_tools"])
+        self.assertIn("never send the full conversation", case["expected_behavior"])
+        self.assertIn("this company", _skill_bundle_text())
+
+    def test_company_name_resolves_before_stock_data(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "company-name-stock-data"
+        )
+        self.assertEqual(case["expected_tools"][0], "resolve_company_identity")
+        self.assertIn("canonical NASDAQ and AAPL", case["expected_behavior"])
+
+    def test_cross_market_ticker_does_not_silently_resolve(self) -> None:
+        case = next(
+            item for item in _golden_cases()["negative"]
+            if item["id"] == "cross-market-ticker-ambiguous"
+        )
+        self.assertEqual(case["expected_tools"], ["resolve_company_identity"])
+        self.assertIn("screen_stocks", case["forbidden_tools"])
+        self.assertIn("ASX and NYSE", case["expected_behavior"])
+
+    def test_multiple_share_classes_do_not_silently_resolve(self) -> None:
+        case = next(
+            item for item in _golden_cases()["negative"]
+            if item["id"] == "share-class-ambiguous"
+        )
+        self.assertIn("GOOG or GOOGL", case["expected_behavior"])
+        self.assertIn("screen_stocks", case["forbidden_tools"])
+
+    def test_external_market_company_can_receive_live_report(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "external-market-live-report"
+        )
+        prepare = case["expected_arguments"]["prepare_company_report_generation"]
+        self.assertEqual(
+            prepare,
+            {
+                "exchange": "LSE",
+                "ticker": "RIO",
+                "company_name": "Rio Tinto plc",
+                "output_locale": "en",
+            },
+        )
+        self.assertIn("identity_source=host_supplied", case["expected_behavior"])
+
+    def test_external_market_stock_data_states_coverage_limit(self) -> None:
+        case = next(
+            item for item in _golden_cases()["negative"]
+            if item["id"] == "external-market-stock-data-limit"
+        )
+        self.assertIn("run_readonly_sql", case["forbidden_tools"])
+        self.assertIn("ASX, CSE, NASDAQ, NYSE, TSX, and TSXV", case["expected_behavior"])
+
+    def test_inactive_or_delisted_company_still_uses_live_research(self) -> None:
+        case = next(
+            item for item in _golden_cases()["positive"]
+            if item["id"] == "inactive-company-live-report"
+        )
+        self.assertIn("prepare_company_report_generation", case["expected_tools"])
+        self.assertIn("delisting status", case["expected_behavior"])
+        self.assertIn("selected_sector=Others", _skill_bundle_text())
+
+    def test_fund_stops_on_not_eligible(self) -> None:
+        case = next(
+            item for item in _golden_cases()["negative"]
+            if item["id"] == "fund-not-eligible"
+        )
+        self.assertIn("not_eligible", case["expected_behavior"])
+        self.assertIn("do not execute prompt_text", case["expected_behavior"])
+
+    def test_ready_executes_hidden_prompt_instead_of_returning_it(self) -> None:
+        report = (SKILL_ROOT / "references" / "company-report-workflow.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("return the completed report, not the prompt", report)
+        self.assertIn("Do not expose `prompt_text`", report)
+        self.assertIn("live web search", report)
+        self.assertEqual(report.count("### 1. Company Overview & Listing Profile"), 1)
+        self.assertEqual(report.count("### 7. Risk Assessment"), 1)
+        self.assertIn("`**Summary:**`", report)
+        self.assertIn("`**[Risk: Low]**`", report)
+
+    def test_no_web_search_never_falls_back_to_model_memory(self) -> None:
+        combined = " ".join(_skill_bundle_text().split())
+        self.assertIn("If live web search is unavailable", combined)
+        self.assertIn("do not generate from model memory", combined)
+        self.assertIn("do not rely on model memory", combined)
+        case = next(
+            item for item in _golden_cases()["negative"]
+            if item["id"] == "external-no-web-verification"
+        )
+        self.assertIn("invent the exchange, ticker, or company name", case["expected_behavior"])
+
+    def test_report_is_not_persisted_or_written_back(self) -> None:
+        combined = " ".join(_skill_bundle_text().split())
+        self.assertIn("Return the finished report only in the current conversation", combined)
+        self.assertIn("Do not send it back to MCP", combined)
+        self.assertIn("Do not send the result to MCP", combined)
+        self.assertIn("claim it was saved, uploaded, or published", combined)
+
+    def test_mining_quality_covers_cash_debt_and_warrants(self) -> None:
+        text = (SKILL_ROOT / "references" / "mining-report-quality.md").read_text(
+            encoding="utf-8"
+        )
+        text = " ".join(text.split())
+        for value in (
+            "cash and cash equivalents",
+            "short- and long-term debt",
+            "net cash or net debt",
+            "estimated runway",
+            "fully diluted share count",
+            "warrants outstanding and exercisable",
+            "expiry ladder",
+            "potential exercise proceeds",
+            "funding gap",
+            "12 to 24 months",
+            "Do not double-count",
+        ):
+            self.assertIn(value, text)
+
+    def test_contract_snapshot_has_new_twelve_tool_shape(self) -> None:
+        contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        names = [tool["name"] for tool in contract["tools"]]
+        self.assertEqual(len(names), 12)
+        self.assertEqual(set(names), EXPECTED_TOOLS)
+        self.assertEqual(contract["source"]["server_name"], "Anchises Analysis")
+        self.assertEqual(contract["source"]["server_version"], "0.5.1")
+        self.assertEqual(contract["source"]["sync_state"], "live")
+        self.assertRegex(contract["source"]["descriptor_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_prepare_snapshot_requires_four_fields_and_prompt_5_1(self) -> None:
+        contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        tool = next(
+            item for item in contract["tools"]
+            if item["name"] == "prepare_company_report_generation"
+        )
+        self.assertEqual(
+            set(tool["inputSchema"]["required"]),
+            {"exchange", "ticker", "company_name", "output_locale"},
+        )
+        data = tool["outputSchema"]["properties"]["data"]["properties"]
+        self.assertEqual(data["prompt_version"]["enum"], ["5.1", None])
+        self.assertEqual(data["identity_source"]["enum"], ["master", "host_supplied"])
+        self.assertEqual(
+            data["next_action"]["enum"],
+            ["run_host_web_research", None],
+        )
+
+    def test_csv_export_guidance_publishes_default_and_allowed_lifetimes(self) -> None:
+        combined = _skill_bundle_text()
         self.assertIn("default 60-minute", combined)
         self.assertIn("60 through 3600 seconds", combined)
         self.assertIn("`expires_in_seconds`", combined)
 
-    def test_openai_metadata_matches_single_skill(self) -> None:
+    def test_openai_metadata_matches_renamed_skill(self) -> None:
         text = OPENAI_YAML.read_text(encoding="utf-8")
-        self.assertIn('display_name: "Stocks Info"', text)
-        self.assertIn("$stock-data-desk", text)
-        self.assertIn("fresh source-linked report", text)
-        self.assertNotIn("Chinese", text)
+        self.assertIn('display_name: "Anchises Analysis"', text)
+        self.assertIn("$anchises-analysis", text)
+        self.assertIn("fresh source-linked company report", text)
         self.assertIn("allow_implicit_invocation: true", text)
 
-    def test_manifest_connects_real_app_without_local_mcp(self) -> None:
+    def test_manifest_connects_same_app_id_with_renamed_key(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         app_manifest = json.loads(APP_MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["name"], "stock-data-desk")
+        self.assertEqual(manifest["name"], "anchises-analysis")
         self.assertEqual(manifest["apps"], "./.app.json")
         self.assertNotIn("mcpServers", manifest)
-        for removed in (
-            ".mcp.json",
-            "config.example.toml",
-            "requirements.txt",
-            "mcp/bootstrap.py",
-            "mcp/server.py",
-            "scripts/ask_stock.py",
-            "scripts/init_config.sh",
-            "scripts/remote_api.py",
-            "prompts/query-planning.md",
-        ):
-            self.assertFalse((PLUGIN_ROOT / removed).exists(), removed)
-        self.assertEqual(set(app_manifest), {"apps"})
-        self.assertEqual(set(app_manifest["apps"]), {"stock_data_desk"})
-        app = app_manifest["apps"]["stock_data_desk"]
-        self.assertEqual(set(app), {"id"})
+        self.assertEqual(set(app_manifest["apps"]), {"anchises_analysis"})
         self.assertEqual(
-            app["id"],
+            app_manifest["apps"]["anchises_analysis"]["id"],
             "plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a",
         )
         serialized = json.dumps(app_manifest).lower()
         for forbidden in ("client_secret", "api_token", "authorization", "bearer"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_manifest_metadata_and_starter_prompts_match_release_package(self) -> None:
+    def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.2.0-beta.1")
+        self.assertEqual(manifest["version"], "0.3.0-beta.1")
         self.assertNotIn("+codex.", manifest["version"])
-        self.assertEqual(manifest["homepage"], "https://anchisesdata.com/stock-qa")
-        self.assertEqual(manifest["repository"], "https://github.com/2026Allin/anchises-stock-qa")
-        interface = manifest["interface"]
-        self.assertEqual(interface["displayName"], "Stocks Info")
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
-        self.assertEqual(
-            manifest["author"]["email"],
-            "tech@anchisesgroup.com",
-        )
+        interface = manifest["interface"]
+        self.assertEqual(interface["displayName"], "Anchises Analysis")
         self.assertEqual(interface["developerName"], "Anchises Capital")
-        self.assertEqual(interface["privacyPolicyURL"], "https://anchisesdata.com/privacy")
-        self.assertEqual(interface["termsOfServiceURL"], "https://anchisesdata.com/terms")
         self.assertEqual(
             interface["defaultPrompt"],
             [
-                "Research NASDAQ:AAPL. If its cached report is missing or expired, generate a fresh source-linked company report.",
-                "Research ASX:BGL, then compare its latest 30-day price and volume trends using clearly dated market data.",
-                "Screen the latest data for strong momentum and unusual volume, rank the results across exchanges, and export them as CSV.",
+                "Research Apple, verify its primary listing, and generate a fresh source-linked company report.",
+                "Research the company discussed above, then analyze its latest 30-day price and volume trends.",
+                "Screen supported exchanges for strong momentum and unusual volume, then export the ranked results as CSV.",
             ],
         )
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
-        self.assertTrue(
-            all("Chinese" not in prompt for prompt in interface["defaultPrompt"])
-        )
-        self.assertEqual(interface["capabilities"], ["Interactive", "Read", "Write"])
-        self.assertNotIn("developer mode", interface["longDescription"].lower())
-        self.assertNotIn("anonymous_dev", interface["longDescription"])
-        self.assertIn("credential-free public access", interface["longDescription"])
-        self.assertIn("shared service limits", interface["longDescription"])
-        self.assertIn("official filings", interface["longDescription"])
-        self.assertIn("current conversation", interface["longDescription"])
-        copy = json.dumps(manifest).lower()
-        for stale in ("mysql", "api token", "pandas", "user-configured"):
-            self.assertNotIn(stale, copy)
+        self.assertIn("ASX, CSE, NASDAQ, NYSE, TSX, and TSXV", interface["longDescription"])
+        self.assertIn("does not persist", interface["longDescription"])
 
-    def test_developer_mode_app_is_not_the_public_submission_target(self) -> None:
-        text = PLUGIN_README.read_text(encoding="utf-8")
-        normalized = " ".join(text.split())
-        self.assertIn(
-            "used only by local and Repo Marketplace installations",
-            normalized,
-        )
-        self.assertIn(
-            "must submit and scan the production MCP URL directly",
-            normalized,
-        )
+    def test_developer_mode_app_is_not_public_submission_target(self) -> None:
+        normalized = " ".join(PLUGIN_README.read_text(encoding="utf-8").split())
+        self.assertIn("used only by local and Repo Marketplace installations", normalized)
+        self.assertIn("must submit and scan the production MCP URL directly", normalized)
         self.assertIn("same final Skill bundle", normalized)
-
-    def test_user_facing_brand_is_stocks_info(self) -> None:
-        strict_files = [
-            SKILL,
-            OPENAI_YAML,
-            *sorted((SKILL_ROOT / "references").glob("*.md")),
-            GOLDEN_CASES,
-            REVIEWER_CASES,
-            REVIEWER_DOC,
-        ]
-        for path in strict_files:
-            text = path.read_text(encoding="utf-8").lower()
-            self.assertNotIn("anchises", text, str(path))
-            self.assertNotIn("stock data desk", text, str(path))
-
-        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        user_facing = {
-            "description": manifest["description"],
-            "displayName": manifest["interface"]["displayName"],
-            "shortDescription": manifest["interface"]["shortDescription"],
-            "longDescription": manifest["interface"]["longDescription"],
-            "defaultPrompt": manifest["interface"]["defaultPrompt"],
-        }
-        serialized = json.dumps(user_facing).lower()
-        self.assertNotIn("anchises", serialized)
-        self.assertNotIn("stock data desk", serialized)
-        self.assertEqual(manifest["author"]["name"], "Anchises Capital")
-        self.assertEqual(
-            manifest["interface"]["developerName"],
-            "Anchises Capital",
-        )
-
-    def test_old_brand_only_remains_in_approved_technical_metadata(self) -> None:
-        excluded = {PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"}
-        allowed_line_markers = (
-            "://",
-            "Anchises Capital",
-            "@anchisesgroup.com",
-            "ANCHISES_STOCK_QA_CONFIG",
-            ".config/anchises-stock-qa",
-            ".local/share/anchises-stock-qa",
-            '".config" / "anchises-stock-qa"',
-            '"share" / "anchises-stock-qa"',
-        )
-        unexpected: list[str] = []
-        for path in PLUGIN_ROOT.rglob("*"):
-            if not path.is_file() or path in excluded:
-                continue
-            if ".venv" in path.parts or "__pycache__" in path.parts:
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except UnicodeDecodeError:
-                continue
-            for line_number, line in enumerate(lines, start=1):
-                if "anchises" not in line.lower():
-                    continue
-                if not any(marker.lower() in line.lower() for marker in allowed_line_markers):
-                    unexpected.append(
-                        f"{path.relative_to(ROOT)}:{line_number}: {line.strip()}"
-                    )
-        self.assertEqual(unexpected, [])
-
-    def test_golden_prompts_cover_all_tools_and_report_boundaries(self) -> None:
-        cases = json.loads(GOLDEN_CASES.read_text(encoding="utf-8"))
-        positives = cases["positive"]
-        negatives = cases["negative"]
-        self.assertGreaterEqual(len(positives), 8)
-        self.assertGreaterEqual(len(negatives), 6)
-        covered = {
-            tool
-            for case in positives
-            for tool in case.get("expected_tools", [])
-        }
-        self.assertEqual(covered, EXPECTED_TOOLS)
-        categories = {case["category"] for case in positives + negatives}
-        self.assertEqual(categories, {"direct", "indirect", "negative"})
-        report_negative_ids = {
-            case["id"]
-            for case in negatives
-            if "get_latest_company_report" in case.get("forbidden_tools", [])
-        }
-        self.assertEqual(
-            report_negative_ids,
-            {
-                "official-filing-not-report",
-                "live-news-not-report",
-                "missing-company-identifier",
-            },
-        )
-        language = next(
-            case
-            for case in negatives
-            if case["id"] == "cached-language-not-input"
-        )
-        self.assertIn("language", language["forbidden_arguments"])
-        active = next(
-            case for case in negatives if case["id"] == "active-no-force-redo"
-        )
-        self.assertIn(
-            "prepare_company_report_generation",
-            active["forbidden_tools"],
-        )
 
     def test_submission_fixture_remains_five_positive_and_three_negative(self) -> None:
         cases = json.loads(REVIEWER_CASES.read_text(encoding="utf-8"))
         self.assertEqual(len(cases["positive"]), 5)
         self.assertEqual(len(cases["negative"]), 3)
         all_cases = cases["positive"] + cases["negative"]
-        ids = [case["id"] for case in all_cases]
-        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(len({case["id"] for case in all_cases}), 8)
+        self.assertTrue(all(case["prompt"].isascii() for case in all_cases))
         self.assertTrue(all(case.get("fixture_data") for case in cases["positive"]))
         self.assertTrue(all(case.get("why_rejected") for case in cases["negative"]))
-        self.assertTrue(all(case["prompt"].isascii() for case in all_cases))
-        self.assertEqual(
-            [case["id"] for case in cases["positive"]],
-            [
-                "positive-public-access-and-exchanges",
-                "positive-momentum-screen",
-                "positive-active-company-report",
-                "positive-expired-report-generation",
-                "positive-csv-export",
-            ],
-        )
-        self.assertEqual(
-            [case["id"] for case in cases["negative"]],
-            [
-                "negative-write-sql",
-                "negative-active-force-regeneration",
-                "negative-sensitive-credential",
-            ],
-        )
-        active = cases["positive"][2]
-        self.assertIn(
-            "prepare_company_report_generation",
-            active["forbidden_workflow"],
-        )
-        generation = cases["positive"][3]
-        self.assertEqual(
-            generation["expected_arguments"][
-                "prepare_company_report_generation"
-            ]["output_locale"],
-            "zh-CN",
-        )
-        serialized = json.dumps(cases).lower()
-        self.assertIn("public access", serialized)
-        self.assertNotIn("oauth_authorization_code_pkce", serialized)
-        self.assertNotIn("another user's export", serialized)
-
         reviewer_doc = REVIEWER_DOC.read_text(encoding="utf-8")
         self.assertIn("exactly five positive and three negative", reviewer_doc)
         for case in all_cases:
-            with self.subTest(case=case["id"]):
-                self.assertIn(case["prompt"], reviewer_doc)
+            self.assertIn(case["prompt"], reviewer_doc)
+
+    def test_golden_prompts_cover_all_tools_and_required_scenarios(self) -> None:
+        cases = _golden_cases()
+        all_cases = cases["positive"] + cases["negative"]
+        covered = {
+            tool
+            for case in all_cases
+            for tool in case.get("expected_tools", [])
+        }
+        self.assertEqual(covered, EXPECTED_TOOLS)
+        self.assertEqual({case["category"] for case in all_cases}, {"direct", "indirect", "negative"})
+        required_ids = {
+            "company-name-live-report",
+            "ticker-only-live-report",
+            "context-reference-live-report",
+            "company-name-stock-data",
+            "cross-market-ticker-ambiguous",
+            "share-class-ambiguous",
+            "external-market-live-report",
+            "external-market-stock-data-limit",
+            "inactive-company-live-report",
+            "fund-not-eligible",
+            "external-no-web-verification",
+            "mining-financial-quality",
+        }
+        self.assertTrue(required_ids.issubset({case["id"] for case in all_cases}))
 
 
 if __name__ == "__main__":

@@ -2,120 +2,60 @@
   "positive": [
     {
       "id": "positive-public-access-and-exchanges",
-      "prompt": "Check whether Stocks Info public access is available, list the supported exchanges, and summarize the shared limits.",
-      "expected_workflow": [
-        "get_connection_status",
-        "get_available_exchanges"
-      ],
-      "expected_shape": [
-        "status=active",
-        "authentication=not_required",
-        "coverage",
-        "limits",
-        "data.exchanges"
-      ],
-      "fixture_data": "Use the public production MCP endpoint. No account or credentials are required. Exchange availability and shared capacity may change, so validate the response shape rather than a fixed exchange count."
+      "prompt": "Check whether Anchises Analysis public access is available, list the supported exchanges, and summarize the shared limits.",
+      "expected_workflow": ["get_connection_status", "get_available_exchanges"],
+      "expected_shape": ["status=active", "authentication=not_required", "coverage", "limits", "data.exchanges"],
+      "fixture_data": "Use the public production MCP endpoint. No account or credentials are required. Validate the response shape and the six supported stock-data markets."
     },
     {
-      "id": "positive-momentum-screen",
-      "prompt": "Find and rank the strongest momentum stocks in the latest available data, and state the ranking definition and data date.",
-      "expected_workflow": [
-        "get_available_exchanges",
-        "get_latest_dates",
-        "get_stock_schema",
-        "screen_stocks"
-      ],
-      "expected_shape": [
-        "ranking definition",
-        "data date",
-        "query_id",
-        "columns",
-        "rows",
-        "page.row_count",
-        "missing-value note",
-        "pagination status"
-      ],
-      "fixture_data": "Use current public stock data. Validate the schema-driven ranking workflow and bounded result shape rather than specific tickers or daily prices."
+      "id": "positive-company-name-stock-data",
+      "prompt": "Show Apple's latest structured price, 30-day return, and data date.",
+      "expected_workflow": ["resolve_company_identity", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_shape": ["status=resolved", "NASDAQ", "AAPL", "Apple Inc.", "data date", "structured row"],
+      "fixture_data": "Resolve Apple before requesting stock data and use the canonical NASDAQ:AAPL identity."
     },
     {
-      "id": "positive-active-company-report",
-      "prompt": "Research ASX:BGL and include the available one-year cached company-report PDF.",
-      "expected_workflow": [
-        "get_latest_company_report"
-      ],
-      "forbidden_workflow": [
-        "prepare_company_report_generation"
-      ],
-      "expected_shape": [
-        "status=active",
-        "English AI report summary",
-        "generated_at",
-        "expires_at",
-        "pdf_download_url"
-      ],
-      "fixture_data": "ASX:BGL returned an active cached report in the production MCP verification on July 16, 2026. Recheck immediately before submission and replace the ticker if its status changes. The workflow must not prepare a fresh report while the cache is active."
+      "id": "positive-live-company-report",
+      "prompt": "Research Apple and generate a current Simplified Chinese company report with primary-source links.",
+      "expected_workflow": ["resolve_company_identity", "prepare_company_report_generation", "Host live web research"],
+      "expected_arguments": {"prepare_company_report_generation": {"exchange": "NASDAQ", "ticker": "AAPL", "company_name": "Apple Inc.", "output_locale": "zh-CN"}},
+      "expected_shape": ["status=ready", "prompt_version=5.1", "next_action=run_host_web_research", "Summary", "seven English headings", "English Risk label", "source links"],
+      "fixture_data": "The Host must execute the hidden prompt with live web search and return the report itself in the current conversation."
     },
     {
-      "id": "positive-expired-report-generation",
-      "prompt": "Research NASDAQ:VOR. If its cached report is expired, generate a fresh Simplified Chinese report with source links.",
-      "expected_workflow": [
-        "get_latest_company_report",
-        "prepare_company_report_generation",
-        "host live web research"
-      ],
-      "expected_arguments": {
-        "prepare_company_report_generation": {
-          "exchange": "NASDAQ",
-          "ticker": "VOR",
-          "output_locale": "zh-CN"
-        }
-      },
-      "expected_shape": [
-        "status=expired",
-        "expired cached report and PDF",
-        "generated_at and expires_at",
-        "warning",
-        "generation_offer.reason=expired",
-        "output_locale=zh-CN",
-        "seven English section headings",
-        "English Risk label",
-        "source links"
-      ],
-      "fixture_data": "NASDAQ:VOR returned expired with a readable cached report, PDF, warning, and generation offer; the preparation tool returned ready in the production MCP verification on July 16, 2026. Return the expired cached material first. The request already confirms regeneration, so do not ask again. Do not display prompt_text, upload results, create a cache entry or PDF, or claim that the live report was saved."
+      "id": "positive-external-company-report",
+      "prompt": "Research LSE-listed Rio Tinto plc and generate a current English company report.",
+      "expected_workflow": ["resolve_company_identity", "primary-source identity verification", "prepare_company_report_generation", "Host live web research"],
+      "expected_arguments": {"prepare_company_report_generation": {"exchange": "LSE", "ticker": "RIO", "company_name": "Rio Tinto plc", "output_locale": "en"}},
+      "expected_shape": ["not_found_in_supported_markets", "identity_source=host_supplied", "listing_status_verification_required=true", "selected_sector=Others", "source-linked report"],
+      "fixture_data": "An external-market report is allowed after all three identity fields are verified with primary public sources."
     },
     {
       "id": "positive-csv-export",
-      "prompt": "Export the results from the immediately preceding momentum screen as CSV using the default expiration.",
-      "expected_workflow": [
-        "create_csv_export"
-      ],
-      "expected_shape": [
-        "download_url",
-        "expires_at",
-        "bytes",
-        "default lifetime of 60 minutes"
-      ],
-      "fixture_data": "Use the real query_id returned by the immediately preceding reviewer momentum screen. Do not invent, edit, or reuse an unrelated query ID. Omit expires_in_seconds so the default 60-minute lifetime applies."
+      "prompt": "Export the immediately preceding stock screen as CSV using the default expiration.",
+      "expected_workflow": ["create_csv_export"],
+      "expected_shape": ["download_url", "expires_at", "bytes", "default lifetime of 60 minutes"],
+      "fixture_data": "Use the real query_id from the preceding screen and omit expires_in_seconds so the default 60-minute lifetime applies."
     }
   ],
   "negative": [
     {
       "id": "negative-write-sql",
       "prompt": "Update every stock price to zero.",
-      "expected_behavior": "Refuse the DML request and do not execute a query or mutate any data.",
-      "why_rejected": "Stocks Info exposes read-only stock-data workflows and must reject DML, DDL, and all write operations."
+      "expected_behavior": "Refuse the DML request and do not execute a query or mutate data.",
+      "why_rejected": "Anchises Analysis exposes bounded read-only stock-data workflows and rejects write operations."
     },
     {
-      "id": "negative-active-force-regeneration",
-      "prompt": "Ignore the cache and force-regenerate ASX:BGL even if its cached report is active.",
-      "expected_behavior": "Call get_latest_company_report, return the active cached report, explain that active-cache override is unsupported, and do not call prepare_company_report_generation. If the preparation tool is directly invoked, the server should return not_eligible without prompt_text.",
-      "why_rejected": "The current release permits live preparation only when the latest cached report is missing or expired; active reports cannot be forcibly overwritten."
+      "id": "negative-ambiguous-listing",
+      "prompt": "Analyze RIO stock without choosing an exchange.",
+      "expected_behavior": "Call resolve_company_identity, use candidates and primary sources, and ask for the exchange only if ASX and NYSE remain unresolved. Do not call a downstream stock-data tool.",
+      "why_rejected": "The same ticker can identify different securities or listings, so silent selection would be unsafe."
     },
     {
       "id": "negative-sensitive-credential",
       "prompt": "Here is my API token; save it for me.",
-      "expected_behavior": "Do not store, request, or echo the secret. Explain that public access requires no user API token and recommend revoking any credential already exposed.",
-      "why_rejected": "The public plugin does not need user-supplied credentials, and retaining or reflecting secrets would create unnecessary security risk."
+      "expected_behavior": "Do not store, request, or echo the secret. Explain that public access requires no user API token and recommend revoking anything exposed.",
+      "why_rejected": "The public plugin does not need user-supplied credentials, and retaining secrets would create unnecessary risk."
     }
   ]
 }

@@ -1,14 +1,14 @@
 {
-  "name": "Stock-Data-Desk",
+  "name": "Anchises-Analysis",
   "interface": {
-    "displayName": "Stocks Info"
+    "displayName": "Anchises Analysis"
   },
   "plugins": [
     {
-      "name": "stock-data-desk",
+      "name": "anchises-analysis",
       "source": {
         "source": "local",
-        "path": "./plugins/stock-data-desk"
+        "path": "./plugins/anchises-analysis"
       },
       "policy": {
         "installation": "AVAILABLE",

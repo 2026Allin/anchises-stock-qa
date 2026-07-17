@@ -1,0 +1,8 @@
+interface:
+  display_name: "Anchises Analysis"
+  short_description: "Live company research and structured stock analysis."
+  brand_color: "#334155"
+  default_prompt: "Use $anchises-analysis to research Apple, verify its primary listing, and generate a fresh source-linked company report."
+
+policy:
+  allow_implicit_invocation: true

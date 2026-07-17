@@ -1,0 +1,47 @@
+{
+  "name": "anchises-analysis",
+  "version": "0.3.0-beta.1",
+  "description": "Research public companies with live web sources and analyze stock-market data.",
+  "author": {
+    "name": "Anchises Capital",
+    "email": "tech@anchisesgroup.com",
+    "url": "https://anchisesdata.com"
+  },
+  "homepage": "https://anchisesdata.com/stock-qa",
+  "repository": "https://github.com/2026Allin/anchises-stock-qa",
+  "license": "MIT",
+  "keywords": [
+    "stocks",
+    "company-research",
+    "screening",
+    "market-data",
+    "company-reports",
+    "csv-export"
+  ],
+  "skills": "./skills/",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "Anchises Analysis",
+    "shortDescription": "Live company research and structured stock-market analysis.",
+    "longDescription": "Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Discover supported exchanges and current data dates, screen and rank stocks, inspect schemas, run bounded read-only SQL, compare historical price, momentum, and volume, and create temporary CSV exports. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports are analytical research, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials, and all callers use shared service limits. CSV URLs are short-lived bearer links and should not be shared.",
+    "developerName": "Anchises Capital",
+    "category": "Productivity",
+    "brandColor": "#334155",
+    "composerIcon": "./assets/composer-icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://anchisesdata.com/stock-qa",
+    "privacyPolicyURL": "https://anchisesdata.com/privacy",
+    "termsOfServiceURL": "https://anchisesdata.com/terms",
+    "defaultPrompt": [
+      "Research Apple, verify its primary listing, and generate a fresh source-linked company report.",
+      "Research the company discussed above, then analyze its latest 30-day price and volume trends.",
+      "Screen supported exchanges for strong momentum and unusual volume, then export the ranked results as CSV."
+    ]
+  }
+}

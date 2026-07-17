@@ -1,80 +1,80 @@
-# Stocks Info Marketplace
+# Anchises Analysis Marketplace
 
-<img src="plugins/stock-data-desk/assets/logo.png" alt="Stocks Info icon" width="96">
+<img src="plugins/anchises-analysis/assets/logo.png" alt="Anchises Analysis logo" width="96">
 
-This repository contains the `Stock-Data-Desk` development marketplace and the
-`Stocks Info` plugin package. The marketplace and plugin IDs remain stable for
-upgrade compatibility; all user-visible product copy uses `Stocks Info`. The
-verified publisher for the public listing is `Anchises Capital`.
+This repository contains the `Anchises-Analysis` development marketplace and
+the `anchises-analysis` plugin package published by Anchises Capital. The plugin
+connects to the public Hosted MCP at `https://mcp.anchisesdata.com/mcp` through
+the existing Developer Mode App ID.
 
-The `qa-v2-auth` branch and the immutable `v0.2.0-beta.1` tag are the release
-sources for the current beta; `main` intentionally remains unchanged. This
-release connects the plugin to the Hosted MCP service and keeps plugin behavior
-independent from the backend's runtime mode name. The current public release is
-frozen to credential-free `public_noauth`: users do
-not sign in, and quota represents shared service capacity rather than a
-personal allowance. The product provides stock screening, comparison,
-historical research, reports, and temporary CSV exports in Work, ChatGPT, and
-Codex without a local database or credentials in chat.
-CSV links default to a 60-minute lifetime and may be explicitly set from 60
-through 3600 seconds.
+Current release target: `0.3.0-beta.1`.
+
+## What changed in 0.3
+
+- Public brand, plugin slug, Skill name, and directories are now Anchises
+  Analysis / `anchises-analysis`.
+- Company names, tickers, and chat references resolve to a canonical exchange,
+  ticker, and company name before downstream calls.
+- Every company-research request starts live Host web research directly.
+- The Hosted MCP contract is `0.5.1`, uses Prompt pack `5.1`, and exposes 12
+  tools including `resolve_company_identity`.
+- Structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV. Verified
+  companies outside those markets may still receive live public-source research.
 
 ## Repository layout
 
 ```text
 .agents/plugins/marketplace.json
-plugins/stock-data-desk/
+plugins/anchises-analysis/
   .codex-plugin/plugin.json
-  .app.json                     # Hosted App connection
-  contracts/
-  skills/stock-data-desk/
+  .app.json
   assets/
-  README.md
+  contracts/
+  skills/anchises-analysis/
 tests/
-  fixtures/
-  mock_services.py
+docs/
 ```
 
-The development package is a single Hosted App plus one Skill. It does not ship
-a local stdio MCP, API Token setup, or Python data runtime.
+The App ID value, MCP URL, website, privacy, terms, and support endpoints remain
+unchanged. This repository does not contain or modify the Hosted MCP service,
+AnchisesWeb, or the Data API.
 
-## Offline test suite
+## Validate
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m unittest discover -s tests -v
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/anchises-analysis
+
+.venv/bin/python \
+  ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
+  plugins/anchises-analysis
 ```
 
-The default test suite starts loopback-only mock Auth0, Hosted MCP, and Stock
-Data API endpoints for `closed`, `public_noauth`, and `oauth`. It never calls
-production services. An explicit, credential-free live contract check is
-available with `RUN_LIVE_MCP_TESTS=1`.
-
-The OAuth profile is retained only as future compatibility coverage. Switching
-production from `noauth` to OAuth requires a reviewed plugin update, fresh tool
-scanning, and matching public documentation.
-
-## Development marketplace
-
-The repository marketplace remains available for local development and
-regression testing:
+Run credential-free production checks explicitly:
 
 ```bash
-codex plugin marketplace add https://github.com/2026Allin/anchises-stock-qa --ref v0.2.0-beta.1
-codex plugin add stock-data-desk@Stock-Data-Desk
+RUN_LIVE_MCP_TESTS=1 \
+  .venv/bin/python -m unittest tests.test_live_hosted_contract -v
 ```
 
-For branch-head testing before a tag is created, substitute
-`--ref qa-v2-auth`. Installing without `--ref` reads the older `main` branch
-and is not a valid beta-release verification.
+## Local development install
 
-The future public installation source is the universal Plugin Directory. The
-submission must use the current credential-free profile; changing `noauth` to
-OAuth after publication requires a reviewed plugin update.
+The repo marketplace name is read from `.agents/plugins/marketplace.json`:
 
-## Design plan
+```bash
+.venv/bin/python \
+  ~/.codex/skills/.system/plugin-creator/scripts/read_marketplace_name.py \
+  --marketplace-path .agents/plugins/marketplace.json
 
-See [`docs/hosted-mcp-oauth-migration-plan.md`](docs/hosted-mcp-oauth-migration-plan.md)
-for historical architecture and rollout context. The checked-in contract and
-the real MCP `tools/list` response are authoritative for plugin behavior.
+codex plugin add anchises-analysis@Anchises-Analysis
+```
+
+After changing plugin content, run the cachebuster helper before reinstalling
+and start a new Codex task so the new Skill and MCP schema are loaded.
+
+See [release notes](docs/anchises-analysis-0.3.0-beta.1-release-notes.md),
+[Directory listing](docs/anchises-analysis-plugin-directory-listing.md), and
+[reviewer cases](docs/anchises-analysis-reviewer-test-cases.md).

@@ -12,7 +12,7 @@ from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
+PLUGIN_ROOT = ROOT / "plugins" / "anchises-analysis"
 CONTRACTS = PLUGIN_ROOT / "contracts"
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
@@ -43,7 +43,7 @@ EXPECTED_TOOLS = [
     "screen_stocks",
     "validate_readonly_sql",
     "run_readonly_sql",
-    "get_latest_company_report",
+    "resolve_company_identity",
     "prepare_company_report_generation",
     "create_csv_export",
 ]
@@ -78,7 +78,7 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.4.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.5.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
@@ -96,9 +96,10 @@ class HostedContractTest(unittest.TestCase):
         source = self.contract["source"]
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "public_noauth")
-        self.assertEqual(source["server_name"], "Stocks Info")
-        self.assertRegex(source["server_version"], r"^0\.4\.\d+$")
-        self.assertIn("missing or expired", source["instructions"])
+        self.assertEqual(source["server_name"], "Anchises Analysis")
+        self.assertEqual(source["server_version"], "0.5.1")
+        self.assertIn("resolve a company name or ticker", source["instructions"])
+        self.assertIn("Company-report requests always use", source["instructions"])
         self.assertIn("host must perform live web research", source["instructions"])
         self.assertEqual(source["sync_state"], "live")
         self.assertRegex(source["descriptor_sha256"], r"^[0-9a-f]{64}$")
@@ -261,65 +262,59 @@ class HostedContractTest(unittest.TestCase):
         ):
             self.assertTrue(list(validator.iter_errors(invalid)), invalid)
 
-    def test_company_report_contract_and_projection_are_bounded(self) -> None:
-        descriptor = descriptor_by_name("get_latest_company_report")
+    def test_company_identity_resolution_contract_is_strict_and_bounded(self) -> None:
+        descriptor = descriptor_by_name("resolve_company_identity")
         schema = descriptor["inputSchema"]
         validator = Draft202012Validator(schema)
+        self.assertFalse(list(validator.iter_errors({"query": "Apple"})))
         self.assertFalse(
             list(
                 validator.iter_errors(
                     {
-                        "exchange": "ASX",
-                        "ticker": "BGL",
-                        "source": "auto",
-                        "pdf_range": "1Y",
+                        "query": "Rio Tinto plc",
+                        "exchange_hint": "LSE",
+                        "purpose": "company_report",
                     }
                 )
             )
         )
         for invalid in (
-            {"exchange": "asx", "ticker": "BGL"},
-            {"exchange": "ASX", "ticker": "BGL", "language": "en"},
-            {"exchange": "ASX", "ticker": "BGL", "source": "other"},
-            {"exchange": "ASX", "ticker": "BGL", "pdf_range": "5Y"},
+            {},
+            {"query": ""},
+            {"query": "AAPL", "purpose": "other"},
+            {"query": "AAPL", "full_chat": "private transcript"},
+            {"query": "x" * 501},
         ):
             self.assertTrue(list(validator.iter_errors(invalid)))
-        serialized = json.dumps(descriptor["outputSchema"]).lower()
-        for forbidden in (
-            "raw_markdown",
-            "section_blocks",
-            "sections_legacy",
-            "model_usage",
-            "cost",
-            "search_events",
-            "internal_id",
-        ):
-            self.assertNotIn(forbidden, serialized)
-        offer = descriptor["outputSchema"]["properties"]["data"]["properties"][
-            "generation_offer"
-        ]
+        data = descriptor["outputSchema"]["properties"]["data"]["properties"]
         self.assertEqual(
-            offer["properties"]["reason"]["enum"],
-            ["not_found", "expired"],
+            data["status"]["enum"],
+            ["resolved", "ambiguous", "not_found_in_supported_markets"],
         )
         self.assertEqual(
-            offer["properties"]["tool_name"]["const"],
-            "prepare_company_report_generation",
+            data["purpose"]["enum"],
+            ["stock_data", "company_report"],
         )
+        company = data["company"]["oneOf"][0]
         self.assertEqual(
-            set(offer["required"]),
+            set(company["required"]),
             {
-                "reason",
-                "available",
-                "requires_user_confirmation",
-                "tool_name",
-                "arguments",
+                "exchange",
+                "ticker",
+                "company_name",
+                "website",
+                "is_active",
+                "instrument_type",
+                "match_type",
             },
         )
+        self.assertEqual(data["candidates"]["maxItems"], 20)
+        self.assertIn("six supported exchange", descriptor["description"])
 
     def test_company_report_generation_contract_is_host_side_and_bounded(self) -> None:
         descriptor = descriptor_by_name("prepare_company_report_generation")
-        self.assertIn("missing or expired", descriptor["description"])
+        self.assertIn("always prepares", descriptor["description"])
+        self.assertIn("external-market companies use Others", descriptor["description"])
         self.assertTrue(descriptor["annotations"]["readOnlyHint"])
         self.assertTrue(descriptor["annotations"]["idempotentHint"])
         self.assertFalse(descriptor["annotations"]["openWorldHint"])
@@ -332,21 +327,28 @@ class HostedContractTest(unittest.TestCase):
                     {
                         "exchange": "NASDAQ",
                         "ticker": "AAPL",
+                        "company_name": "Apple Inc.",
                         "output_locale": "zh-CN",
                     }
                 )
             )
         )
         for invalid in (
-            {"exchange": "NASDAQ", "ticker": "AAPL"},
             {
                 "exchange": "NASDAQ",
                 "ticker": "AAPL",
+                "output_locale": "zh-CN",
+            },
+            {
+                "exchange": "NASDAQ",
+                "ticker": "AAPL",
+                "company_name": "Apple Inc.",
                 "output_locale": "zh_CN",
             },
             {
-                "exchange": "nasdaq",
+                "exchange": "NASDAQ",
                 "ticker": "AAPL",
+                "company_name": "",
                 "output_locale": "zh-CN",
             },
         ):
@@ -355,10 +357,18 @@ class HostedContractTest(unittest.TestCase):
         data = descriptor["outputSchema"]["properties"]["data"]["properties"]
         self.assertEqual(
             data["status"]["enum"],
-            ["ready", "company_not_found", "not_eligible"],
+            ["ready", "not_eligible"],
         )
         self.assertEqual(data["prompt_text"]["maxLength"], 25_000)
-        self.assertEqual(data["prompt_version"]["enum"], ["5.0", None])
+        self.assertEqual(data["prompt_version"]["enum"], ["5.1", None])
+        self.assertEqual(
+            data["identity_source"]["enum"],
+            ["master", "host_supplied"],
+        )
+        self.assertEqual(
+            set(input_schema["required"]),
+            {"exchange", "ticker", "company_name", "output_locale"},
+        )
         self.assertEqual(
             data["next_action"]["enum"],
             ["run_host_web_research", None],

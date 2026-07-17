@@ -1,8 +1,0 @@
-interface:
-  display_name: "Stocks Info"
-  short_description: "Research public companies and analyze stock-market data."
-  brand_color: "#334155"
-  default_prompt: "Use $stock-data-desk to research NASDAQ:AAPL and generate a fresh source-linked report if its cache is missing or expired."
-
-policy:
-  allow_implicit_invocation: true

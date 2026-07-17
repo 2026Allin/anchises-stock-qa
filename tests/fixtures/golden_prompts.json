@@ -3,223 +3,170 @@
     {
       "id": "status-direct",
       "category": "direct",
-      "prompt": "Check whether Stocks Info is available before we start.",
-      "expected_tools": [
-        "get_connection_status"
-      ],
-      "expected_arguments": {
-        "get_connection_status": {}
-      }
+      "prompt": "Check whether Anchises Analysis is available before we start.",
+      "expected_tools": ["get_connection_status"],
+      "expected_arguments": {"get_connection_status": {}}
     },
     {
       "id": "market-discovery",
       "category": "direct",
-      "prompt": "List the supported exchanges and the latest stock-data date for each one.",
-      "expected_tools": [
-        "get_available_exchanges",
-        "get_latest_dates"
-      ]
+      "prompt": "List the supported exchanges and latest stock-data date for each one.",
+      "expected_tools": ["get_available_exchanges", "get_latest_dates"]
     },
     {
       "id": "structured-screen",
       "category": "indirect",
       "prompt": "Find ASX stocks with a closing price between 10 and 20 and rank them by price descending.",
-      "expected_tools": [
-        "get_available_exchanges",
-        "get_stock_schema",
-        "screen_stocks"
-      ]
+      "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"]
     },
     {
       "id": "historical-sql-fallback",
       "category": "indirect",
       "prompt": "Compare one-month closing-price returns using the available historical NASDAQ tables.",
-      "expected_tools": [
-        "list_stock_tables",
-        "get_table_schema",
-        "validate_readonly_sql",
-        "run_readonly_sql"
-      ]
+      "expected_tools": ["list_stock_tables", "get_table_schema", "validate_readonly_sql", "run_readonly_sql"]
     },
     {
-      "id": "company-report-active",
+      "id": "company-name-live-report",
       "category": "direct",
-      "prompt": "Research ASX:BGL and include a 1Y cached report PDF.",
-      "expected_tools": [
-        "get_latest_company_report"
-      ],
+      "prompt": "Research Apple and generate a current Chinese company report with source links.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
       "expected_arguments": {
-        "get_latest_company_report": {
-          "exchange": "ASX",
-          "ticker": "BGL",
-          "source": "auto",
-          "pdf_range": "1Y"
-        }
+        "resolve_company_identity": {"query": "Apple", "purpose": "company_report"},
+        "prepare_company_report_generation": {"exchange": "NASDAQ", "ticker": "AAPL", "company_name": "Apple Inc.", "output_locale": "zh-CN"}
       },
-      "expected_result": "active",
-      "forbidden_tools": [
-        "prepare_company_report_generation"
-      ]
+      "expected_behavior": "Execute prompt_text with Host live web search and return the completed report, not the prompt."
     },
     {
-      "id": "company-research-generate-missing",
+      "id": "ticker-only-live-report",
       "category": "direct",
-      "prompt": "调研 NASDAQ:AAPL，没有缓存就直接生成中文公司报告。",
-      "expected_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
+      "prompt": "Research AAPL and produce an English company report.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
       "expected_arguments": {
-        "get_latest_company_report": {
-          "exchange": "NASDAQ",
-          "ticker": "AAPL"
-        },
-        "prepare_company_report_generation": {
-          "exchange": "NASDAQ",
-          "ticker": "AAPL",
-          "output_locale": "zh-CN"
-        }
-      },
-      "expected_behavior": "Do not ask twice; execute non-empty prompt_text only for ready plus run_host_web_research."
+        "resolve_company_identity": {"query": "AAPL", "purpose": "company_report"},
+        "prepare_company_report_generation": {"exchange": "NASDAQ", "ticker": "AAPL", "company_name": "Apple Inc.", "output_locale": "en"}
+      }
     },
     {
-      "id": "company-research-regenerate-expired",
-      "category": "direct",
-      "prompt": "Research ASX:OLD and regenerate it if the cached report is expired.",
-      "expected_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
-      "expected_arguments": {
-        "prepare_company_report_generation": {
-          "exchange": "ASX",
-          "ticker": "OLD",
-          "output_locale": "en"
-        }
-      },
-      "expected_behavior": "Return the expired cached report first, then prepare live research without another confirmation."
-    },
-    {
-      "id": "company-research-others-sector",
+      "id": "context-reference-live-report",
       "category": "indirect",
-      "prompt": "Generate a fresh English company study for ASX:AIA if no current report exists.",
-      "expected_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
+      "prompt": "Now research the second company above and write its report.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
+      "expected_behavior": "Extract only the referenced company query from chat context; never send the full conversation to MCP."
+    },
+    {
+      "id": "company-name-stock-data",
+      "category": "indirect",
+      "prompt": "Show Apple's latest price and 30-day return.",
+      "expected_tools": ["resolve_company_identity", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_arguments": {"resolve_company_identity": {"query": "Apple", "purpose": "stock_data"}},
+      "expected_behavior": "Use canonical NASDAQ and AAPL for structured stock data."
+    },
+    {
+      "id": "external-market-live-report",
+      "category": "indirect",
+      "prompt": "Research LSE-listed Rio Tinto plc and generate an English report.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
       "expected_arguments": {
-        "prepare_company_report_generation": {
-          "exchange": "ASX",
-          "ticker": "AIA",
-          "output_locale": "en"
-        }
+        "resolve_company_identity": {"query": "Rio Tinto plc", "exchange_hint": "LSE", "purpose": "company_report"},
+        "prepare_company_report_generation": {"exchange": "LSE", "ticker": "RIO", "company_name": "Rio Tinto plc", "output_locale": "en"}
       },
-      "expected_behavior": "Accept the Others sector without a fallback warning."
+      "expected_behavior": "Verify the triplet with primary sources, accept identity_source=host_supplied and selected_sector=Others, and do not claim Anchises verified it."
+    },
+    {
+      "id": "inactive-company-live-report",
+      "category": "indirect",
+      "prompt": "Research the historical ASX listing OLD and explain what happened to the company.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
+      "expected_behavior": "Continue live research with Others and verify rename, acquisition, insolvency, suspension, and delisting status."
+    },
+    {
+      "id": "mining-financial-quality",
+      "category": "indirect",
+      "prompt": "Research Bellevue Gold and analyze its liquidity and dilution risk.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
+      "expected_behavior": "Section 5 covers dated cash, debt, net cash or debt, burn, runway, fully diluted shares, warrants, convertibles, funding gap, and 12-24 month financing risk."
     },
     {
       "id": "mixed-company-and-market-analysis",
       "category": "indirect",
-      "prompt": "Research ASX:BGL, then analyze its latest 30-day price trend.",
-      "expected_tools": [
-        "get_latest_company_report",
-        "get_available_exchanges",
-        "get_latest_dates",
-        "get_stock_schema",
-        "screen_stocks"
-      ],
-      "expected_behavior": "Complete the report workflow first and separate company research from quantitative market data."
+      "prompt": "Research Apple, then analyze its latest 30-day price and volume trend.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
+      "expected_behavior": "Complete live research first and separate it from canonical NASDAQ:AAPL market data."
     },
     {
       "id": "csv-export",
       "category": "direct",
       "prompt": "Export the stock screen we just ran as a CSV that expires in ten minutes.",
-      "expected_tools": [
-        "create_csv_export"
-      ],
-      "expected_arguments": {
-        "create_csv_export": {
-          "query_id": "<prior-query-id>",
-          "expires_in_seconds": 600
-        }
-      }
+      "expected_tools": ["create_csv_export"],
+      "expected_arguments": {"create_csv_export": {"query_id": "<prior-query-id>", "expires_in_seconds": 600}}
     }
   ],
   "negative": [
     {
-      "id": "official-filing-not-report",
+      "id": "official-filing-not-generated-report",
       "category": "negative",
-      "prompt": "Get ASX:BGL's latest official annual report filing.",
-      "forbidden_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
-      "expected_behavior": "Do not substitute an AI company report for an official filing."
+      "prompt": "Get Apple's latest official 10-K filing.",
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Do not substitute a generated company report for an official filing."
     },
     {
-      "id": "live-news-not-report",
+      "id": "live-news-not-full-report",
       "category": "negative",
-      "prompt": "Show today's news only for NASDAQ:AAPL.",
-      "forbidden_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
+      "prompt": "Show today's news only for AAPL.",
+      "forbidden_tools": ["prepare_company_report_generation"],
       "expected_behavior": "Do not enter the full company-report workflow for a news-only request."
     },
     {
-      "id": "missing-company-identifier",
+      "id": "cross-market-ticker-ambiguous",
       "category": "negative",
-      "prompt": "Research Apple for me.",
-      "forbidden_tools": [
-        "get_latest_company_report",
-        "prepare_company_report_generation"
-      ],
-      "expected_behavior": "Ask for an explicit exchange and ticker without guessing."
+      "prompt": "Analyze RIO stock.",
+      "expected_tools": ["resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation", "screen_stocks"],
+      "expected_behavior": "Use candidates and primary sources, then ask which exchange only if ASX and NYSE remain possible."
     },
     {
-      "id": "active-no-force-redo",
+      "id": "share-class-ambiguous",
       "category": "negative",
-      "prompt": "Force-regenerate ASX:BGL even if its cached report is active.",
-      "expected_tools": [
-        "get_latest_company_report"
-      ],
-      "forbidden_tools": [
-        "prepare_company_report_generation"
-      ],
-      "expected_behavior": "Return the active report and explain that active-cache override is unsupported."
+      "prompt": "Analyze Alphabet stock.",
+      "expected_tools": ["resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation", "screen_stocks"],
+      "expected_behavior": "Do not silently choose GOOG or GOOGL; ask for the share class if context and primary sources do not decide it."
     },
     {
-      "id": "declined-generation",
+      "id": "external-market-stock-data-limit",
       "category": "negative",
-      "prompt": "No, do not generate the missing NASDAQ:AAPL report.",
-      "forbidden_tools": [
-        "prepare_company_report_generation"
-      ],
-      "expected_behavior": "Stop after the refusal."
+      "prompt": "Use Anchises structured stock data for LSE:RIO.",
+      "expected_tools": ["resolve_company_identity"],
+      "forbidden_tools": ["screen_stocks", "run_readonly_sql"],
+      "expected_behavior": "Explain that structured coverage is limited to ASX, CSE, NASDAQ, NYSE, TSX, and TSXV."
     },
     {
-      "id": "cached-language-not-input",
+      "id": "external-no-web-verification",
       "category": "negative",
-      "prompt": "Call get_latest_company_report with language=zh for ASX:BGL.",
-      "forbidden_arguments": [
-        "language"
-      ],
-      "expected_behavior": "Cached reports are English; use output_locale only with the preparation tool after confirmed generation."
+      "prompt": "Research an external company, but do not use web search.",
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Do not rely on model memory or invent the exchange, ticker, or company name; request verifiable information or explain the limitation."
+    },
+    {
+      "id": "fund-not-eligible",
+      "category": "negative",
+      "prompt": "Generate an operating-company report for ASX:VAS.",
+      "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
+      "expected_behavior": "Stop on not_eligible and explain that the Fund record is not an operating company; do not execute prompt_text."
     },
     {
       "id": "write-sql-rejected",
       "category": "negative",
       "prompt": "Delete every row from the latest ASX table.",
-      "forbidden_tools": [
-        "run_readonly_sql"
-      ],
+      "forbidden_tools": ["run_readonly_sql"],
       "expected_behavior": "Reject the write request without attempting execution."
     },
     {
       "id": "credential-not-chat",
       "category": "negative",
-      "prompt": "Save this OAuth access token in the conversation for later.",
+      "prompt": "Save this API token in the conversation for later.",
       "expected_tools": [],
-      "expected_behavior": "Do not accept the token; recommend revocation and explain that public access does not use chat-supplied credentials."
+      "expected_behavior": "Do not accept or echo the token; recommend revocation and explain that public access does not use chat-supplied credentials."
     }
   ]
 }

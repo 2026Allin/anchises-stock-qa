@@ -5,25 +5,19 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from jsonschema import Draft202012Validator, FormatChecker
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACTS = ROOT / "plugins" / "stock-data-desk" / "contracts"
+CONTRACTS = ROOT / "plugins" / "anchises-analysis" / "contracts"
 if str(CONTRACTS) not in sys.path:
     sys.path.insert(0, str(CONTRACTS))
 
-from hosted_contract import (  # noqa: E402
-    PROFILE_ANONYMOUS,
-    descriptor_by_name,
-    load_contract,
-    mode_profile,
-)
+from hosted_contract import descriptor_by_name, load_contract  # noqa: E402
 from sync_hosted_contract import (  # noqa: E402
-    DEFAULT_ENDPOINT,
-    MCP_PROTOCOL_VERSION,
     MCPHttpClient,
     contracts_match,
     fetch_contract,
@@ -31,6 +25,8 @@ from sync_hosted_contract import (  # noqa: E402
 
 
 RUN_LIVE = os.environ.get("RUN_LIVE_MCP_TESTS") == "1"
+ENDPOINT = "https://mcp.anchisesdata.com/mcp"
+HEALTH = "https://mcp.anchisesdata.com/health"
 
 
 @unittest.skipUnless(
@@ -38,427 +34,351 @@ RUN_LIVE = os.environ.get("RUN_LIVE_MCP_TESTS") == "1"
     "set RUN_LIVE_MCP_TESTS=1 to run credential-free production checks",
 )
 class LiveHostedContractTest(unittest.TestCase):
-    """Opt-in, read-only checks against the real Hosted MCP endpoint."""
-
     @classmethod
     def setUpClass(cls) -> None:
-        cls.checked_in = load_contract()
-        cls.endpoint = os.environ.get("MCP_LIVE_ENDPOINT", DEFAULT_ENDPOINT)
-        cls.expected_mode = os.environ.get(
-            "MCP_EXPECT_MODE",
-            cls.checked_in["runtime"]["snapshot_mode"],
+        cls.contract = load_contract()
+
+    def _client(self, label: str) -> tuple[MCPHttpClient, dict]:
+        client = MCPHttpClient(ENDPOINT)
+        initialized = client.call(
+            "initialize",
+            {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": f"anchises-analysis-{label}",
+                    "version": "0.3.0",
+                },
+            },
+            1,
         )
-        cls.live = fetch_contract(
-            cls.endpoint,
-            base_contract=cls.checked_in,
-            expected_mode=cls.expected_mode,
+        client.notify("notifications/initialized", {})
+        return client, initialized
+
+    def _tool_call(
+        self,
+        client: MCPHttpClient,
+        request_id: int,
+        name: str,
+        arguments: dict,
+    ) -> dict:
+        result = client.call(
+            "tools/call",
+            {"name": name, "arguments": arguments},
+            request_id,
+        )
+        self.assertFalse(result.get("isError"), result)
+        structured = result.get("structuredContent")
+        self.assertIsInstance(structured, dict)
+        Draft202012Validator(
+            descriptor_by_name(name, self.contract)["outputSchema"],
+            format_checker=FormatChecker(),
+        ).validate(structured)
+        return structured
+
+    def test_health_and_handshake_publish_0_5_1(self) -> None:
+        request = Request(
+            HEALTH,
+            headers={"User-Agent": "anchises-analysis-live-health/0.3"},
+        )
+        with urlopen(request, timeout=20) as response:
+            health = json.loads(response.read().decode("utf-8"))
+        self.assertTrue(health["ok"])
+        self.assertEqual(health["version"], "0.5.1")
+        self.assertEqual(health["status"], "ready")
+        self.assertEqual(health["access_mode"], "public_noauth")
+        self.assertEqual(health["authentication"], "not_required")
+
+        _, initialized = self._client("handshake")
+        self.assertEqual(
+            initialized["serverInfo"],
+            {
+                "name": "Anchises Analysis",
+                "version": "0.5.1",
+                "websiteUrl": "https://anchisesdata.com/stock-qa",
+            },
         )
 
     def test_live_tools_match_checked_in_snapshot(self) -> None:
-        self.assertTrue(contracts_match(self.checked_in, self.live))
-        self.assertEqual(len(self.live["tools"]), 12)
+        live = fetch_contract(
+            ENDPOINT,
+            base_contract=self.contract,
+            expected_mode="public_noauth",
+        )
+        self.assertTrue(contracts_match(self.contract, live))
+        self.assertEqual(len(live["tools"]), 12)
+        names = [tool["name"] for tool in live["tools"]]
+        self.assertIn("resolve_company_identity", names)
 
     def test_current_anonymous_status_is_readable_without_credentials(self) -> None:
-        if mode_profile(self.checked_in, self.expected_mode) != PROFILE_ANONYMOUS:
-            self.skipTest("the active mode is not credential-free")
-
-        client = MCPHttpClient(self.endpoint)
-        client.call(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "stock-data-desk-live-test",
-                    "version": "1.0.0",
-                },
-            },
-            1,
-        )
-        client.notify("notifications/initialized", {})
-        result = client.call(
-            "tools/call",
-            {
-                "name": "get_connection_status",
-                "arguments": {},
-            },
-            2,
-        )
-        self.assertFalse(result["isError"])
-        structured = result["structuredContent"]
-        Draft202012Validator(
-            descriptor_by_name("get_connection_status")["outputSchema"],
-            format_checker=FormatChecker(),
-        ).validate(structured)
-        self.assertEqual(structured["status"], "active")
-        self.assertEqual(structured["authentication"], "not_required")
-        self.assertEqual(structured["coverage"], "all_supported_exchanges")
-        self.assertEqual(structured["limits"]["rate"]["scope"], "global")
-        self.assertEqual(structured["limits"]["concurrency"]["scope"], "global")
-        for forbidden in (
-            "request_id",
-            "user_id",
-            "principal",
-            "connection_id",
-            "policy",
-        ):
-            self.assertNotIn(forbidden, structured)
-
-    def test_public_negative_calls_are_safe_and_do_not_echo_inputs(self) -> None:
-        if mode_profile(self.checked_in, self.expected_mode) != PROFILE_ANONYMOUS:
-            self.skipTest("the active mode is not credential-free")
-
-        client = MCPHttpClient(self.endpoint)
-        client.call(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "stock-data-desk-live-negative-test",
-                    "version": "1.0.0",
-                },
-            },
-            1,
-        )
-        client.notify("notifications/initialized", {})
-        cases = [
-            (
-                "run_readonly_sql",
-                {"sql": "DROP TABLE daily_20260715_asx"},
-                "rejected",
-            ),
-            (
-                "create_csv_export",
-                {"query_id": "qry_tampered_public_review"},
-                "invalid",
-            ),
-            (
-                "get_connection_status",
-                {"api_token": "REDACTED_TEST_VALUE"},
-                "additional properties",
-            ),
-        ]
-        for request_id, (tool_name, arguments, expected_text) in enumerate(
-            cases, start=2
-        ):
-            with self.subTest(tool=tool_name):
-                result = client.call(
-                    "tools/call",
-                    {"name": tool_name, "arguments": arguments},
-                    request_id,
-                )
-                self.assertTrue(result["isError"])
-                text = " ".join(
-                    item.get("text", "")
-                    for item in result.get("content", [])
-                    if isinstance(item, dict)
-                )
-                self.assertIn(expected_text, text.lower())
-                self.assertNotIn("REDACTED_TEST_VALUE", json.dumps(result))
+        client, _ = self._client("status")
+        result = self._tool_call(client, 2, "get_connection_status", {})
+        self.assertEqual(result["status"], "active")
+        self.assertEqual(result["authentication"], "not_required")
+        self.assertEqual(result["coverage"], "all_supported_exchanges")
+        self.assertEqual(result["limits"]["rate"]["scope"], "global")
 
     def test_all_twelve_tools_complete_a_production_smoke(self) -> None:
-        if mode_profile(self.checked_in, self.expected_mode) != PROFILE_ANONYMOUS:
-            self.skipTest("the active mode is not credential-free")
+        client, _ = self._client("all-tools")
+        request_id = 2
 
-        client = MCPHttpClient(self.endpoint)
-        client.call(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "stocks-info-live-all-tools-test",
-                    "version": "1.0.0",
-                },
-            },
-            1,
-        )
-        client.notify("notifications/initialized", {})
-        request_id = 1
-
-        def call(name: str, arguments: dict) -> dict:
-            nonlocal request_id
-            request_id += 1
-            result = client.call(
-                "tools/call",
-                {"name": name, "arguments": arguments},
-                request_id,
-            )
-            self.assertFalse(result["isError"], name)
-            structured = result["structuredContent"]
-            Draft202012Validator(
-                descriptor_by_name(name, self.checked_in)["outputSchema"],
-                format_checker=FormatChecker(),
-            ).validate(structured)
-            return structured
-
-        status = call("get_connection_status", {})
+        status = self._tool_call(client, request_id, "get_connection_status", {})
+        request_id += 1
         self.assertEqual(status["status"], "active")
-        exchanges = call("get_available_exchanges", {})
-        self.assertIn(
-            "ASX",
-            [item["code"] for item in exchanges["data"]["exchanges"]],
-        )
-        dates = call("get_latest_dates", {"exchanges": ["ASX"]})
-        latest = dates["data"]["latest_dates"]["ASX"]
-        latest_date = latest["latest_date"]
-        call("get_stock_schema", {"exchange": "ASX"})
-        tables = call(
+
+        exchanges = self._tool_call(client, request_id, "get_available_exchanges", {})
+        request_id += 1
+        codes = [item["code"] for item in exchanges["data"]["exchanges"]]
+        self.assertEqual(codes, ["ASX", "CSE", "NASDAQ", "NYSE", "TSX", "TSXV"])
+
+        self._tool_call(client, request_id, "get_latest_dates", {"exchanges": ["NASDAQ"]})
+        request_id += 1
+        self._tool_call(client, request_id, "get_stock_schema", {"exchange": "NASDAQ"})
+        request_id += 1
+
+        tables = self._tool_call(
+            client,
+            request_id,
             "list_stock_tables",
-            {
-                "exchanges": ["ASX"],
-                "start_date": latest_date,
-                "end_date": latest_date,
-                "page_size": 10,
-            },
+            {"exchanges": ["NASDAQ"], "page_size": 1},
         )
-        table = tables["data"]["tables"][0]
-        call("get_table_schema", {"tables": [table]})
-        screen = call(
+        request_id += 1
+        table_name = tables["data"]["tables"][0]
+        self._tool_call(
+            client,
+            request_id,
+            "get_table_schema",
+            {"tables": [table_name]},
+        )
+        request_id += 1
+
+        screen = self._tool_call(
+            client,
+            request_id,
             "screen_stocks",
-            {"exchanges": ["ASX"], "filters": [], "page_size": 1},
+            {"exchanges": ["NASDAQ"], "filters": [], "page_size": 1},
         )
-        query_id = screen["data"]["query_id"]
-        sql = f"SELECT * FROM {table} LIMIT 1"
-        validation = call("validate_readonly_sql", {"sql": sql})
-        self.assertTrue(validation["data"]["valid"])
-        call(
+        request_id += 1
+        self._tool_call(
+            client,
+            request_id,
+            "validate_readonly_sql",
+            {"sql": f'SELECT * FROM "{table_name}" LIMIT 1'},
+        )
+        request_id += 1
+        self._tool_call(
+            client,
+            request_id,
             "run_readonly_sql",
-            {"sql": sql, "max_rows": 1, "page_size": 1},
+            {"sql": f'SELECT * FROM "{table_name}" LIMIT 1', "max_rows": 1},
         )
-        report = call(
-            "get_latest_company_report",
-            {"exchange": "ASX", "ticker": "BGL", "pdf_range": "1Y"},
+        request_id += 1
+
+        resolved = self._tool_call(
+            client,
+            request_id,
+            "resolve_company_identity",
+            {"query": "AAPL", "exchange_hint": "NASDAQ", "purpose": "company_report"},
         )
-        self.assertEqual(report["data"]["status"], "active")
-        call(
+        request_id += 1
+        company = resolved["data"]["company"]
+        self.assertEqual(resolved["data"]["status"], "resolved")
+
+        prepared = self._tool_call(
+            client,
+            request_id,
             "prepare_company_report_generation",
             {
-                "exchange": "NASDAQ",
-                "ticker": "AAPL",
-                "output_locale": "zh-CN",
+                "exchange": company["exchange"],
+                "ticker": company["ticker"],
+                "company_name": company["company_name"],
+                "output_locale": "en",
             },
         )
-        export = call(
+        request_id += 1
+        self.assertEqual(prepared["data"]["status"], "ready")
+
+        export = self._tool_call(
+            client,
+            request_id,
             "create_csv_export",
-            {"query_id": query_id, "expires_in_seconds": 60},
+            {
+                "query_id": screen["data"]["query_id"],
+                "expires_in_seconds": 60,
+            },
         )
-        request = Request(
+        self.assertTrue(export["data"]["download_url"].startswith("https://"))
+        download = Request(
             export["data"]["download_url"],
-            headers={"User-Agent": "stocks-info-live-all-tools-test/1.0"},
+            headers={"User-Agent": "anchises-analysis-live-csv/0.3"},
         )
-        with urlopen(request, timeout=30) as response:
-            self.assertIn("csv", response.headers.get("Content-Type", "").lower())
-            self.assertTrue(response.read(1024))
+        with urlopen(download, timeout=30) as response:
+            body = response.read()
+            content_type = response.headers.get("Content-Type", "")
+        self.assertTrue(body)
+        self.assertIn("text/csv", content_type)
 
-    def test_company_report_generation_business_states(self) -> None:
-        if mode_profile(self.checked_in, self.expected_mode) != PROFILE_ANONYMOUS:
-            self.skipTest("the active mode is not credential-free")
-
-        client = MCPHttpClient(self.endpoint)
-        client.call(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "stocks-info-live-company-report-test",
-                    "version": "1.0.0",
-                },
-            },
-            1,
-        )
-        client.notify("notifications/initialized", {})
-        request_id = 1
-
-        def call(name: str, arguments: dict) -> dict:
-            nonlocal request_id
-            request_id += 1
-            result = client.call(
-                "tools/call",
-                {"name": name, "arguments": arguments},
-                request_id,
-            )
-            self.assertFalse(result["isError"], name)
-            structured = result["structuredContent"]
-            Draft202012Validator(
-                descriptor_by_name(name, self.checked_in)["outputSchema"],
-                format_checker=FormatChecker(),
-            ).validate(structured)
-            return structured
-
-        active = call(
-            "get_latest_company_report",
-            {"exchange": "ASX", "ticker": "BGL"},
-        )
-        self.assertEqual(active["data"]["status"], "active")
-        self.assertNotIn("generation_offer", active["data"])
-
-        active_prepare = call(
-            "prepare_company_report_generation",
-            {
-                "exchange": "ASX",
-                "ticker": "BGL",
-                "output_locale": "en",
-            },
-        )
-        self.assertEqual(active_prepare["data"]["status"], "not_eligible")
-        self.assertIsNone(active_prepare["data"]["prompt_text"])
-
-        missing = call(
-            "get_latest_company_report",
-            {"exchange": "NASDAQ", "ticker": "AAPL"},
-        )
-        self.assertEqual(missing["data"]["status"], "not_found")
+    def test_company_identity_resolution_business_states(self) -> None:
+        client, _ = self._client("identity")
+        resolved = self._tool_call(
+            client,
+            2,
+            "resolve_company_identity",
+            {"query": "AAPL", "exchange_hint": "NASDAQ", "purpose": "stock_data"},
+        )["data"]
+        self.assertEqual(resolved["status"], "resolved")
         self.assertEqual(
-            missing["data"]["generation_offer"]["reason"],
-            "not_found",
+            (
+                resolved["company"]["exchange"],
+                resolved["company"]["ticker"],
+                resolved["company"]["company_name"],
+            ),
+            ("NASDAQ", "AAPL", "Apple Inc."),
         )
-        ready = call(
+
+        company_name = self._tool_call(
+            client,
+            3,
+            "resolve_company_identity",
+            {"query": "Apple", "purpose": "company_report"},
+        )["data"]
+        self.assertIn(company_name["status"], {"resolved", "ambiguous"})
+        if company_name["status"] == "ambiguous":
+            self.assertTrue(
+                any(item["ticker"] == "AAPL" for item in company_name["candidates"])
+            )
+
+        cross_market = self._tool_call(
+            client,
+            4,
+            "resolve_company_identity",
+            {"query": "RIO", "purpose": "company_report"},
+        )["data"]
+        self.assertEqual(cross_market["status"], "ambiguous")
+        self.assertGreaterEqual(len({item["exchange"] for item in cross_market["candidates"]}), 2)
+
+        external = self._tool_call(
+            client,
+            5,
+            "resolve_company_identity",
+            {
+                "query": "Rio Tinto plc",
+                "exchange_hint": "LSE",
+                "purpose": "company_report",
+            },
+        )["data"]
+        self.assertEqual(external["status"], "not_found_in_supported_markets")
+
+    def test_company_report_preparation_ready_external_and_inactive(self) -> None:
+        client, _ = self._client("report-states")
+        ready = self._tool_call(
+            client,
+            2,
             "prepare_company_report_generation",
             {
                 "exchange": "NASDAQ",
                 "ticker": "AAPL",
+                "company_name": "Apple Inc.",
                 "output_locale": "zh-CN",
             },
-        )
-        self.assertEqual(ready["data"]["status"], "ready")
-        self.assertEqual(
-            ready["data"]["next_action"],
-            "run_host_web_research",
-        )
-        self.assertLessEqual(len(ready["data"]["prompt_text"]), 25_000)
-        self.assertIn(
-            "### 1. Company Overview & Listing Profile",
-            ready["data"]["prompt_text"],
-        )
-        self.assertIn(
-            "### 7. Risk Assessment",
-            ready["data"]["prompt_text"],
-        )
+        )["data"]
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(ready["identity_source"], "master")
+        self.assertFalse(ready["listing_status_verification_required"])
+        self.assertEqual(ready["prompt_version"], "5.1")
+        self.assertEqual(ready["next_action"], "run_host_web_research")
+        self.assertIn("**Summary:**", ready["prompt_text"])
+        self.assertIn("**[Risk:", ready["prompt_text"])
+        self.assertIn("warrant", ready["prompt_text"].lower())
+        for number in range(1, 8):
+            self.assertIn(f"### {number}.", ready["prompt_text"])
 
-        others = call(
-            "prepare_company_report_generation",
-            {
-                "exchange": "ASX",
-                "ticker": "AIA",
-                "output_locale": "en",
-            },
-        )
-        self.assertEqual(others["data"]["selected_sector"], "Others")
-        self.assertEqual(others["warnings"], [])
-
-        ineligible = call(
+        inactive = self._tool_call(
+            client,
+            3,
             "prepare_company_report_generation",
             {
                 "exchange": "ASX",
                 "ticker": "1TTDB",
+                "company_name": "1TTDB",
                 "output_locale": "en",
             },
-        )
-        self.assertEqual(ineligible["data"]["status"], "not_eligible")
-        self.assertIsNone(ineligible["data"]["prompt_text"])
+        )["data"]
+        self.assertEqual(inactive["status"], "ready")
+        self.assertEqual(inactive["selected_sector"], "Others")
+        self.assertTrue(inactive["listing_status_verification_required"])
 
-        company_missing = call(
+        external = self._tool_call(
+            client,
+            4,
             "prepare_company_report_generation",
             {
-                "exchange": "NASDAQ",
-                "ticker": "ZZZZNOTREAL",
+                "exchange": "LSE",
+                "ticker": "RIO",
+                "company_name": "Rio Tinto plc",
                 "output_locale": "en",
             },
-        )
-        self.assertEqual(company_missing["data"]["status"], "company_not_found")
-        self.assertIsNone(company_missing["data"]["company"])
+        )["data"]
+        self.assertEqual(external["status"], "ready")
+        self.assertEqual(external["identity_source"], "host_supplied")
+        self.assertTrue(external["listing_status_verification_required"])
+        self.assertEqual(external["selected_sector"], "Others")
 
-    def test_expired_report_offer_when_sample_is_configured(self) -> None:
-        sample = os.environ.get("MCP_EXPIRED_REPORT_SAMPLE", "")
-        if ":" not in sample:
-            self.skipTest(
-                "set MCP_EXPIRED_REPORT_SAMPLE=EXCHANGE:TICKER when an expired "
-                "production report is available"
-            )
-        exchange, ticker = sample.split(":", 1)
-        client = MCPHttpClient(self.endpoint)
-        client.call(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "stocks-info-live-expired-report-test",
-                    "version": "1.0.0",
-                },
-            },
-            1,
-        )
-        client.notify("notifications/initialized", {})
-        result = client.call(
-            "tools/call",
-            {
-                "name": "get_latest_company_report",
-                "arguments": {
-                    "exchange": exchange.upper(),
-                    "ticker": ticker.upper(),
-                },
-            },
-            2,
-        )
-        self.assertFalse(result["isError"])
-        structured = result["structuredContent"]
-        Draft202012Validator(
-            descriptor_by_name(
-                "get_latest_company_report",
-                self.checked_in,
-            )["outputSchema"],
-            format_checker=FormatChecker(),
-        ).validate(structured)
-        self.assertEqual(structured["data"]["status"], "expired")
-        self.assertIsNotNone(structured["data"]["report"])
-        self.assertTrue(structured["data"]["report"]["is_expired"])
-        self.assertIsNotNone(structured["data"]["pdf_download_url"])
-        offer = structured["data"]["generation_offer"]
-        self.assertTrue(offer["available"])
-        self.assertTrue(offer["requires_user_confirmation"])
-        self.assertEqual(offer["reason"], "expired")
-        self.assertEqual(
-            offer["tool_name"],
-            "prepare_company_report_generation",
-        )
-        self.assertEqual(
-            offer["arguments"],
-            {"exchange": exchange.upper(), "ticker": ticker.upper()},
-        )
-        self.assertTrue(structured["warnings"])
-
-        prepared_result = client.call(
+    def test_invalid_inputs_are_rejected_without_echoing_secrets(self) -> None:
+        client, _ = self._client("negative")
+        prepare_error = client.call(
             "tools/call",
             {
                 "name": "prepare_company_report_generation",
                 "arguments": {
-                    "exchange": exchange.upper(),
-                    "ticker": ticker.upper(),
+                    "exchange": "NASDAQ",
+                    "ticker": "AAPL",
                     "output_locale": "en",
                 },
             },
+            2,
+        )
+        self.assertTrue(prepare_error["isError"])
+        self.assertNotIn("Apple Inc.", json.dumps(prepare_error))
+
+        secret = "secret-value-that-must-not-be-reflected"
+        resolver_error = client.call(
+            "tools/call",
+            {
+                "name": "resolve_company_identity",
+                "arguments": {"query": "AAPL", "full_chat": secret},
+            },
             3,
         )
-        self.assertFalse(prepared_result["isError"])
-        prepared = prepared_result["structuredContent"]
-        Draft202012Validator(
-            descriptor_by_name(
-                "prepare_company_report_generation",
-                self.checked_in,
-            )["outputSchema"],
-            format_checker=FormatChecker(),
-        ).validate(prepared)
-        self.assertEqual(prepared["data"]["status"], "ready")
-        self.assertEqual(
-            prepared["data"]["next_action"],
-            "run_host_web_research",
+        self.assertTrue(resolver_error["isError"])
+        self.assertNotIn(secret, json.dumps(resolver_error))
+
+        rejected = client.call(
+            "tools/call",
+            {
+                "name": "run_readonly_sql",
+                "arguments": {"sql": "DROP TABLE stock_data"},
+            },
+            4,
         )
-        self.assertTrue(prepared["data"]["prompt_text"])
-        self.assertLessEqual(len(prepared["data"]["prompt_text"]), 25_000)
+        self.assertTrue(rejected["isError"])
+        serialized = json.dumps(rejected)
+        self.assertNotIn("DROP TABLE stock_data", serialized)
+
+        for metadata_url in (
+            "https://mcp.anchisesdata.com/.well-known/oauth-protected-resource",
+            "https://mcp.anchisesdata.com/mcp/.well-known/oauth-protected-resource",
+        ):
+            with self.subTest(url=metadata_url):
+                try:
+                    urlopen(Request(metadata_url), timeout=20)
+                except HTTPError as error:
+                    try:
+                        self.assertEqual(error.code, 404)
+                    finally:
+                        error.close()
+                else:
+                    self.fail("public access unexpectedly exposed OAuth metadata")
 
 
 if __name__ == "__main__":

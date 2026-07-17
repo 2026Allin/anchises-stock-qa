@@ -8,9 +8,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "plugins" / "stock-data-desk"
+PLUGIN_ROOT = ROOT / "plugins" / "anchises-analysis"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
-LISTING = ROOT / "docs" / "stocks-info-plugin-directory-listing.md"
+LISTING = ROOT / "docs" / "anchises-analysis-plugin-directory-listing.md"
 AVAILABILITY = (
     ROOT / "docs" / "openai-plugin-availability-regions-2026-07-16.md"
 )
@@ -61,14 +61,15 @@ class PublicListingTest(unittest.TestCase):
     def test_long_description_contains_release_disclosures(self) -> None:
         description = self.manifest["interface"]["longDescription"]
         for disclosure in (
-            "active, expired, or not found",
-            "source-linked live web research",
+            "resolves a company name or ticker",
+            "live web search",
             "current conversation",
-            "not uploaded, cached, saved",
+            "does not persist",
             "official filings or investment advice",
-            "no Stocks Info account or credentials",
+            "no Anchises Analysis account or credentials",
             "shared service limits",
             "short-lived bearer links",
+            "ASX, CSE, NASDAQ, NYSE, TSX, and TSXV",
         ):
             with self.subTest(disclosure=disclosure):
                 self.assertIn(disclosure, description)
@@ -125,7 +126,7 @@ class PublicListingTest(unittest.TestCase):
         snapshot = self.availability.split(
             "## Current public planning snapshot (208)",
             1,
-        )[1].split("## Approved release decision for Stocks Info", 1)[0]
+        )[1].split("## Approved release decision for Anchises Analysis", 1)[0]
         entries = [
             line.removeprefix("- ")
             for line in snapshot.splitlines()

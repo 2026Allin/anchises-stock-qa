@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "contract_version": "1.4.0-draft",
+  "contract_version": "1.5.0-draft",
   "runtime": {
     "supported_modes": [
       "closed",
@@ -18,12 +18,12 @@
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
     "access_mode": "public_noauth",
     "protocol_version": "2025-06-18",
-    "server_name": "Stocks Info",
-    "server_version": "0.4.4",
-    "instructions": "Stocks Info is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. CSV download URLs are bearer capabilities and must not be shared. Cached company reports are AI-generated analysis, not official filings. When a cached report is missing or expired, the server can offer host-side live-research preparation and, after user confirmation, resolve the company and return one sector-specific prompt. Stocks Info does not search the web or write, cache, upload, save, or publish the resulting response; a compatible host must perform live web research and reply in the current conversation. Active cached reports do not receive a preparation offer, and the preparation tool independently rechecks and rejects them. Never ask users to paste credentials or tokens into chat.",
+    "server_name": "Anchises Analysis",
+    "server_version": "0.5.1",
+    "instructions": "Anchises Analysis is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. CSV download URLs are bearer capabilities and must not be shared. Before stock-data or company-report calls, resolve a company name or ticker to exchange, ticker, and company name; use chat context and primary web sources to disambiguate when needed. Company-report requests always use prepare_company_report_generation and live host-side research; the server does not read cached reports, PDFs, or expiry state. It only selects and returns one sector prompt. Anchises Analysis does not search the web or write, cache, upload, save, or publish the resulting report; a compatible host must perform live web research and reply in the current conversation. External, inactive, delisted, and unmatched companies use the Others prompt and require identity and listing-status verification. ETF and fund instruments are not eligible. Never ask users to paste credentials or tokens into chat.",
     "sync_state": "live",
-    "synced_at": "2026-07-17T01:23:49+00:00",
-    "descriptor_sha256": "a62e3c80b9063ffe24bdc4fdff772ab04c04f35bf7965ce5def0615c538a60ba"
+    "synced_at": "2026-07-17T09:06:06+00:00",
+    "descriptor_sha256": "7b1ceb3a557cd08e4d28211f3cf202eb2e5c386ca1d46f0f666eb4ce2f38fe69"
   },
   "production": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
@@ -83,7 +83,7 @@
       "run_readonly_sql": [
         "stock.read"
       ],
-      "get_latest_company_report": [
+      "resolve_company_identity": [
         "stock.read"
       ],
       "prepare_company_report_generation": [
@@ -144,8 +144,8 @@
   "tools": [
     {
       "name": "get_connection_status",
-      "title": "Get Stocks Info connection status",
-      "description": "Use this when you need to check whether Stocks Info public access is available, whether sign-in is required, and the published service limits. It does not query stock data.",
+      "title": "Get Anchises Analysis connection status",
+      "description": "Use this when you need to check whether Anchises Analysis public access is available, whether sign-in is required, and the published service limits. It does not query stock data.",
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -303,7 +303,7 @@
         ]
       },
       "annotations": {
-        "title": "Get Stocks Info connection status",
+        "title": "Get Anchises Analysis connection status",
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
@@ -1667,76 +1667,56 @@
       ]
     },
     {
-      "name": "get_latest_company_report",
-      "title": "Get latest English company report",
-      "description": "Use this when the user asks for the latest available English AI-generated company report and optional PDF for a known exchange and ticker. If the result is not_found or expired, use the returned generation_offer to offer preparation for a compatible host to perform live web research and compose a fresh response; ask for confirmation unless the user already requested that workflow when the cache is missing or expired. Active reports do not include a preparation offer. Do not use this tool for official annual reports, regulatory filings, or live news.",
+      "name": "resolve_company_identity",
+      "title": "Resolve company identity",
+      "description": "Use this when the user supplies a company name or ticker and you need a canonical exchange, ticker, and company name before calling stock-data or company-report tools. It searches only the six supported exchange master tables. Exact unique matches are resolved; cross-market, share-class, prefix, and contains matches remain ambiguous.",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "exchange": {
-            "type": "string",
-            "enum": [
-              "ASX",
-              "CSE",
-              "NASDAQ",
-              "NYSE",
-              "TSX",
-              "TSXV"
-            ],
-            "description": "Uppercase listing exchange for the company. Must be one of ASX, CSE, NASDAQ, NYSE, TSX, or TSXV.",
-            "examples": [
-              "ASX",
-              "NASDAQ"
-            ]
-          },
-          "ticker": {
+          "query": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 500,
+            "description": "Company name or ticker extracted from the user's request or prior chat context. Do not send the full conversation.",
+            "examples": [
+              "Apple",
+              "AAPL",
+              "Rio Tinto plc"
+            ]
+          },
+          "exchange_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
             "maxLength": 20,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$",
-            "description": "Exchange-listed ticker symbol, using letters, numbers, dots, or hyphens; for example BGL or BRK.B.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{1,19}$",
+            "description": "Optional exchange code established from chat context or public-source verification. Codes outside the six supported markets are accepted but produce not_found_in_supported_markets.",
             "examples": [
-              "BGL",
-              "BRK.B"
+              "NASDAQ",
+              "ASX",
+              "LSE"
             ]
           },
-          "source": {
+          "purpose": {
             "type": "string",
             "enum": [
-              "auto",
-              "ondemand",
-              "macmini"
+              "stock_data",
+              "company_report"
             ],
-            "default": "auto",
-            "description": "Report cache to read. auto compares ondemand and macmini and returns the newest; an explicit source restricts lookup to that source. Defaults to auto.",
+            "default": "stock_data",
+            "description": "Downstream use for the identity. Defaults to stock_data and does not change matching rules.",
             "examples": [
-              "auto",
-              "macmini"
-            ]
-          },
-          "pdf_range": {
-            "type": "string",
-            "enum": [
-              "1M",
-              "3M",
-              "6M",
-              "1Y",
-              "2Y",
-              "MAX"
-            ],
-            "default": "MAX",
-            "description": "Market-history window rendered in the PDF chart. Defaults to MAX; this does not change the report text.",
-            "examples": [
-              "1Y",
-              "MAX"
+              "stock_data",
+              "company_report"
             ]
           }
         },
         "additionalProperties": false,
-        "description": "Read one latest cached English AI-generated company report. This tool never starts web research or writes a new report; not_found and expired results may offer the host-side preparation tool, while active results do not.",
+        "description": "Resolve a company name or ticker against fixed supported-market masters before using the canonical identity downstream.",
         "required": [
-          "exchange",
-          "ticker"
+          "query"
         ]
       },
       "outputSchema": {
@@ -1755,146 +1735,78 @@
               "status": {
                 "type": "string",
                 "enum": [
-                  "active",
-                  "expired",
-                  "not_found"
+                  "resolved",
+                  "ambiguous",
+                  "not_found_in_supported_markets"
                 ]
               },
-              "message": {
-                "type": "string"
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
               },
-              "report": {
+              "purpose": {
+                "type": "string",
+                "enum": [
+                  "stock_data",
+                  "company_report"
+                ]
+              },
+              "company": {
                 "oneOf": [
                   {
                     "type": "object",
                     "properties": {
-                      "ticker": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
                       "exchange": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "lang": {
                         "type": "string",
-                        "const": "en"
+                        "minLength": 2,
+                        "maxLength": 20
+                      },
+                      "ticker": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
                       },
                       "company_name": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
                       },
-                      "title": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "summary": {
-                        "type": "string"
-                      },
-                      "risk_level": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "sections": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "order": {
-                              "type": "integer",
-                              "minimum": 1
-                            },
-                            "title": {
-                              "type": "string"
-                            },
-                            "body": {
-                              "type": "string"
-                            }
-                          },
-                          "additionalProperties": false,
-                          "required": [
-                            "order",
-                            "title",
-                            "body"
-                          ]
-                        },
-                        "maxItems": 100
-                      },
-                      "citations": {
-                        "type": "array",
-                        "maxItems": 100,
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string"
-                            },
-                            "url": {
-                              "type": "string",
-                              "format": "uri"
-                            }
-                          },
-                          "additionalProperties": false,
-                          "required": [
-                            "title",
-                            "url"
-                          ]
-                        }
-                      },
-                      "source": {
+                      "website": {
                         "type": [
                           "string",
                           "null"
                         ],
-                        "enum": [
-                          "ondemand",
-                          "macmini",
-                          null
-                        ]
+                        "format": "uri",
+                        "maxLength": 2048
                       },
-                      "generated_at": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "format": "date-time"
-                      },
-                      "expires_at": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "format": "date-time"
-                      },
-                      "is_expired": {
+                      "is_active": {
                         "type": "boolean"
+                      },
+                      "instrument_type": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "match_type": {
+                        "type": "string",
+                        "enum": [
+                          "exact_ticker",
+                          "exact_name",
+                          "normalized_name",
+                          "prefix_name",
+                          "contains_name"
+                        ]
                       }
                     },
                     "additionalProperties": false,
                     "required": [
-                      "ticker",
                       "exchange",
-                      "lang",
+                      "ticker",
                       "company_name",
-                      "title",
-                      "summary",
-                      "risk_level",
-                      "sections",
-                      "citations",
-                      "source",
-                      "generated_at",
-                      "expires_at",
-                      "is_expired"
+                      "website",
+                      "is_active",
+                      "instrument_type",
+                      "match_type"
                     ]
                   },
                   {
@@ -1902,83 +1814,78 @@
                   }
                 ]
               },
-              "pdf_download_url": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uri"
-              },
-              "content_truncated": {
-                "type": "boolean"
-              },
-              "generation_offer": {
-                "type": "object",
-                "properties": {
-                  "available": {
-                    "type": "boolean",
-                    "const": true
-                  },
-                  "reason": {
-                    "type": "string",
-                    "enum": [
-                      "not_found",
-                      "expired"
-                    ]
-                  },
-                  "requires_user_confirmation": {
-                    "type": "boolean",
-                    "const": true
-                  },
-                  "tool_name": {
-                    "type": "string",
-                    "const": "prepare_company_report_generation"
-                  },
-                  "arguments": {
-                    "type": "object",
-                    "properties": {
-                      "exchange": {
-                        "type": "string",
-                        "enum": [
-                          "ASX",
-                          "CSE",
-                          "NASDAQ",
-                          "NYSE",
-                          "TSX",
-                          "TSXV"
-                        ]
-                      },
-                      "ticker": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 20,
-                        "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$"
-                      }
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "exchange": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 20
                     },
-                    "additionalProperties": false,
-                    "required": [
-                      "exchange",
-                      "ticker"
-                    ]
-                  }
+                    "ticker": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
+                    },
+                    "company_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "website": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uri",
+                      "maxLength": 2048
+                    },
+                    "is_active": {
+                      "type": "boolean"
+                    },
+                    "instrument_type": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "match_type": {
+                      "type": "string",
+                      "enum": [
+                        "exact_ticker",
+                        "exact_name",
+                        "normalized_name",
+                        "prefix_name",
+                        "contains_name"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "exchange",
+                    "ticker",
+                    "company_name",
+                    "website",
+                    "is_active",
+                    "instrument_type",
+                    "match_type"
+                  ]
                 },
-                "additionalProperties": false,
-                "required": [
-                  "available",
-                  "reason",
-                  "requires_user_confirmation",
-                  "tool_name",
-                  "arguments"
-                ]
+                "maxItems": 20
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 1000
               }
             },
             "additionalProperties": false,
             "required": [
               "status",
-              "message",
-              "report",
-              "pdf_download_url",
-              "content_truncated"
+              "query",
+              "purpose",
+              "company",
+              "candidates",
+              "message"
             ]
           },
           "warnings": {
@@ -2034,7 +1941,7 @@
         ]
       },
       "annotations": {
-        "title": "Get latest English company report",
+        "title": "Resolve company identity",
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
@@ -2056,35 +1963,42 @@
     {
       "name": "prepare_company_report_generation",
       "title": "Prepare host-side company report research",
-      "description": "Use this when a cached company report is missing or expired and the user has confirmed that a compatible host should perform live web research and compose a fresh response, or when the original request already asks for that workflow if the cache is missing or expired. It resolves the company and sector, rechecks the latest cache, then returns the complete host-execution prompt. If an active report exists, it returns not_eligible without a prompt. Stocks Info does not search the web or write, cache, upload, save, or publish the resulting response.",
+      "description": "Use this when the user asks for company research or a company report and the host has established exchange, ticker, and company name. It always prepares a prompt for live host-side web research; it never reads a cached report, report PDF, or expiry state. Supported active masters select their classified sector, while inactive, delisted, unmatched, and external-market companies use Others. ETF and fund records are not eligible. Anchises Analysis does not search, write, cache, upload, or save the report.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "exchange": {
             "type": "string",
-            "enum": [
-              "ASX",
-              "CSE",
-              "NASDAQ",
-              "NYSE",
-              "TSX",
-              "TSXV"
-            ],
-            "description": "Uppercase listing exchange for the company. Must be one of ASX, CSE, NASDAQ, NYSE, TSX, or TSXV.",
+            "minLength": 2,
+            "maxLength": 20,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{1,19}$",
+            "description": "Verified current or historical exchange code. It may be outside the six structured-data markets.",
             "examples": [
               "ASX",
-              "NASDAQ"
+              "NASDAQ",
+              "LSE"
             ]
           },
           "ticker": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 20,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$",
-            "description": "Exchange-listed ticker symbol, using letters, numbers, dots, or hyphens; for example BGL or BRK.B.",
+            "maxLength": 32,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,31}$",
+            "description": "Verified current or historical ticker using letters, numbers, dots, hyphens, underscores, or slashes.",
             "examples": [
               "BGL",
-              "BRK.B"
+              "BRK.B",
+              "RIO"
+            ]
+          },
+          "company_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Verified legal or commonly published company name corresponding to the exchange and ticker.",
+            "examples": [
+              "Bellevue Gold Limited",
+              "Rio Tinto plc"
             ]
           },
           "output_locale": {
@@ -2100,10 +2014,11 @@
           }
         },
         "additionalProperties": false,
-        "description": "Resolve one eligible public company and return a sector-specific report prompt for a compatible host to perform live web research only when the latest cached report is missing or expired. This input does not ask Stocks Info to generate or save a report.",
+        "description": "Prepare one sector-specific prompt for a compatible host to perform live web research and answer in the current conversation. No cached report is read or written.",
         "required": [
           "exchange",
           "ticker",
+          "company_name",
           "output_locale"
         ]
       },
@@ -2124,7 +2039,6 @@
                 "type": "string",
                 "enum": [
                   "ready",
-                  "company_not_found",
                   "not_eligible"
                 ],
                 "description": "Preparation result. ready includes a host-execution prompt; the other states do not."
@@ -2135,106 +2049,102 @@
                 "description": "Safe user-facing explanation of the preparation result."
               },
               "company": {
-                "description": "Sanitized company and classification context, or null when the company is not found.",
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "exchange": {
-                        "type": "string",
-                        "enum": [
-                          "ASX",
-                          "CSE",
-                          "NASDAQ",
-                          "NYSE",
-                          "TSX",
-                          "TSXV"
-                        ]
-                      },
-                      "ticker": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 20,
-                        "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,19}$"
-                      },
-                      "company_name": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "maxLength": 500
-                      },
-                      "website": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "format": "uri",
-                        "maxLength": 2048
-                      },
-                      "is_active": {
-                        "type": "boolean"
-                      },
-                      "instrument_type": {
-                        "type": "string",
-                        "maxLength": 32
-                      },
-                      "company_type": {
-                        "type": "string",
-                        "maxLength": 32
-                      },
-                      "classifier_sector": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "maxLength": 128
-                      },
-                      "classifier_industry": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "maxLength": 256
-                      },
-                      "classifier_sector_updated_at": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "maxLength": 64
-                      },
-                      "classifier_sector_source": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "maxLength": 64
-                      },
-                      "instrument_verification_required": {
-                        "type": "boolean"
-                      }
-                    },
-                    "additionalProperties": false,
-                    "required": [
-                      "exchange",
-                      "ticker",
-                      "company_name",
-                      "website",
-                      "is_active",
-                      "instrument_type",
-                      "company_type",
-                      "classifier_sector",
-                      "classifier_industry",
-                      "classifier_sector_updated_at",
-                      "classifier_sector_source",
-                      "instrument_verification_required"
-                    ]
+                "description": "Sanitized master or host-supplied company context.",
+                "type": "object",
+                "properties": {
+                  "exchange": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 20
                   },
-                  {
-                    "type": "null"
+                  "ticker": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "company_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "website": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri",
+                    "maxLength": 2048
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  },
+                  "instrument_type": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "company_type": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "classifier_sector": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "classifier_industry": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 256
+                  },
+                  "classifier_sector_updated_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  },
+                  "classifier_sector_source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  },
+                  "instrument_verification_required": {
+                    "type": "boolean"
                   }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "exchange",
+                  "ticker",
+                  "company_name",
+                  "website",
+                  "is_active",
+                  "instrument_type",
+                  "company_type",
+                  "classifier_sector",
+                  "classifier_industry",
+                  "classifier_sector_updated_at",
+                  "classifier_sector_source",
+                  "instrument_verification_required"
                 ]
+              },
+              "identity_source": {
+                "type": "string",
+                "enum": [
+                  "master",
+                  "host_supplied"
+                ],
+                "description": "Whether the canonical identity came from a supported master or from the host's public-source verification."
+              },
+              "listing_status_verification_required": {
+                "type": "boolean",
+                "description": "True when the host must recheck listing, legal, and security status before writing the report."
               },
               "selected_sector": {
                 "type": [
@@ -2258,7 +2168,7 @@
                   "null"
                 ],
                 "enum": [
-                  "5.0",
+                  "5.1",
                   null
                 ],
                 "description": "Sector-prompt pack version for a ready result; otherwise null."
@@ -2280,7 +2190,7 @@
                   "run_host_web_research",
                   null
                 ],
-                "description": "Signals that the compatible host\u2014not Stocks Info\u2014must perform live web research; null unless status is ready."
+                "description": "Signals that the compatible host\u2014not Anchises Analysis\u2014must perform live web research; null unless status is ready."
               }
             },
             "additionalProperties": false,
@@ -2288,6 +2198,8 @@
               "status",
               "message",
               "company",
+              "identity_source",
+              "listing_status_verification_required",
               "selected_sector",
               "prompt_id",
               "prompt_version",

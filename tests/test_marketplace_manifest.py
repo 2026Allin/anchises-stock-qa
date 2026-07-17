@@ -12,13 +12,13 @@ MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 class MarketplaceManifestTest(unittest.TestCase):
     def test_marketplace_points_to_plugin_package(self) -> None:
         data = json.loads(MARKETPLACE.read_text(encoding="utf-8"))
-        self.assertEqual(data["name"], "Stock-Data-Desk")
-        self.assertEqual(data["interface"]["displayName"], "Stocks Info")
+        self.assertEqual(data["name"], "Anchises-Analysis")
+        self.assertEqual(data["interface"]["displayName"], "Anchises Analysis")
         plugins = {plugin["name"]: plugin for plugin in data["plugins"]}
 
-        plugin = plugins["stock-data-desk"]
+        plugin = plugins["anchises-analysis"]
         self.assertEqual(plugin["source"]["source"], "local")
-        self.assertEqual(plugin["source"]["path"], "./plugins/stock-data-desk")
+        self.assertEqual(plugin["source"]["path"], "./plugins/anchises-analysis")
         self.assertEqual(plugin["policy"]["installation"], "AVAILABLE")
         self.assertEqual(plugin["policy"]["authentication"], "ON_USE")
 
@@ -26,7 +26,7 @@ class MarketplaceManifestTest(unittest.TestCase):
         self.assertTrue((plugin_root / ".codex-plugin" / "plugin.json").exists())
         self.assertTrue((plugin_root / ".app.json").exists())
         self.assertFalse((plugin_root / ".mcp.json").exists())
-        self.assertTrue((plugin_root / "skills" / "stock-data-desk").is_dir())
+        self.assertTrue((plugin_root / "skills" / "anchises-analysis").is_dir())
 
 
 if __name__ == "__main__":
