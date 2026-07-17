@@ -111,6 +111,8 @@ research, but do not imply that structured stock data exists for it.
 9. Call `create_csv_export` only when the user asks for a CSV and the immediately
    preceding `screen_stocks` result has
    `data.export_policy.eligible_by_query=true`. Never export a SQL query ID.
+   Choose export fields from the user's research question and the current
+   schema; never apply a fixed universal CSV field list.
 
 Read [references/query-interpretation.md](references/query-interpretation.md)
 for intent, dates, filters, rankings, and mixed requests. Read
@@ -160,7 +162,9 @@ Follow safe returned guidance without probing hidden state:
 - `query_policy_expired`: rerun the original structured screen and re-read its
   new export policy; do not reuse the old query ID.
 - Export-policy errors: keep analyzing in the conversation and help the user
-  choose a smaller ticker, Top-N, filter, and field subset.
+  choose a more focused scope and fields that directly support the original
+  research question. For a complete row-level file, courteously suggest a
+  suitable verified bulk-market-data API or licensed exchange-data vendor.
 - `result_too_large` or `query_partition_limit_exceeded`: narrow or aggregate
   the request; do not paginate or partition it into a reconstructed dataset.
 - `temporarily_unavailable` during CSV creation: explain that only the download

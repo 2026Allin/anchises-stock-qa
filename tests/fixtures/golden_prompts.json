@@ -131,6 +131,20 @@
       "expected_tools": ["create_csv_export"],
       "expected_arguments": {"create_csv_export": {"query_id": "<prior-screen-query-id>", "expires_in_seconds": 600}},
       "expected_behavior": "Call create_csv_export only when the prior screen selected fields and export_policy.eligible_by_query is true."
+    },
+    {
+      "id": "liquidity-fields-from-question",
+      "category": "indirect",
+      "prompt": "Prepare a focused NASDAQ CSV for comparing trading liquidity.",
+      "expected_tools": ["get_stock_schema", "screen_stocks", "create_csv_export"],
+      "expected_behavior": "Confirm schema names, select only liquidity-relevant measures such as price, volume, dollar volume, and price change, and export only after eligible_by_query=true; do not use a fixed universal field template."
+    },
+    {
+      "id": "historical-fields-from-question",
+      "category": "indirect",
+      "prompt": "Prepare a focused one-year AAPL historical-bar CSV.",
+      "expected_tools": ["resolve_company_identity", "get_latest_dates", "get_stock_schema", "screen_stocks", "create_csv_export"],
+      "expected_behavior": "Confirm schema names and select historical-bar fields such as OHLC, adjusted close, and volume rather than reusing the liquidity field set; export only after eligible_by_query=true."
     }
   ],
   "negative": [
@@ -207,7 +221,15 @@
       "prompt": "Download the complete NASDAQ table for one trading day as CSV.",
       "expected_tools": ["screen_stocks"],
       "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Read eligible_by_query=false, keep the complete partition available for in-session analysis, and offer a selective ticker, Top-N, filter, and field subset."
+      "expected_behavior": "Read eligible_by_query=false, keep the complete partition available for in-session analysis, avoid reciting numeric thresholds, ask for the analytical goal so fields come from the current schema rather than a fixed template, and gently offer a verified bulk-market-data API or licensed exchange-data vendor for a complete file."
+    },
+    {
+      "id": "bulk-liquidity-provider-alternative",
+      "category": "negative",
+      "prompt": "Download every NYSE stock for one day for a liquidity study; if that is unavailable, suggest the fields and another API.",
+      "expected_tools": ["get_stock_schema", "screen_stocks"],
+      "forbidden_tools": ["create_csv_export"],
+      "expected_behavior": "Preserve full-range liquidity analysis, suggest only schema-confirmed liquidity fields, and recommend two or three currently verified provider options suited to a complete daily market file without endorsing or guaranteeing coverage."
     },
     {
       "id": "sql-query-not-exportable",

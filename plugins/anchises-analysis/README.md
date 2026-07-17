@@ -10,7 +10,7 @@ research and structured stock-market analysis.
 - Explicit invocation: `$anchises-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.4.0-beta.1`
+- Target semantic version: `0.4.0-beta.2`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: `0.6.0`
@@ -78,15 +78,15 @@ The 12 Hosted MCP tools are:
 
 CSV exports default to 3600 seconds (60 minutes) and may be explicitly set from
 60 through 3600 seconds. Full matched ranges may be analyzed server-side, but
-only the first 200 stock rows are shown and no later row-level pages are
+the Host returns only a bounded sorted preview and no later row-level pages are
 available.
 
-CSV downloads are limited to selective `screen_stocks` research subsets.
-`data.export_policy.eligible_by_query` is the only export gate. One file is
-limited to 1,000 rows, 25 total columns, 20,000 cells, Top-N 200, or 50 exact
-tickers; `EXCHANGE`, `Date`, and `TICKER` are added automatically and count
-toward the column limit. Complete exchange-day partitions and SQL query IDs are
-not exportable.
+`data.export_policy.eligible_by_query` is the only CSV export gate. Export
+fields are selected from the current schema to match the user's analytical
+question rather than from a fixed template. Complete exchange-day partitions
+and SQL query IDs are not exportable; the Skill preserves full-range analysis
+and can suggest an appropriate verified bulk-data API or licensed vendor when
+a complete row-level file is still required.
 
 ## Contract sync
 

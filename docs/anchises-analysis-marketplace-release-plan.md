@@ -6,7 +6,7 @@
 - Skill: `anchises-analysis` / `$anchises-analysis`
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Version: `0.4.0-beta.1`
+- Version: `0.4.0-beta.2`
 - Marketplace: `Anchises-Analysis`
 - Hosted MCP: `0.6.0`
 - Data API: `0.3.0`

@@ -56,6 +56,20 @@ For “strong momentum” or another qualitative request, choose a transparent
 ranking from available schema fields, state the definition, and avoid inventing
 an absolute threshold the user did not request.
 
+## Field selection
+
+- Infer the smallest useful field set from the user's analytical question,
+  then confirm every field with `get_stock_schema`.
+- Do not reuse a fixed CSV template. A liquidity question may need price,
+  volume, dollar volume, and price change; historical bars may need OHLC,
+  adjusted close, and volume; momentum research may need price change,
+  selected technical indicators, and volume.
+- Include only measures that help answer the question. Let automatically added
+  identity fields remain automatic instead of using them as a reason to add
+  unrelated columns.
+- If the goal is unclear but a field choice would materially change the
+  result, offer a concise question-led field set or ask one focused follow-up.
+
 ## Analyst requests
 
 Complete ordinary analyst requests without first explaining export policy:
@@ -70,7 +84,7 @@ Complete ordinary analyst requests without first explaining export policy:
   distributions when a structured screen cannot return the statistic.
 - For a broad match, analyze the complete matched range server-side and show
   only the first 200 rows in the current sort order.
-- Create a CSV only after selecting a small set of necessary fields and reading
+- Create a CSV only after selecting a focused set of necessary fields and reading
   `eligible_by_query=true`.
 
 Explain product boundaries only when the user asks for a complete row-level

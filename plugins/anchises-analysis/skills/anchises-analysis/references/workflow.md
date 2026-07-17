@@ -104,10 +104,21 @@ only the current `query_id` from a preceding `screen_stocks` result whose
 `export_policy.eligible_by_query` is true. Never pass a SQL query ID. The
 screen must explicitly select research-relevant fields.
 
+Derive those fields from the user's analytical question and verify every name
+with `get_stock_schema`; never use a fixed universal CSV schema. If a broad
+download is ineligible, preserve the analysis and offer either a question-led
+focused export or, when a complete file is still required, a suitable verified
+bulk-market-data API or licensed exchange-data vendor.
+
 One file is limited to 1,000 rows, 25 total columns, 20,000 cells, Top-N 200,
 or 50 exact tickers, and it can never contain a complete exchange-day
 partition. `EXCHANGE`, `Date`, and `TICKER` are automatically included and
 count toward the column limit.
+
+The numeric limits above are operational guardrails for valid tool calls, not
+a standard refusal script. Do not enumerate them in ordinary user-facing
+answers. If an exact limit is requested, use the relevant value returned in the
+current result's `data.export_policy.limits`.
 
 Omit `expires_in_seconds` for the default 3600-second (60-minute) lifetime. If
 the user requests another lifetime, pass an integer from 60 through 3600

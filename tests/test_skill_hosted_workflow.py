@@ -376,6 +376,28 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("50 tickers", combined)
         self.assertIn("at most 22 additional fields", combined)
 
+    def test_user_facing_export_copy_is_question_led_without_limit_recital(self) -> None:
+        answer_format = (
+            SKILL_ROOT / "references" / "answer-format.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(answer_format.split())
+        for threshold in (
+            "1,000 rows",
+            "25 total columns",
+            "20,000 cells",
+            "Top-N 200",
+            "50 exact tickers",
+        ):
+            self.assertNotIn(threshold, normalized)
+        self.assertIn("Never use a fixed target schema", normalized)
+        self.assertIn("derived from the user's actual question", normalized)
+        self.assertIn("confirmed by `get_stock_schema`", normalized)
+        self.assertIn("verify current official documentation", normalized)
+        self.assertNotIn(
+            "Ticker, Company, Exchange, Open, High, Low, Close",
+            normalized,
+        )
+
     def test_market_data_policy_uses_only_the_new_export_gate(self) -> None:
         combined = " ".join(_skill_bundle_text().split())
         self.assertIn("data.export_policy.eligible_by_query", combined)
@@ -407,6 +429,16 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("rerun the original structured screen", combined)
         self.assertIn("download is temporarily unavailable", combined)
 
+    def test_bulk_export_refusal_is_courteous_and_not_a_fake_quota_error(self) -> None:
+        combined = " ".join(_skill_bundle_text().split())
+        self.assertIn("focused research extracts and does not provide", combined)
+        self.assertIn("licensed exchange-data vendor may be a better fit", combined)
+        self.assertIn("relevant to your research", combined)
+        self.assertIn("Tailor any proposed fields and provider type", combined)
+        self.assertIn("Do not invent usage counts or reset dates", combined)
+        self.assertIn("完整命中范围进行分析", combined)
+        self.assertNotIn("connector has reached its monthly call limit", combined)
+
     def test_normal_analyst_requests_are_policy_transparent(self) -> None:
         cases = _golden_cases()
         all_cases = cases["positive"] + cases["negative"]
@@ -423,6 +455,9 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "complete-partition-export-rejected",
             "sql-query-not-exportable",
             "query-policy-expired",
+            "liquidity-fields-from-question",
+            "historical-fields-from-question",
+            "bulk-liquidity-provider-alternative",
         }
         self.assertTrue(required.issubset(by_id))
         self.assertIn("without leading with export-policy language", by_id["structured-screen"]["expected_behavior"])
@@ -435,6 +470,18 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("40 values", by_id["watchlist-40-tickers"]["expected_behavior"])
         self.assertIn("paired start_date and end_date", by_id["single-stock-one-year"]["expected_behavior"])
         self.assertIn("no next page", by_id["broad-result-preview"]["expected_behavior"])
+        self.assertIn(
+            "price, volume, dollar volume, and price change",
+            by_id["liquidity-fields-from-question"]["expected_behavior"],
+        )
+        self.assertIn(
+            "OHLC, adjusted close, and volume",
+            by_id["historical-fields-from-question"]["expected_behavior"],
+        )
+        self.assertNotEqual(
+            by_id["liquidity-fields-from-question"]["expected_behavior"],
+            by_id["historical-fields-from-question"]["expected_behavior"],
+        )
 
     def test_openai_metadata_matches_renamed_skill(self) -> None:
         text = OPENAI_YAML.read_text(encoding="utf-8")
@@ -461,7 +508,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.4.0-beta.1")
+        self.assertEqual(manifest["version"], "0.4.0-beta.2")
         self.assertNotIn("+codex.", manifest["version"])
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
         interface = manifest["interface"]
@@ -478,10 +525,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
         self.assertIn("ASX, CSE, NASDAQ, NYSE, TSX, and TSXV", interface["longDescription"])
         self.assertIn("does not persist", interface["longDescription"])
-        self.assertIn("first 200 rows", interface["longDescription"])
+        self.assertIn("bounded sorted preview", interface["longDescription"])
         self.assertIn("no subsequent row-level pages", interface["longDescription"])
-        self.assertIn("selective small research subsets", interface["longDescription"])
-        self.assertIn("rather than a market-percentage limit", interface["longDescription"])
+        self.assertIn("current export policy marks it eligible", interface["longDescription"])
+        self.assertIn("fields selected from the live schema", interface["longDescription"])
+        self.assertIn("does not use a market-percentage limit", interface["longDescription"])
         self.assertIn("no account-linked cross-session cumulative budget", interface["longDescription"])
 
     def test_developer_mode_app_is_not_public_submission_target(self) -> None:
@@ -535,6 +583,9 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "complete-partition-export-rejected",
             "sql-query-not-exportable",
             "query-policy-expired",
+            "liquidity-fields-from-question",
+            "historical-fields-from-question",
+            "bulk-liquidity-provider-alternative",
         }
         self.assertTrue(required_ids.issubset({case["id"] for case in all_cases}))
 

@@ -48,7 +48,7 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("https://anchisesdata.com/support", self.listing)
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
-        self.assertIn("Version: 0.4.0-beta.1", self.listing)
+        self.assertIn("Version: 0.4.0-beta.2", self.listing)
         self.assertIn("MCP version: 0.6.0", self.listing)
         self.assertIn("Data API version: 0.3.0", self.listing)
         self.assertIn("stock-data-export-v1", self.listing)
@@ -74,10 +74,11 @@ class PublicListingTest(unittest.TestCase):
             "shared short-term service limits",
             "short-lived bearer links",
             "ASX, CSE, NASDAQ, NYSE, TSX, and TSXV",
-            "first 200 rows",
+            "bounded sorted preview",
             "no subsequent row-level pages",
-            "selective small research subsets",
-            "rather than a market-percentage limit",
+            "current export policy marks it eligible",
+            "fields selected from the live schema",
+            "does not use a market-percentage limit",
             "no account-linked cross-session cumulative budget",
         ):
             with self.subTest(disclosure=disclosure):
@@ -87,11 +88,11 @@ class PublicListingTest(unittest.TestCase):
         normalized_listing = " ".join(self.listing.split())
         for expected in (
             "Full matched stock-data ranges may be analyzed",
-            "at most the first 200 rows",
+            "bounded sorted preview",
             "does not provide later row-level pages",
-            "Only selective small research subsets can be downloaded",
+            "CSV eligibility is query-specific",
             "complete exchange-day partitions and SQL results cannot be exported",
-            "rather than a percentage of a market",
+            "rather than from a fixed template",
             "no account-linked cross-session cumulative budget",
         ):
             self.assertIn(expected, normalized_listing)
@@ -101,7 +102,7 @@ class PublicListingTest(unittest.TestCase):
             self.listing,
             (ROOT / "README.md").read_text(encoding="utf-8"),
             (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8"),
-            (ROOT / "docs" / "anchises-analysis-0.4.0-beta.1-release-notes.md").read_text(
+            (ROOT / "docs" / "anchises-analysis-0.4.0-beta.2-release-notes.md").read_text(
                 encoding="utf-8"
             ),
         ]
@@ -115,6 +116,17 @@ class PublicListingTest(unittest.TestCase):
             lowered = text.lower()
             for phrase in forbidden:
                 self.assertNotIn(phrase.lower(), lowered)
+
+        public_threshold_recitals = (
+            "1,000 rows",
+            "25 total columns",
+            "20,000 cells",
+            "Top-N 200",
+            "50 exact tickers",
+        )
+        for text in release_surfaces:
+            for phrase in public_threshold_recitals:
+                self.assertNotIn(phrase, text)
 
     def test_production_logo_assets_are_frozen(self) -> None:
         expected = {

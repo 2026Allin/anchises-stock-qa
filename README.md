@@ -7,18 +7,22 @@ the `anchises-analysis` plugin package published by Anchises Capital. The plugin
 connects to the public Hosted MCP at `https://mcp.anchisesdata.com/mcp` through
 the existing Developer Mode App ID.
 
-Current release target: `0.4.0-beta.1`.
+Current release target: `0.4.0-beta.2`.
 
 ## What changed in 0.4
 
 - The Hosted MCP contract is `0.6.0`, the Data API contract is `0.3.0`,
   and stock exports use policy `stock-data-export-v1`.
 - Full matched ranges can participate in server-side filtering, statistics,
-  ranking, and aggregation while the Host displays at most the first 200 rows.
+  ranking, and aggregation while the Host displays a bounded sorted preview.
 - Stock-row previews have no next-page cursor and must not be reconstructed
   through split queries, changing sorts, or local stitching.
-- CSV is limited to selective `screen_stocks` research subsets. SQL query IDs
-  and complete exchange-day partitions cannot be exported.
+- CSV eligibility comes from the current `screen_stocks` export policy. Fields
+  are selected dynamically from the research question and live schema; SQL
+  query IDs and complete exchange-day partitions cannot be exported.
+- When a complete row-level file is outside the export workflow, the Skill
+  preserves in-session analysis and can suggest a verified bulk-data API or
+  licensed exchange-data vendor suited to the requested market and fields.
 - Company identity resolution and live Host-side company research remain
   unchanged from the 0.3 release.
 
@@ -76,6 +80,6 @@ codex plugin add anchises-analysis@Anchises-Analysis
 After changing plugin content, run the cachebuster helper before reinstalling
 and start a new Codex task so the new Skill and MCP schema are loaded.
 
-See [release notes](docs/anchises-analysis-0.4.0-beta.1-release-notes.md),
+See [release notes](docs/anchises-analysis-0.4.0-beta.2-release-notes.md),
 [Directory listing](docs/anchises-analysis-plugin-directory-listing.md), and
 [reviewer cases](docs/anchises-analysis-reviewer-test-cases.md).

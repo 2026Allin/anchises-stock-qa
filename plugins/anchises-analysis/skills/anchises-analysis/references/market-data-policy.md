@@ -46,6 +46,17 @@ toward the 25-column limit, so select at most 22 additional fields. All limits
 apply together. A Top-N export is limited to 200, an exact-ticker export to 50
 tickers, and a complete exchange-day partition is never exportable.
 
+Treat these numbers as internal request-construction guardrails. Do not recite
+the threshold list in ordinary user-facing explanations. The current result's
+`eligible_by_query`, `reasons`, and `limits` are authoritative; if the user
+explicitly asks for an exact applicable threshold, quote only the relevant
+value returned by that result rather than a memorized list.
+
+Derive every export field list from the user's analytical question and confirm
+the names with `get_stock_schema`. Do not use a fixed universal target schema.
+Keep only fields needed to answer the question; automatic identity fields do
+not justify adding unrelated measures.
+
 Do not evade a refusal by splitting fields, tickers, dates, prices, letters, or
 sort direction; by creating multiple files; by using SQL; or by stitching
 results locally. Omit `expires_in_seconds` for the default 60-minute
@@ -86,5 +97,12 @@ server-side aggregate or a query for no more than 50 exact tickers.
 - `query_partition_limit_exceeded` or `result_too_large`: narrow or
   aggregate; do not divide the market into downloadable partitions.
 
-Describe these as research-subset boundaries, not missing permission, exhausted
-quota, or a system failure.
+Describe these as the scope of the current export workflow, not missing
+permission, exhausted quota, or a system failure. Do not enumerate every
+numeric threshold. For a bulk row-level request, say that the complete matched
+range remains available for in-conversation analysis and gently suggest a
+verified bulk-market-data API or licensed exchange-data vendor when a complete
+file remains the goal. Tailor any proposed fields and provider type to the
+original research question. Do not invent usage counts, call counts, or reset
+dates. Use the full response pattern in
+[answer-format.md](answer-format.md#exports).

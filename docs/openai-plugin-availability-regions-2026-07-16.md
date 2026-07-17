@@ -228,7 +228,7 @@ Official sources:
 
 ## Approved release decision for Anchises Analysis
 
-For `0.4.0-beta.1`, use broad public availability:
+For `0.4.0-beta.2`, use broad public availability:
 
 - select every country or region offered by the live plugin submission portal;
 - include the Americas, Europe, Southeast Asia, East Asia, Africa, Oceania,

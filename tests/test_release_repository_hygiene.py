@@ -55,7 +55,7 @@ class ReleaseRepositoryHygieneTest(unittest.TestCase):
             / "anchises-analysis"
             / ".codex-plugin"
             / "plugin.json",
-            ROOT / "docs" / "anchises-analysis-0.4.0-beta.1-release-notes.md",
+            ROOT / "docs" / "anchises-analysis-0.4.0-beta.2-release-notes.md",
         )
         forbidden_phrases = (
             "approved-access beta",

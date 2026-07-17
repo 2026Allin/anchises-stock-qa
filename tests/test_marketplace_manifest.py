@@ -38,7 +38,7 @@ class MarketplaceManifestTest(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(manifest["version"], "0.4.0-beta.1")
+        self.assertEqual(manifest["version"], "0.4.0-beta.2")
         self.assertEqual(contract["source"]["server_version"], "0.6.0")
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
 
