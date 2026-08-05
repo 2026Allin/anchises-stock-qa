@@ -474,10 +474,109 @@ def _validate_stock_access_policy(
     if contract_version == "1.6.0-draft":
         _validate_legacy_stock_access_policy(by_name)
         return
-    if contract_version == "1.7.0-draft":
+    if contract_version in {"1.7.0-draft", "1.8.0-draft"}:
         _validate_dynamic_stock_access_policy(by_name)
+        _validate_client_update_contract(by_name, contract_version)
         return
     raise ContractError(f"unsupported contract version: {contract_version}")
+
+
+def _validate_client_update_contract(
+    by_name: Dict[str, Dict[str, Any]], contract_version: str
+) -> None:
+    """Validate the optional MCP 0.7.2 client-release negotiation shape."""
+
+    status = by_name.get("get_connection_status")
+    if status is None:
+        raise ContractError("get_connection_status is required")
+    status_input = status["inputSchema"]
+    input_properties = _schema_properties(
+        status_input, "get_connection_status.inputSchema"
+    )
+    status_output = status["outputSchema"]
+    output_properties = _schema_properties(
+        status_output, "get_connection_status.outputSchema"
+    )
+
+    if contract_version == "1.7.0-draft":
+        if input_properties or "client_update" in output_properties:
+            raise ContractError(
+                "contract 1.7 must not publish client update negotiation"
+            )
+        return
+
+    if set(input_properties) != {"client"}:
+        raise ContractError(
+            "get_connection_status 1.8 input must contain only optional client"
+        )
+    if status_input.get("required"):
+        raise ContractError("get_connection_status client must be optional")
+    client = _object(
+        input_properties["client"], "get_connection_status.inputSchema.client"
+    )
+    if client.get("type") != "object" or client.get("additionalProperties") is not False:
+        raise ContractError("get_connection_status client must be a closed object")
+    client_properties = _schema_properties(
+        client, "get_connection_status.inputSchema.client"
+    )
+    expected_client = {"name", "platform", "version", "release_id", "channel"}
+    if (
+        set(client_properties) != expected_client
+        or set(client.get("required", [])) != expected_client
+    ):
+        raise ContractError("get_connection_status client schema is incomplete")
+    for field in expected_client:
+        field_schema = client_properties[field]
+        if field_schema.get("type") != "string":
+            raise ContractError(f"client {field} must be a string")
+        if field_schema.get("minLength") != 1 or field_schema.get("maxLength") != 128:
+            raise ContractError(f"client {field} must be bounded")
+        if "const" in field_schema or "pattern" in field_schema:
+            raise ContractError(
+                f"client {field} format must be evaluated as unknown at runtime"
+            )
+
+    if "client_update" not in output_properties:
+        raise ContractError("get_connection_status 1.8 must publish client_update")
+    if "client_update" not in set(status_output.get("required", [])):
+        raise ContractError("get_connection_status must require client_update")
+    client_update = _object(
+        output_properties["client_update"],
+        "get_connection_status.outputSchema.client_update",
+    )
+    if (
+        client_update.get("type") != "object"
+        or client_update.get("additionalProperties") is not False
+    ):
+        raise ContractError("client_update must be a closed object")
+    update_properties = _schema_properties(
+        client_update, "get_connection_status.outputSchema.client_update"
+    )
+    expected_update = {
+        "status",
+        "installed_version",
+        "installed_release_id",
+        "latest_version",
+        "latest_release_id",
+        "minimum_supported_version",
+        "channel",
+        "summary",
+    }
+    if (
+        set(update_properties) != expected_update
+        or set(client_update.get("required", [])) != expected_update
+    ):
+        raise ContractError("client_update schema is incomplete")
+    if update_properties["status"].get("enum") != [
+        "current",
+        "update_available",
+        "unsupported",
+        "unknown",
+    ]:
+        raise ContractError("client_update status enum is incomplete")
+    for field in expected_update - {"status"}:
+        if update_properties[field].get("type") != ["string", "null"]:
+            raise ContractError(f"client_update {field} must allow string or null")
 
 
 def mode_profiles(contract: Dict[str, Any]) -> Dict[str, str]:

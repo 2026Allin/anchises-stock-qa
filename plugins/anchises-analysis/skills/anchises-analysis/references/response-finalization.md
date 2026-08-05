@@ -1,7 +1,10 @@
 # Global response finalization
 
 Apply this policy exactly once after the answer body, data caveats, and
-analytical-information disclaimer are ready.
+analytical-information disclaimer are ready. The substantive answer and the
+operational plugin-update footer are separate. Finalize all business questions
+first, then append an update footer only when
+[plugin-update.md](plugin-update.md) requires it.
 
 ## Determine whether the answer is substantive
 
@@ -76,7 +79,17 @@ answer body
 -> analytical-information disclaimer
 -> continuation question, when required
 -> semantic question, when required
+-> operational update footer, only when required
 ```
 
-When a semantic question is required, it must be the final sentence. When only
-a continuation question is required, it must be the final sentence.
+When a semantic question is required, it must be the final sentence of the
+business answer. When only a continuation question is required, it must be the
+final sentence of the business answer. An operational update footer may follow
+as a separate final paragraph; it never replaces, merges with, or answers a
+business question.
+
+Do not show update text for `current`, `unknown`, a failed version check, or a
+release already recorded in `installed_release_in_task`. Show the prescribed
+notice for `update_available` or `unsupported`. Suppress it on a “暂不安装”
+acknowledgement, while leaving the next substantive Anchises request eligible
+for a fresh check.

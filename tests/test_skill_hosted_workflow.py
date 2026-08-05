@@ -51,12 +51,15 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
     Path("references/common-errors.md"),
+    Path("references/client-release.json"),
     Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
     Path("references/global-contract.md"),
     Path("references/query-interpretation.md"),
+    Path("references/plugin-update.md"),
     Path("references/response-finalization.md"),
     Path("references/service-access.md"),
+    Path("scripts/update_installed_plugin.py"),
 }
 
 EXPECTED_BRIEF_SKILL_BUNDLE_FILES = {
@@ -220,7 +223,17 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("HTTP 503", combined)
 
     def test_primary_skill_has_no_secret_or_local_runtime_setup(self) -> None:
-        text = _bundle_text(SKILL_ROOT).lower()
+        text = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in [
+                SKILL,
+                *sorted(
+                    path
+                    for path in (SKILL_ROOT / "references").glob("*.md")
+                    if path.name != "plugin-update.md"
+                ),
+            ]
+        ).lower()
         for forbidden in (
             "config.toml",
             "mysql",
@@ -237,6 +250,97 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("never ask the user to paste passwords", normalized)
         self.assertIn("revoking or rotating", normalized)
         self.assertIn("does not use chat-supplied credentials", normalized)
+
+    def test_all_five_skills_share_one_schema_aware_update_protocol(self) -> None:
+        for name, root in SKILL_ROOTS.items():
+            skill = (root / "SKILL.md").read_text(encoding="utf-8")
+            normalized = " ".join(skill.split())
+            self.assertIn("plugin-update.md", skill, name)
+            self.assertIn("get_connection_status", skill, name)
+            if name == "anchises-analysis":
+                self.assertIn("exactly once for this user request", normalized)
+                self.assertIn("schema-aware client-metadata rule", normalized)
+            else:
+                self.assertIn("exactly once", normalized)
+                self.assertIn("retry with `{}`", skill, name)
+            self.assertIn("client_update", skill, name)
+
+        protocol = (
+            SKILL_ROOT / "references" / "plugin-update.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(protocol.split())
+        for transition in (
+            "idle",
+            "update_available",
+            "explicit_authorization",
+            "preflight",
+            "marketplace_upgrade",
+            "plugin_install",
+            "verification",
+            "new_task_required",
+        ):
+            self.assertIn(transition, protocol)
+        self.assertIn("请为我安装 Anchises Analysis 更新。", protocol)
+        self.assertIn("A bare “是”", normalized)
+        self.assertIn("there is no background polling", normalized)
+        self.assertIn("A message unrelated to Anchises Analysis", normalized)
+        self.assertIn("Do not persist an ignored release", normalized)
+        for command in (
+            "codex plugin list --json",
+            "codex plugin marketplace list --json",
+            "codex plugin marketplace upgrade Anchises-Analysis --json",
+            "codex plugin add anchises-analysis@Anchises-Analysis --json",
+        ):
+            self.assertIn(command, protocol)
+        for forbidden_method in (
+            "`git pull`",
+            "`git clone`",
+            "uninstall-first",
+            "`config.toml`",
+            "rollback",
+        ):
+            self.assertIn(forbidden_method, protocol)
+
+        finalizer = (
+            SKILL_ROOT / "references" / "response-finalization.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("operational update footer", finalizer)
+        self.assertIn("final sentence of the business answer", finalizer)
+
+    def test_client_release_metadata_is_closed_and_distribution_allowlisted(self) -> None:
+        release = json.loads(
+            (
+                SKILL_ROOT / "references" / "client-release.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(release),
+            {
+                "schema_version",
+                "name",
+                "platform",
+                "version",
+                "release_id",
+                "channel",
+                "plugin_id",
+                "marketplace",
+                "repository",
+                "git_ref",
+            },
+        )
+        self.assertEqual(release["version"], "0.6.0-dev.5")
+        self.assertRegex(release["release_id"], r"^codex\.\d{14}$")
+        self.assertEqual(release["channel"], "qa-v2-auth")
+        self.assertEqual(release["marketplace"], "Anchises-Analysis")
+        self.assertEqual(
+            release["repository"],
+            "https://github.com/2026Allin/anchises-stock-qa.git",
+        )
+        handoff = (
+            ROOT / "docs" / "anchises-analysis-mcp-0.7.2-client-update-handoff.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f'"version": "{release["version"]}"', handoff)
+        self.assertIn(f'"release_id": "{release["release_id"]}"', handoff)
 
     def test_company_resolution_reference_is_complete_and_private(self) -> None:
         text = (SKILL_ROOT / "references" / "company-resolution.md").read_text(
@@ -1009,10 +1113,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.4")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.5")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.4(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.5(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")

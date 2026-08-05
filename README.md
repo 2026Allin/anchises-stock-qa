@@ -8,8 +8,24 @@ bundles five Skills and connects directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current QA development target: `0.6.0-dev.4`. The submitted public-review
+Current QA development target: `0.6.0-dev.5`. The submitted public-review
 release remains `0.4.0-beta.2`.
+
+## What changed in 0.6.0-dev.5
+
+- Every selected Anchises Skill performs one schema-aware version check through
+  `get_connection_status`; current, unknown, and failed checks stay silent.
+- An available update adds one operational footer after the normal business
+  answer. Installation requires an explicit Anchises Analysis update sentence;
+  a bare “yes” or “install” never authorizes commands.
+- The only updater performs one Git Marketplace preflight, upgrade, install,
+  and verification sequence. It stops on local or mismatched sources and never
+  tries an alternative command, uninstall, Git operation, config edit, retry,
+  rollback, or force operation.
+- This first supporting release still requires one manual install. Production
+  MCP `0.7.1` does not yet publish client update metadata, so checks remain
+  silently `unknown` until the MCP team deploys the documented `0.7.2`
+  interface.
 
 ## What changed in 0.6.0-dev.4
 
@@ -147,6 +163,26 @@ codex plugin add anchises-analysis@Anchises-Analysis
 After changing plugin content, run the cachebuster helper before reinstalling
 and start a new Codex task so the new Skill and MCP schema are loaded.
 
+```bash
+.venv/bin/python \
+  ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
+  plugins/anchises-analysis
+
+.venv/bin/python \
+  plugins/anchises-analysis/scripts/sync_client_release.py
+
+.venv/bin/python \
+  plugins/anchises-analysis/scripts/sync_client_release.py --check
+```
+
+The first command preserves the `0.6.0-dev.5` base and creates one new
+`+codex.<timestamp>` suffix. The second copies that release ID into the client
+metadata used by the Skill and MCP status call.
+
+The automated in-Skill updater intentionally rejects this local development
+Marketplace. Maintainers continue to use the manual cachebuster and reinstall
+flow above.
+
 ## Cross-workspace Codex install
 
 For QA from another OpenAI workspace, add the public Git marketplace with the
@@ -174,6 +210,12 @@ This install does not use `Share with you`, Portal Scan, or a Developer Mode
 App ID. A managed workspace may still require its administrator to allowlist
 the Git marketplace source and the bundled MCP URL. Start a new Codex task
 after installation.
+
+After the MCP `0.7.2` client-update interface is deployed, a Git Marketplace
+installation can detect newer QA releases during Anchises requests. It only
+installs after the user explicitly authorizes the named Anchises Analysis
+update. Local Marketplaces remain manual. See the
+[MCP 0.7.2 handoff](docs/anchises-analysis-mcp-0.7.2-client-update-handoff.md).
 
 See the complete
 [cross-workspace installation guide](docs/anchises-analysis-codex-cross-workspace-install.md).

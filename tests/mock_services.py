@@ -19,6 +19,15 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "plugins" / "anchises-analysis" / "contracts"
 FIXTURE_PATH = ROOT / "tests" / "fixtures" / "mock_backend_data.json"
+CLIENT_RELEASE_PATH = (
+    ROOT
+    / "plugins"
+    / "anchises-analysis"
+    / "skills"
+    / "anchises-analysis"
+    / "references"
+    / "client-release.json"
+)
 
 import sys
 
@@ -39,6 +48,85 @@ ACTIVE_TOKEN = "mock-access-token-active"
 PENDING_TOKEN = "mock-access-token-pending"
 INTERNAL_TOKEN = "mock-internal-delegation"
 AUTHORIZATION_CODE = "mock-authorization-code"
+
+
+def _rehash_contract(contract: Dict[str, Any]) -> None:
+    canonical = json.dumps(
+        contract["tools"], sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    contract["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
+
+
+def _with_client_update_contract(contract: Dict[str, Any]) -> Dict[str, Any]:
+    """Return an in-memory MCP 0.7.2 / contract 1.8 mock descriptor."""
+
+    future = copy.deepcopy(contract)
+    future["contract_version"] = "1.8.0-draft"
+    future["source"]["server_version"] = "0.7.2"
+    status = next(
+        tool for tool in future["tools"] if tool["name"] == "get_connection_status"
+    )
+    status["inputSchema"] = {
+        "type": "object",
+        "properties": {
+            "client": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "minLength": 1, "maxLength": 128},
+                    "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+                    "version": {"type": "string", "minLength": 1, "maxLength": 128},
+                    "release_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                    "channel": {"type": "string", "minLength": 1, "maxLength": 128},
+                },
+                "additionalProperties": False,
+                "required": [
+                    "name",
+                    "platform",
+                    "version",
+                    "release_id",
+                    "channel",
+                ],
+            }
+        },
+        "additionalProperties": False,
+        "description": (
+            "Optionally publish the installed Anchises Analysis client release. "
+            "Missing or unrecognized client metadata returns update status unknown."
+        ),
+    }
+    update_fields = {
+        "installed_version",
+        "installed_release_id",
+        "latest_version",
+        "latest_release_id",
+        "minimum_supported_version",
+        "channel",
+        "summary",
+    }
+    client_update = {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": [
+                    "current",
+                    "update_available",
+                    "unsupported",
+                    "unknown",
+                ],
+            },
+            **{
+                field: {"type": ["string", "null"]}
+                for field in sorted(update_fields)
+            },
+        },
+        "additionalProperties": False,
+        "required": ["status", *sorted(update_fields)],
+    }
+    status["outputSchema"]["properties"]["client_update"] = client_update
+    status["outputSchema"]["required"].append("client_update")
+    _rehash_contract(future)
+    return future
 
 
 def _base64url_sha256(value: str) -> str:
@@ -324,7 +412,12 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 {
                     "jsonrpc": "2.0",
                     "id": request_id,
-                    "result": {"tools": tool_descriptors(access_mode=self.access_mode)},
+                    "result": {
+                        "tools": tool_descriptors(
+                            self.server.contract,  # type: ignore[attr-defined]
+                            access_mode=self.access_mode,
+                        )
+                    },
                 },
             )
             return
@@ -432,6 +525,49 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             ),
             "policy_version": "stock-data-access-v2",
             "effective_limits": self._policy_limits(self.data_policy_mode),
+        }
+
+    def _client_update(self, arguments: Dict[str, Any]) -> Dict[str, Any] | None:
+        if not self.server.client_update_enabled:  # type: ignore[attr-defined]
+            return None
+        client = arguments.get("client")
+        valid = (
+            isinstance(client, dict)
+            and set(client)
+            == {"name", "platform", "version", "release_id", "channel"}
+            and client.get("name") == "anchises-analysis"
+            and client.get("platform") == "codex"
+            and isinstance(client.get("version"), str)
+            and re.fullmatch(
+                r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+                r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+                client["version"],
+            )
+            is not None
+            and isinstance(client.get("release_id"), str)
+            and re.fullmatch(r"codex\.\d{14}", client["release_id"]) is not None
+            and client.get("channel") == "qa-v2-auth"
+        )
+        if not valid:
+            return {
+                "status": "unknown",
+                "installed_version": None,
+                "installed_release_id": None,
+                "latest_version": None,
+                "latest_release_id": None,
+                "minimum_supported_version": None,
+                "channel": None,
+                "summary": None,
+            }
+        return {
+            "status": self.server.client_update_status,  # type: ignore[attr-defined]
+            "installed_version": client["version"],
+            "installed_release_id": client["release_id"],
+            "latest_version": self.server.latest_client_version,  # type: ignore[attr-defined]
+            "latest_release_id": self.server.latest_client_release_id,  # type: ignore[attr-defined]
+            "minimum_supported_version": self.server.minimum_client_version,  # type: ignore[attr-defined]
+            "channel": client["channel"],
+            "summary": self.server.client_update_summary,  # type: ignore[attr-defined]
         }
 
     @staticmethod
@@ -605,8 +741,11 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         token: str,
     ) -> Dict[str, Any] | Tuple[str, str]:
         if name == "get_connection_status":
+            if not self.server.client_update_enabled and arguments:  # type: ignore[attr-defined]
+                return "query_rejected", "This contract accepts no status arguments."
+            client_update = self._client_update(arguments)
             if self.access_mode == "public_noauth":
-                return {
+                result = {
                     "status": "active",
                     "message": "Public access is available. No sign-in is required.",
                     "access_request_url": None,
@@ -624,8 +763,11 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                     },
                     "data_policy": self._data_policy(),
                 }
+                if client_update is not None:
+                    result["client_update"] = client_update
+                return result
             status = "active" if token == ACTIVE_TOKEN else "pending"
-            return {
+            result = {
                 "status": status,
                 "message": "Access is active." if status == "active" else "Approval is pending.",
                 "access_request_url": (
@@ -649,6 +791,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 ),
                 "data_policy": self._data_policy() if status == "active" else None,
             }
+            if client_update is not None:
+                result["client_update"] = client_update
+            return result
         if name == "get_available_exchanges":
             return self._envelope({"exchanges": self.fixture["exchanges"]})
         if name == "get_latest_dates":
@@ -1154,14 +1299,35 @@ class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisS
         *,
         access_mode: str = "oauth",
         data_policy_mode: str = "restricted",
+        client_update_enabled: bool = False,
+        client_update_status: str = "current",
+        latest_client_version: str | None = None,
+        latest_client_release_id: str | None = None,
+        minimum_client_version: str | None = None,
+        client_update_summary: str | None = None,
     ) -> None:
         contract = load_contract()
+        if client_update_enabled:
+            contract = _with_client_update_contract(contract)
         try:
             mode_profile(contract, access_mode)
         except ContractError as exc:
             raise ValueError(f"unsupported mock access mode: {access_mode}") from exc
         if data_policy_mode not in {"restricted", "bulk_enabled"}:
             raise ValueError(f"unsupported mock data policy mode: {data_policy_mode}")
+        if client_update_status not in {
+            "current",
+            "update_available",
+            "unsupported",
+            "unknown",
+        }:
+            raise ValueError(f"unsupported client update status: {client_update_status}")
+        client_release = json.loads(CLIENT_RELEASE_PATH.read_text(encoding="utf-8"))
+        latest_client_version = latest_client_version or client_release["version"]
+        latest_client_release_id = (
+            latest_client_release_id or client_release["release_id"]
+        )
+        minimum_client_version = minimum_client_version or client_release["version"]
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), MockServiceHandler)
         host, port = self.httpd.server_address
         self.base_url = f"http://{host}:{port}"
@@ -1170,6 +1336,12 @@ class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisS
         self.httpd.contract = contract  # type: ignore[attr-defined]
         self.httpd.access_mode = access_mode  # type: ignore[attr-defined]
         self.httpd.data_policy_mode = data_policy_mode  # type: ignore[attr-defined]
+        self.httpd.client_update_enabled = client_update_enabled  # type: ignore[attr-defined]
+        self.httpd.client_update_status = client_update_status  # type: ignore[attr-defined]
+        self.httpd.latest_client_version = latest_client_version  # type: ignore[attr-defined]
+        self.httpd.latest_client_release_id = latest_client_release_id  # type: ignore[attr-defined]
+        self.httpd.minimum_client_version = minimum_client_version  # type: ignore[attr-defined]
+        self.httpd.client_update_summary = client_update_summary  # type: ignore[attr-defined]
         self.httpd.policy_epoch = 1  # type: ignore[attr-defined]
         self.httpd.cursor_secret = b"mock-cursor-secret"  # type: ignore[attr-defined]
         self.httpd.query_counter = 0  # type: ignore[attr-defined]

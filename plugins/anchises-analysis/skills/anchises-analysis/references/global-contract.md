@@ -21,11 +21,19 @@ remaining_intro_entities
 response_status
 suggestions_allowed
 recent_follow_up_families
+connection_status_checked
+client_update
+update_notice_suppressed
+installed_release_in_task
 ```
 
 Use exactly one `primary_task`. Treat language, freshness, length, news
 context, standalone company introductions, a simple comparison, attached
 market data, CSV output, and a request for no suggestions as modifiers.
+`update_notice_suppressed` applies only to the current acknowledgement.
+`installed_release_in_task` is the sole task-scoped exception: after a
+successful update it remembers that target release until the user starts the
+required new task. Do not persist either value outside the current task.
 
 ## Use one-way execution
 
@@ -69,14 +77,20 @@ identity, report section, discovery list, or incidental company mention.
 - Send MCP only the arguments required by the selected tool. Never send the
   full transcript, unrelated personal information, credentials, or copied web
   content.
-- Call `get_connection_status` at most once per user request, even when a
-  modifier adds a second workflow component.
+- When any of the five Anchises Skills is selected explicitly or implicitly,
+  call `get_connection_status` exactly once for that user request using
+  [service-access.md](service-access.md). Do not check on an unrelated request.
+- Never make a speculative new-schema call and retry with an old-schema call.
+- Keep update checking separate from installation. No update command runs
+  without the explicit authorization defined in
+  [plugin-update.md](plugin-update.md).
 - Only `company-report` may call `prepare_company_report_generation`.
 - Treat every result as analytical information, not investment advice or
   official disclosure.
 
-Read [service-access.md](service-access.md) before an access-sensitive
-workflow, [company-resolution.md](company-resolution.md) when identity
+Read [plugin-update.md](plugin-update.md) and
+[service-access.md](service-access.md) when this Skill is selected,
+[company-resolution.md](company-resolution.md) when identity
 resolution is required, and [common-errors.md](common-errors.md) for shared
 failures.
 

@@ -9,11 +9,21 @@ Use the Anchises Analysis MCP for supported-market quantitative work.
 Let users ask in natural language; do not require schemas, SQL, tickers, local
 files, Python, or credentials.
 
-## Confirm ownership once
+## Check the selected plugin once
 
 Read
 [../anchises-analysis/references/global-contract.md](../anchises-analysis/references/global-contract.md),
-then
+[../anchises-analysis/references/plugin-update.md](../anchises-analysis/references/plugin-update.md),
+and
+[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md).
+Because this Skill has been selected, call `get_connection_status` exactly
+once for this user request using its published schema and the shared
+client-release metadata. Retain `client_update`; never probe with new
+arguments and retry with `{}`.
+
+## Confirm ownership once
+
+Read
 [../anchises-analysis/references/query-interpretation.md](../anchises-analysis/references/query-interpretation.md).
 Proceed only for `primary_task=market_data` or for `primary_task=discovery`
 whose final deliverable is a supported exchange, instrument, table, or
@@ -25,9 +35,8 @@ workflow only after completing the report.
 
 ## Establish access and scope
 
-Read
-[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md)
-and call `get_connection_status` once for the request.
+Reuse the single connection result already obtained for this request. Never
+call `get_connection_status` again for an attached modifier.
 
 Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV.
 Use `get_available_exchanges` as authoritative and `get_latest_dates` for

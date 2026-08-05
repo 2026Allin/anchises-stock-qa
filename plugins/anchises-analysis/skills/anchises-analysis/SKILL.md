@@ -1,6 +1,6 @@
 ---
 name: anchises-analysis
-description: Coordinate Anchises Analysis requests when the user asks generally to use the product, combines a primary workflow with secondary deliverables such as market data or standalone company introductions, or leaves the desired deliverable ambiguous. Classify exactly one primary task, preserve shared request state, and route to Company Brief, Company Report, Company Comparison, or Market Analysis under one global response contract. Do not replace a clearly matching specialized Skill, treat incidental company mentions as research requests, retrieve official filings, or answer news-only requests.
+description: Coordinate Anchises Analysis requests when the user asks generally to use the product, requests an Anchises Analysis install or update, declines an offered update, combines a primary workflow with secondary deliverables, or leaves the desired deliverable ambiguous. Classify exactly one primary task, preserve shared request state, and route to plugin update, Company Brief, Company Report, Company Comparison, or Market Analysis under one global response contract. Do not replace a clearly matching specialized Skill, treat incidental company mentions as research requests, retrieve official filings, or answer news-only requests.
 ---
 
 # Anchises Analysis
@@ -9,11 +9,25 @@ Act as the thin coordination entry for the Anchises Analysis plugin. Let users
 ask in natural language; do not require tool names, SQL, schemas, tickers,
 credentials, or local setup.
 
+## Check the selected plugin once
+
+Read [references/global-contract.md](references/global-contract.md),
+[references/plugin-update.md](references/plugin-update.md), and
+[references/service-access.md](references/service-access.md). Because this
+Skill has been selected, call `get_connection_status` exactly once for this
+user request using the schema-aware client-metadata rule. Retain both service
+access state and `client_update` state. Do not make a second status call for a
+business modifier.
+
+If the message is an explicitly authorized Anchises Analysis installation or
+update, a decline of the offered update, or an acknowledgement after a
+completed update, use the `plugin_update` route and the only state machine in
+`plugin-update.md`. Keep it separate from business classification. A bare
+“yes”, “是”, “install”, or “安装” is not explicit update authorization.
+
 ## Classify once
 
-Read
-[references/global-contract.md](references/global-contract.md), then
-[references/query-interpretation.md](references/query-interpretation.md)
+Read [references/query-interpretation.md](references/query-interpretation.md)
 before selecting any workflow. Assign exactly one `primary_task`, then extract
 modifiers and user- or context-supplied entities. Select presentation policies
 before execution, but apply result-dependent windows only after the owning
@@ -24,6 +38,7 @@ Use this workflow map:
 
 | `primary_task` | Owning workflow |
 |---|---|
+| `plugin_update` | This Skill; follow `references/plugin-update.md` only |
 | `company_brief` | Sibling `company-brief` Skill |
 | `full_report` | Sibling `company-report` Skill |
 | `comparison` | Sibling `company-comparison` Skill |
@@ -52,9 +67,8 @@ Maintain the conceptual state defined in
 [references/global-contract.md](references/global-contract.md), including
 separate requested, contextual, and discovered entities.
 
-Before an access-sensitive workflow, read
-[references/service-access.md](references/service-access.md) and check the
-bundled Anchises Analysis MCP once for the request.
+Reuse the one service check already made for this request. Never call
+`get_connection_status` again when a modifier adds another workflow.
 
 Before a company brief, full report, comparison, or single-company market-data
 workflow, read

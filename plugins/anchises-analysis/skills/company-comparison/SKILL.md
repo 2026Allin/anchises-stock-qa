@@ -9,11 +9,21 @@ Build a source-linked, dimension-by-dimension comparison through Anchises
 Analysis. Keep the comparative question—not a set of mini reports—as the
 organizing principle.
 
-## Confirm ownership once
+## Check the selected plugin once
 
 Read
 [../anchises-analysis/references/global-contract.md](../anchises-analysis/references/global-contract.md),
-then
+[../anchises-analysis/references/plugin-update.md](../anchises-analysis/references/plugin-update.md),
+and
+[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md).
+Because this Skill has been selected, call `get_connection_status` exactly
+once for this user request using its published schema and the shared
+client-release metadata. Retain `client_update`; never probe with new
+arguments and retry with `{}`.
+
+## Confirm ownership once
+
+Read
 [../anchises-analysis/references/query-interpretation.md](../anchises-analysis/references/query-interpretation.md).
 Proceed only when `primary_task=comparison`. Do not reclassify the request in
 this Skill.
@@ -25,9 +35,8 @@ belongs to the sibling Brief Skill.
 
 ## Establish access and identities
 
-Read
-[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md)
-and call `get_connection_status` once for the whole request.
+Reuse the single connection result already obtained for this request. Never
+call `get_connection_status` again for an attached modifier.
 
 Read
 [../anchises-analysis/references/company-resolution.md](../anchises-analysis/references/company-resolution.md).

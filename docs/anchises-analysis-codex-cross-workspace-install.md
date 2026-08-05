@@ -104,13 +104,31 @@ the target workspace's change-control process.
 
 ## Update and rollback
 
-Refresh the configured Git marketplace, then reinstall the plugin and start a
-new task:
+The bootstrap `0.6.0-dev.5` release must be installed manually. Refresh the
+configured Git marketplace, reinstall the plugin, and start a new task:
 
 ```bash
 codex plugin marketplace upgrade Anchises-Analysis
 codex plugin add anchises-analysis@Anchises-Analysis
 ```
+
+After MCP `0.7.2` is deployed, later Git Marketplace releases are checked once
+whenever an Anchises Skill is selected. No-update and unknown checks are
+silent. If a newer release exists, the answer ends with an update notice. The
+user must explicitly reply with the full named authorization sentence before
+Codex runs the single fixed Marketplace upgrade and plugin install flow. A bare
+“yes” or “install” does not authorize it, silence does nothing, and “not now”
+is remembered only for that acknowledgement turn.
+
+The automated flow supports only Marketplace `Anchises-Analysis` from
+`https://github.com/2026Allin/anchises-stock-qa.git` at `qa-v2-auth`. It stops
+for local development sources, another repository/ref, missing source details,
+permission denial, or any failed step. It never retries with Git commands,
+uninstall-first, Marketplace removal/re-addition, config edits, force, or
+rollback. A successful update still requires a new Codex task.
+
+Maintainers using a local Marketplace must continue the manual cachebuster and
+reinstall flow; the in-Skill updater deliberately rejects local sources.
 
 For rollback, pin the marketplace to a previously validated Git tag or commit,
 refresh it, and reinstall the same plugin slug. The old Developer Mode App is

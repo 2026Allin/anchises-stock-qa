@@ -13,7 +13,7 @@ analysis.
   `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.4`
+- Target semantic version: `0.6.0-dev.5`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: `0.7.1`
@@ -49,6 +49,23 @@ entries:
 A clear specialist request may enter its matching Skill directly. Every
 specialist first reads the same canonical `primary_task` rules and must stop if
 it does not own the result; downstream Skills never reclassify.
+
+Whenever one of the five Skills is selected explicitly or implicitly, it calls
+`get_connection_status` once for that user request. If the published schema
+supports the optional `client` object, the call includes the bundled base
+version, `codex` release ID, and channel. With the current MCP `0.7.1` schema,
+the Skill sends `{}` directly and silently treats the update state as unknown;
+it never probes new arguments and retries.
+
+An available update is shown only as a final operational footer after the
+business answer. Installation requires an explicit sentence naming Anchises
+Analysis and the install/update intent. The fixed updater supports only the
+allowlisted Git Marketplace source, executes each preflight, upgrade, install,
+and verification command once, and stops on the first failure without
+fallback. Local development Marketplaces continue to use the maintainer's
+manual cachebuster and reinstall flow. A successful installation requires a
+new Codex task because the current task retains its startup Skill and MCP
+catalog.
 
 ## Company briefs
 
@@ -161,6 +178,11 @@ a separate `codex mcp add` is not required. Managed workspaces may require an
 administrator to allowlist the Git source and exact MCP URL. Start a new Codex
 task after installing or updating the plugin.
 
+`0.6.0-dev.5` is the bootstrap release and must be installed manually once.
+The runtime notification path becomes active only after MCP `0.7.2` publishes
+the optional client-update contract described in the
+[MCP handoff](../../docs/anchises-analysis-mcp-0.7.2-client-update-handoff.md).
+
 ## Contract sync
 
 The checked-in descriptor snapshot is generated from the public service with a
@@ -175,9 +197,27 @@ company-identity resolver, a four-required-field prepare schema, noauth
 security, Prompt pack `5.1`, opaque cursor pagination, dynamic data/export
 policy metadata, and no legacy cached-report tools.
 
+The synchronizer accepts the current `1.7.0-draft` status schema and detects
+the future `client` plus `client_update` schema as `1.8.0-draft`. It rejects a
+partial upgrade. Do not change the production snapshot to `1.8.0-draft` until
+the MCP team has deployed and verified `0.7.2`.
+
 ## Validation
 
 From the repository root:
+
+Before final validation of a release, update the single cachebuster and
+synchronize the client metadata:
+
+```bash
+.venv/bin/python \
+  ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
+  plugins/anchises-analysis
+.venv/bin/python plugins/anchises-analysis/scripts/sync_client_release.py
+.venv/bin/python plugins/anchises-analysis/scripts/sync_client_release.py --check
+```
+
+Then run:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v

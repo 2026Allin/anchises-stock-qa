@@ -8,11 +8,21 @@ description: Create concise, current 3-4-sentence introductions for one to five 
 Create compact, source-linked company snapshots through Anchises Analysis
 without entering the seven-section company-report workflow.
 
+## Check the selected plugin once
+
+Read
+[../anchises-analysis/references/global-contract.md](../anchises-analysis/references/global-contract.md),
+[../anchises-analysis/references/plugin-update.md](../anchises-analysis/references/plugin-update.md),
+and
+[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md).
+Because this Skill has been selected, call `get_connection_status` exactly
+once for this user request using its published schema and the shared
+client-release metadata. Retain `client_update`; never probe with new
+arguments and retry with `{}`.
+
 ## Classify once
 
-Before doing any research, read
-[../anchises-analysis/references/global-contract.md](../anchises-analysis/references/global-contract.md)
-and the canonical arbitration rules in
+Before doing any research, read the canonical arbitration rules in
 [../anchises-analysis/references/query-interpretation.md](../anchises-analysis/references/query-interpretation.md).
 Proceed only when the resulting `primary_task` is `company_brief`. Do not
 reclassify the request inside this workflow.
@@ -22,12 +32,11 @@ understanding of each company. Company names may come from the current request
 or an explicit reference to the most recent relevant company set. Company-name
 presence alone is not sufficient. Set `company_introductions=true`.
 
-## Check public service access
+## Apply public service access
 
-Read
-[../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md),
-then call `get_connection_status` once for the whole brief request. Apply the
-shared public-access, credential, privacy, outage, and retry rules.
+Reuse the single connection result already obtained for this request. Apply
+the shared public-access, credential, privacy, outage, retry, and update-footer
+rules. Never call `get_connection_status` again for a modifier.
 
 ## Execute the shared introduction component
 

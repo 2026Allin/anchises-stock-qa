@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Current QA directory copy for `Anchises Analysis 0.6.0-dev.4`.
+Current QA directory copy for `Anchises Analysis 0.6.0-dev.5`.
 
 ## Identity
 
@@ -9,7 +9,7 @@ Current QA directory copy for `Anchises Analysis 0.6.0-dev.4`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.6.0-dev.4
+- Version: 0.6.0-dev.5
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - MCP version: 0.7.1
 - Data API version: 0.3.0
@@ -76,6 +76,10 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - Public noauth access has no account-linked cross-session cumulative budget;
   shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.
+- Each selected Anchises Skill checks the published client update status once.
+  No-update, unknown, and failed checks are silent; installation requires an
+  explicit named authorization and supports only the allowlisted Git
+  Marketplace source.
 - Reports and market analysis are analytical information, not investment advice
   or official company disclosure.
 

@@ -61,10 +61,10 @@ class MarketplaceManifestTest(unittest.TestCase):
                 }
             },
         )
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.4")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.5")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.4(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.5(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(contract["contract_version"], "1.7.0-draft")

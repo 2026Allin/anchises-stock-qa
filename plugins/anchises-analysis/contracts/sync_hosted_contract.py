@@ -37,7 +37,8 @@ DEFAULT_OUTPUT = Path(__file__).with_name("hosted-mcp-v1.json")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
-CONTRACT_VERSION = "1.7.0-draft"
+LEGACY_CONTRACT_VERSION = "1.7.0-draft"
+CLIENT_UPDATE_CONTRACT_VERSION = "1.8.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -204,7 +205,7 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "anchises-analysis-contract-sync/1.7",
+            "User-Agent": "anchises-analysis-contract-sync/1.8",
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -319,7 +320,7 @@ def fetch_contract(
                 "capabilities": {},
                 "clientInfo": {
                     "name": "anchises-analysis-contract-sync",
-                    "version": "1.7.0",
+                    "version": "1.8.0",
                 },
             },
             1,
@@ -350,8 +351,22 @@ def fetch_contract(
     if not isinstance(instructions, str) or not instructions.strip():
         raise RuntimeError("MCP initialize result must publish non-empty instructions")
 
+    status = next(tool for tool in tools if tool["name"] == "get_connection_status")
+    status_inputs = status.get("inputSchema", {}).get("properties", {})
+    status_outputs = status.get("outputSchema", {}).get("properties", {})
+    publishes_client = "client" in status_inputs
+    publishes_update = "client_update" in status_outputs
+    if publishes_client != publishes_update:
+        raise RuntimeError(
+            "get_connection_status must publish client and client_update together"
+        )
+
     contract = base
-    contract["contract_version"] = CONTRACT_VERSION
+    contract["contract_version"] = (
+        CLIENT_UPDATE_CONTRACT_VERSION
+        if publishes_client
+        else LEGACY_CONTRACT_VERSION
+    )
     contract["oauth"]["tool_scopes"] = copy.deepcopy(
         EXPECTED_OAUTH_TOOL_SCOPES
     )

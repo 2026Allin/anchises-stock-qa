@@ -7,7 +7,7 @@
   Market Analysis
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Version: `0.6.0-dev.4`
+- Version: `0.6.0-dev.5`
 - Marketplace: `Anchises-Analysis`
 - Hosted MCP: `0.7.1`
 - Data API: `0.3.0`
@@ -46,6 +46,11 @@ MCP definition directly and no longer references a Developer Mode App ID.
 10. Full unit/mock/live tests, Skill validation, and plugin validation pass.
 11. Cachebuster update and local reinstall succeed; the installed plugin shows
     all five Skills and one `anchises_analysis` bundled MCP server.
+12. Client release metadata matches the manifest's base version and single
+    `+codex.<timestamp>` suffix.
+13. Five-Skill update checks are schema-aware and single-call. The fixed
+    updater refuses local or wrong sources, uses exactly five CLI calls on the
+    success path, and never retries or falls back.
 
 ## Cross-workspace Codex gates
 
@@ -63,6 +68,9 @@ MCP definition directly and no longer references a Developer Mode App ID.
 6. If the target workspace restricts custom marketplaces or plugin MCP
    servers, have its administrator allowlist the exact Git source, ref, plugin
    name, server name, and MCP URL before repeating the test.
+7. Install `0.6.0-dev.5` manually as the bootstrap release. After MCP `0.7.2`
+   is deployed, validate one silent current check, one update reminder, one
+   explicitly authorized update, and the required new-task message.
 
 ## Future Plugin Directory gates
 
@@ -77,3 +85,8 @@ This release requires the MCP 0.7.1 / contract 1.7 surface. If production
 discovery no longer shows exactly 12 tools, cursor pagination, dynamic data
 and export policy fields, or four required report-preparation inputs, stop the
 release rather than publishing against a mismatched schema.
+
+The client-update integration is prepared but live-gated. Do not label the
+snapshot `1.8.0-draft` until production MCP `0.7.2` publishes both optional
+`client` input and required `client_update` output. See
+`docs/anchises-analysis-mcp-0.7.2-client-update-handoff.md`.
