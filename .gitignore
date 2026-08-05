@@ -9,3 +9,4 @@ __pycache__/
 metadata.json
 .cleanup_state.json
 config.toml
+/demo-site/
