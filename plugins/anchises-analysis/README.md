@@ -13,12 +13,13 @@ analysis.
   `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.2`
+- Target semantic version: `0.6.0-dev.3`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- Hosted MCP version: `0.6.0`
+- Hosted MCP version: `0.7.1`
 - Data API version: `0.3.0`
-- Export policy: `stock-data-export-v1`
+- Internal contract version: `1.7.0-draft`
+- Data policy: live `restricted` or `bulk_enabled` policy from MCP
 - Prompt pack: `5.1`
 
 The local QA Developer Mode App is
@@ -125,16 +126,19 @@ The 12 Hosted MCP tools are:
 - `create_csv_export`
 
 CSV exports default to 3600 seconds (60 minutes) and may be explicitly set from
-60 through 3600 seconds. Full matched ranges may be analyzed server-side, but
-the Host returns only a bounded sorted preview and no later row-level pages are
-available.
+60 through 3600 seconds. Full matched ranges may be analyzed server-side, and
+each stock-row call displays no more than 200 rows. When the service returns
+`call_same_tool_with_cursor`, the Host can fetch the next display page only
+after the user explicitly asks. A continuation sends only the opaque cursor
+and `page_size` or `max_rows`; it never resends the query or uses SQL `OFFSET`.
 
-`data.export_policy.eligible_by_query` is the only CSV export gate. Export
-fields are selected from the current schema to match the user's analytical
-question rather than from a fixed template. Complete exchange-day partitions
-and SQL query IDs are not exportable; the Skill preserves full-range analysis
-and can suggest an appropriate verified bulk-data API or licensed vendor when
-a complete row-level file is still required.
+`top_n` bounds the complete logical ranked result rather than the current
+display page. `get_connection_status.data_policy` and each result's
+`data.export_policy` define the live restricted or bulk-enabled mode, dynamic
+limits, permitted source tools, and `eligible_by_query` gate. A currently
+eligible `screen_stocks` or `run_readonly_sql` query ID may be exported. In
+restricted mode the Skill never splits queries to reconstruct a refused
+dataset; in bulk mode it still follows the returned hard limits.
 
 ## Contract sync
 
@@ -145,10 +149,10 @@ credential-free, read-only JSON-RPC client:
 .venv/bin/python plugins/anchises-analysis/contracts/sync_hosted_contract.py --check
 ```
 
-The snapshot must contain exactly 12 strict descriptors, MCP `0.6.0`, the
+The snapshot must contain exactly 12 strict descriptors, MCP `0.7.1`, the
 company-identity resolver, a four-required-field prepare schema, noauth
-security, Prompt pack `5.1`, null stock-row cursors, and
-`eligible_by_query` export policy metadata.
+security, Prompt pack `5.1`, opaque cursor pagination, dynamic data/export
+policy metadata, and no legacy cached-report tools.
 
 ## Validation
 

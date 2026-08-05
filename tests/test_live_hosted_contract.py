@@ -47,7 +47,7 @@ class LiveHostedContractTest(unittest.TestCase):
                 "capabilities": {},
                 "clientInfo": {
                     "name": f"anchises-analysis-{label}",
-                    "version": "0.4.0",
+                    "version": "0.7.1",
                 },
             },
             1,
@@ -76,15 +76,15 @@ class LiveHostedContractTest(unittest.TestCase):
         ).validate(structured)
         return structured
 
-    def test_health_and_handshake_publish_0_6_0(self) -> None:
+    def test_health_and_handshake_publish_0_7_1(self) -> None:
         request = Request(
             HEALTH,
-            headers={"User-Agent": "anchises-analysis-live-health/0.4"},
+            headers={"User-Agent": "anchises-analysis-live-health/0.7.1"},
         )
         with urlopen(request, timeout=20) as response:
             health = json.loads(response.read().decode("utf-8"))
         self.assertTrue(health["ok"])
-        self.assertEqual(health["version"], "0.6.0")
+        self.assertEqual(health["version"], "0.7.1")
         self.assertEqual(health["status"], "ready")
         self.assertEqual(health["access_mode"], "public_noauth")
         self.assertEqual(health["authentication"], "not_required")
@@ -94,7 +94,7 @@ class LiveHostedContractTest(unittest.TestCase):
             initialized["serverInfo"],
             {
                 "name": "Anchises Analysis",
-                "version": "0.6.0",
+                "version": "0.7.1",
                 "websiteUrl": "https://anchisesdata.com/stock-qa",
             },
         )
@@ -109,6 +109,9 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertEqual(len(live["tools"]), 12)
         names = [tool["name"] for tool in live["tools"]]
         self.assertIn("resolve_company_identity", names)
+        self.assertFalse(
+            {"get_cached_company_report", "read_company_report"} & set(names)
+        )
 
     def test_current_anonymous_status_is_readable_without_credentials(self) -> None:
         client, _ = self._client("status")
@@ -117,6 +120,8 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertEqual(result["authentication"], "not_required")
         self.assertEqual(result["coverage"], "all_supported_exchanges")
         self.assertEqual(result["limits"]["rate"]["scope"], "global")
+        self.assertIn(result["data_policy"]["mode"], {"restricted", "bulk_enabled"})
+        self.assertEqual(result["data_policy"]["policy_version"], "stock-data-access-v2")
 
     def test_all_twelve_tools_complete_a_production_smoke(self) -> None:
         client, _ = self._client("all-tools")
@@ -192,7 +197,7 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertTrue(screen["data"]["export_policy"]["eligible_by_query"])
         self.assertEqual(
             screen["data"]["export_policy"]["policy_version"],
-            "stock-data-export-v1",
+            "stock-data-access-v2",
         )
         aggregate_sql = f'SELECT COUNT(*) AS "row_count" FROM "{table_name}"'
         self._tool_call(
@@ -210,11 +215,18 @@ class LiveHostedContractTest(unittest.TestCase):
         )
         request_id += 1
         self.assertIsNone(sql_result["page"]["next_cursor"])
-        self.assertFalse(sql_result["data"]["export_policy"]["eligible_by_query"])
         self.assertEqual(
-            sql_result["data"]["export_policy"]["reasons"],
-            ["query_not_exportable"],
+            sql_result["data"]["export_policy"]["mode"],
+            status["data_policy"]["mode"],
         )
+        if status["data_policy"]["effective_limits"]["sql_export_allowed"]:
+            self.assertTrue(sql_result["data"]["export_policy"]["eligible_by_query"])
+            self.assertIn(
+                "run_readonly_sql",
+                sql_result["data"]["export_policy"]["source_tools_allowed"],
+            )
+        else:
+            self.assertFalse(sql_result["data"]["export_policy"]["eligible_by_query"])
 
         resolved = self._tool_call(
             client,
@@ -252,7 +264,7 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertTrue(export["data"]["download_url"].startswith("https://"))
         download = Request(
             export["data"]["download_url"],
-            headers={"User-Agent": "anchises-analysis-live-csv/0.4"},
+            headers={"User-Agent": "anchises-analysis-live-csv/0.7.1"},
         )
         with urlopen(download, timeout=30) as response:
             body = response.read()
@@ -279,28 +291,25 @@ class LiveHostedContractTest(unittest.TestCase):
                 "page_size": 1,
             },
         )
-        self.assertIsNone(broad["page"]["next_cursor"])
-        self.assertFalse(broad["data"]["export_policy"]["eligible_by_query"])
+        self.assertIsInstance(broad["page"]["next_cursor"], str)
+        self.assertEqual(
+            broad["data"]["analysis"]["pagination_next_action"],
+            "call_same_tool_with_cursor",
+        )
+        self.assertEqual(broad["data"]["analysis"]["displayed_row_start"], 1)
+        self.assertEqual(broad["data"]["analysis"]["displayed_row_end"], 1)
         self.assertTrue(
             broad["data"]["export_policy"]["contains_complete_partition"]
         )
-
-        refused = client.call(
-            "tools/call",
-            {
-                "name": "create_csv_export",
-                "arguments": {"query_id": broad["data"]["query_id"]},
-            },
+        continued = self._tool_call(
+            client,
             request_id + 2,
+            "screen_stocks",
+            {"cursor": broad["page"]["next_cursor"], "page_size": 1},
         )
-        self.assertTrue(refused["isError"])
-        self.assertIn(
-            refused["_meta"]["anchises/error_code"],
-            {
-                "export_complete_partition_not_allowed",
-                "export_requires_selective_query",
-            },
-        )
+        self.assertEqual(continued["data"]["query_id"], broad["data"]["query_id"])
+        self.assertEqual(continued["data"]["analysis"]["displayed_row_start"], 2)
+        self.assertEqual(continued["data"]["analysis"]["displayed_row_end"], 2)
 
     def test_screen_runtime_rejects_one_sided_range_unsorted_top_n_and_cursor(self) -> None:
         client, _ = self._client("screen-invalid")

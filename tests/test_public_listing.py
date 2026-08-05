@@ -48,10 +48,11 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("https://anchisesdata.com/support", self.listing)
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
-        self.assertIn("Version: 0.4.0-beta.2", self.listing)
-        self.assertIn("MCP version: 0.6.0", self.listing)
+        self.assertIn("Version: 0.6.0-dev.3", self.listing)
+        self.assertIn("MCP version: 0.7.1", self.listing)
         self.assertIn("Data API version: 0.3.0", self.listing)
-        self.assertIn("stock-data-export-v1", self.listing)
+        self.assertIn("Contract version: `1.7.0-draft`", self.listing)
+        self.assertIn("dynamic `restricted` or `bulk_enabled`", self.listing)
 
     def test_listing_uses_the_exact_starter_prompts(self) -> None:
         prompts = self.manifest["interface"]["defaultPrompt"]
@@ -74,24 +75,25 @@ class PublicListingTest(unittest.TestCase):
             "shared short-term service limits",
             "short-lived bearer links",
             "ASX, CSE, NASDAQ, NYSE, TSX, and TSXV",
-            "bounded sorted preview",
-            "no subsequent row-level pages",
-            "current export policy marks it eligible",
-            "fields selected from the live schema",
-            "does not use a market-percentage limit",
+            "at most 200 rows",
+            "opaque cursor",
+            "Top-N bounds the complete logical ranked result",
+            "restricted or bulk-enabled data policy",
+            "allowed screen or SQL source tools",
             "no account-linked cross-session cumulative budget",
         ):
             with self.subTest(disclosure=disclosure):
                 self.assertIn(disclosure, description)
 
-    def test_public_copy_describes_server_analysis_and_selective_exports(self) -> None:
+    def test_public_copy_describes_server_analysis_pagination_and_dynamic_exports(self) -> None:
         normalized_listing = " ".join(self.listing.split())
         for expected in (
             "Full matched stock-data ranges may be analyzed",
-            "bounded sorted preview",
-            "does not provide later row-level pages",
-            "CSV eligibility is query-specific",
-            "complete exchange-day partitions and SQL results cannot be exported",
+            "at most 200 rows per call",
+            "opaque cursor",
+            "Top-N controls the complete logical result",
+            "allowed screen or SQL source tools",
+            "Policy changes invalidate old cursors and query IDs",
             "rather than from a fixed template",
             "no account-linked cross-session cumulative budget",
         ):
@@ -100,17 +102,17 @@ class PublicListingTest(unittest.TestCase):
         release_surfaces = [
             self.manifest["interface"]["longDescription"],
             self.listing,
-            (ROOT / "README.md").read_text(encoding="utf-8"),
             (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8"),
-            (ROOT / "docs" / "anchises-analysis-0.4.0-beta.2-release-notes.md").read_text(
+            (ROOT / "docs" / "anchises-analysis-marketplace-release-plan.md").read_text(
                 encoding="utf-8"
             ),
         ]
         forbidden = (
-            "download complete exchange data",
-            "200,000-row export",
-            "fetch the next stock page",
-            "export SQL results as CSV",
+            "no subsequent row-level pages",
+            "does not provide later row-level pages",
+            "sql results cannot be exported",
+            "complete exchange-day partitions and sql results cannot be exported",
+            "stock-row cursors are not supported",
         )
         for text in release_surfaces:
             lowered = text.lower()

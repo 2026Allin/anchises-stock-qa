@@ -37,7 +37,7 @@ DEFAULT_OUTPUT = Path(__file__).with_name("hosted-mcp-v1.json")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
-CONTRACT_VERSION = "1.6.0-draft"
+CONTRACT_VERSION = "1.7.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -204,7 +204,7 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "anchises-analysis-contract-sync/1.6",
+            "User-Agent": "anchises-analysis-contract-sync/1.7",
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -319,7 +319,7 @@ def fetch_contract(
                 "capabilities": {},
                 "clientInfo": {
                     "name": "anchises-analysis-contract-sync",
-                    "version": "1.6.0",
+                    "version": "1.7.0",
                 },
             },
             1,

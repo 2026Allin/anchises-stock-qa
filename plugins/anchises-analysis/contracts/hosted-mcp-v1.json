@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "contract_version": "1.6.0-draft",
+  "contract_version": "1.7.0-draft",
   "runtime": {
     "supported_modes": [
       "closed",
@@ -19,11 +19,11 @@
     "access_mode": "public_noauth",
     "protocol_version": "2025-06-18",
     "server_name": "Anchises Analysis",
-    "server_version": "0.6.0",
-    "instructions": "Anchises Analysis is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. Full market datasets may be used for server-side filtering and aggregate analysis, but row-level results shown to the host are limited to the first 200 rows with no next-page cursor or SQL OFFSET. Never reconstruct a dataset by splitting filters, dates, fields, or sort ranges. CSV export is available only for selective screen_stocks results: at most 1,000 rows, 25 columns, 20,000 cells, Top-N 200, or 50 explicit tickers, and never an exact complete exchange-day partition. Raw SQL results cannot be exported. If export is refused, continue with server-side analysis or suggest a narrower research question. CSV download URLs are bearer capabilities and must not be shared. Before stock-data or company-report calls, resolve a company name or ticker to exchange, ticker, and company name; use chat context and primary web sources to disambiguate when needed. Company-report requests always use prepare_company_report_generation and live host-side research; the server does not read cached reports, PDFs, or expiry state. It only selects and returns one sector prompt. Anchises Analysis does not search the web or write, cache, upload, save, or publish the resulting report; a compatible host must perform live web research and reply in the current conversation. External, inactive, delisted, and unmatched companies use the Others prompt and require identity and listing-status verification. ETF and fund instruments are not eligible. Never ask users to paste credentials or tokens into chat.",
+    "server_version": "0.7.1",
+    "instructions": "Anchises Analysis is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. Full market datasets may be used for server-side filtering and aggregate analysis. Row-level results shown to the host are limited to 200 rows per call and may continue only through the returned short-lived opaque cursor. Restricted mode allows at most 1,000 browsed rows per registered query; bulk mode allows continuation within its 200,000-row hard result limit. A Top-N value bounds the complete logical analysis and CSV result, not the display page. User-authored SQL OFFSET remains forbidden; SQL continuation requires an explicit stable ORDER BY. When next_cursor is present, tell the user which rows are shown and offer the next page; do not traverse many pages unless the user asks. CSV eligibility and file limits are controlled by the active server data policy and are returned in each rowset's export_policy. When restrictions are enabled, never reconstruct a dataset by splitting filters, dates, fields, or sort ranges. When bulk mode is enabled, complete structured screens and previously validated bounded or aggregate SQL results may be downloaded within the reported hard limits. If export is refused, continue with server-side analysis or suggest a compatible query. CSV download URLs are bearer capabilities and must not be shared. Before stock-data or company-report calls, resolve a company name or ticker to exchange, ticker, and company name; use chat context and primary web sources to disambiguate when needed. Company-report requests always use prepare_company_report_generation and live host-side research; the server does not read cached reports, PDFs, or expiry state. It only selects and returns one sector prompt. Anchises Analysis does not search the web or write, cache, upload, save, or publish the resulting report; a compatible host must perform live web research and reply in the current conversation. External, inactive, delisted, and unmatched companies use the Others prompt and require identity and listing-status verification. ETF and fund instruments are not eligible. Never ask users to paste credentials or tokens into chat.",
     "sync_state": "live",
-    "synced_at": "2026-07-17T13:39:40+00:00",
-    "descriptor_sha256": "30ff23c5ed3fb0e3961dcbe83fda1b4545abd1fd4b3e4d3d9876b7c600e78dd9"
+    "synced_at": "2026-08-05T09:00:05+00:00",
+    "descriptor_sha256": "4f7853bce64284a0ea64d8a072f84b8510e5950e7ee33e80a12a00edd177de95"
   },
   "production": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
@@ -323,6 +323,99 @@
                 "type": "null"
               }
             ]
+          },
+          "data_policy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "restricted",
+                      "bulk_enabled"
+                    ]
+                  },
+                  "restrictions": {
+                    "type": "string",
+                    "enum": [
+                      "enabled",
+                      "disabled"
+                    ]
+                  },
+                  "policy_version": {
+                    "type": "string"
+                  },
+                  "effective_limits": {
+                    "type": "object",
+                    "properties": {
+                      "max_rows": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "max_columns": {
+                        "type": "integer",
+                        "minimum": 3
+                      },
+                      "max_cells": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "max_bytes": {
+                        "type": "integer",
+                        "minimum": 1024
+                      },
+                      "max_top_n": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      },
+                      "max_explicit_tickers": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      },
+                      "max_partitions": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "complete_exchange_day_allowed": {
+                        "type": "boolean"
+                      },
+                      "sql_export_allowed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "max_rows",
+                      "max_columns",
+                      "max_cells",
+                      "max_bytes",
+                      "max_top_n",
+                      "max_explicit_tickers",
+                      "max_partitions",
+                      "complete_exchange_day_allowed",
+                      "sql_export_allowed"
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "mode",
+                  "restrictions",
+                  "policy_version",
+                  "effective_limits"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -332,7 +425,8 @@
           "access_request_url",
           "authentication",
           "coverage",
-          "limits"
+          "limits",
+          "data_policy"
         ]
       },
       "annotations": {
@@ -1036,7 +1130,7 @@
     {
       "name": "screen_stocks",
       "title": "Screen stocks",
-      "description": "Use this when you need structured stock filters and sorting; prefer it over raw SQL when the requested fields and operators fit this schema.",
+      "description": "Use this when you need structured stock filters and sorting; prefer it over raw SQL when the requested fields and operators fit this schema. It returns at most 200 rows per call and an opaque cursor when another display page is available.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1103,6 +1197,7 @@
           "filters": {
             "type": "array",
             "maxItems": 30,
+            "default": [],
             "description": "Zero to 30 AND-combined filters. Field names must exactly match get_stock_schema for every selected exchange.",
             "items": {
               "type": "object",
@@ -1229,8 +1324,8 @@
               "null"
             ],
             "minimum": 1,
-            "maximum": 200,
-            "description": "Optional global Top-N bound after sorting. At most 200; useful for ranked screens and eligible small exports."
+            "maximum": 200000,
+            "description": "Optional global Top-N bound after sorting. This controls the logical analysis and CSV result, not the per-call display page. Restricted mode allows at most 200; bulk mode allows up to the 200,000-row file limit."
           },
           "base_query_id": {
             "type": [
@@ -1241,6 +1336,14 @@
             "maxLength": 200,
             "pattern": "^qry_[A-Za-z0-9_-]{8,196}$",
             "description": "Optional prior screen_stocks query_id to refine. New filters are ANDed with the encrypted original query and reuse its exact physical partitions."
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
           },
           "page_size": {
             "type": "integer",
@@ -1255,10 +1358,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Build a safe stock screen using documented fields, structured comparisons, and a non-pageable preview of at most 200 rows.",
-        "required": [
-          "filters"
-        ]
+        "description": "Build a safe stock screen using documented fields, structured comparisons, and cursor-based display pages of at most 200 rows. On continuation, send only the opaque cursor and optional page_size. Export eligibility is returned by the active server data policy."
       },
       "outputSchema": {
         "type": "object",
@@ -1312,8 +1412,31 @@
                     "type": "boolean"
                   },
                   "row_pagination_available": {
-                    "type": "boolean",
-                    "const": false
+                    "type": "boolean"
+                  },
+                  "displayed_row_start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "displayed_row_end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "browsable_row_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200000
+                  },
+                  "pagination_limit_reached": {
+                    "type": "boolean"
+                  },
+                  "pagination_next_action": {
+                    "type": "string",
+                    "enum": [
+                      "call_same_tool_with_cursor",
+                      "refine_query",
+                      "none"
+                    ]
                   },
                   "server_side_analysis_supported": {
                     "type": "boolean",
@@ -1337,6 +1460,11 @@
                   "display_row_limit",
                   "result_is_preview",
                   "row_pagination_available",
+                  "displayed_row_start",
+                  "displayed_row_end",
+                  "browsable_row_limit",
+                  "pagination_limit_reached",
+                  "pagination_next_action",
                   "server_side_analysis_supported",
                   "query_classification"
                 ]
@@ -1344,6 +1472,13 @@
               "export_policy": {
                 "type": "object",
                 "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "restricted",
+                      "bulk_enabled"
+                    ]
+                  },
                   "policy_version": {
                     "type": "string"
                   },
@@ -1374,36 +1509,66 @@
                     },
                     "maxItems": 10
                   },
-                  "source_tool_required": {
-                    "type": "string",
-                    "const": "screen_stocks"
+                  "source_tools_allowed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "screen_stocks",
+                        "run_readonly_sql"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "uniqueItems": true
                   },
                   "limits": {
                     "type": "object",
                     "properties": {
                       "max_rows": {
                         "type": "integer",
-                        "const": 1000
+                        "minimum": 1,
+                        "maximum": 200000
                       },
                       "max_columns": {
                         "type": "integer",
-                        "const": 25
+                        "minimum": 3,
+                        "maximum": 100
                       },
                       "max_cells": {
                         "type": "integer",
-                        "const": 20000
+                        "minimum": 1,
+                        "maximum": 20000000
+                      },
+                      "max_bytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 50000000
                       },
                       "max_top_n": {
-                        "type": "integer",
-                        "const": 200
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
                       },
                       "max_explicit_tickers": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      },
+                      "max_partitions": {
                         "type": "integer",
-                        "const": 50
+                        "minimum": 1,
+                        "maximum": 1000
                       },
                       "complete_exchange_day_allowed": {
-                        "type": "boolean",
-                        "const": false
+                        "type": "boolean"
+                      },
+                      "sql_export_allowed": {
+                        "type": "boolean"
                       }
                     },
                     "additionalProperties": false,
@@ -1411,20 +1576,24 @@
                       "max_rows",
                       "max_columns",
                       "max_cells",
+                      "max_bytes",
                       "max_top_n",
                       "max_explicit_tickers",
-                      "complete_exchange_day_allowed"
+                      "max_partitions",
+                      "complete_exchange_day_allowed",
+                      "sql_export_allowed"
                     ]
                   }
                 },
                 "additionalProperties": false,
                 "required": [
+                  "mode",
                   "policy_version",
                   "eligible_by_query",
                   "classification",
                   "contains_complete_partition",
                   "reasons",
-                  "source_tool_required",
+                  "source_tools_allowed",
                   "limits"
                 ]
               }
@@ -1499,8 +1668,12 @@
                 "type": "boolean"
               },
               "next_cursor": {
-                "type": "null",
-                "description": "Always null. Stock row previews are intentionally non-pageable."
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
               }
             },
             "additionalProperties": false,
@@ -1682,7 +1855,7 @@
     {
       "name": "run_readonly_sql",
       "title": "Run bounded read-only SQL",
-      "description": "Use this when structured screen_stocks cannot express the analysis; it executes one allowlisted read-only SELECT for aggregate or bounded-ticker analysis.",
+      "description": "Use this when structured screen_stocks cannot express the analysis; it executes one allowlisted read-only SELECT for aggregate or bounded-ticker analysis. The active data policy decides whether its registered result may be exported. Include a stable ORDER BY when a multi-page row result may be needed.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1700,17 +1873,39 @@
             "minimum": 1,
             "maximum": 200,
             "default": 200,
-            "description": "Maximum rows returned to the host. Defaults to and cannot exceed 200.",
+            "description": "Maximum rows returned on this display page. Defaults to and cannot exceed 200. This does not change the logical SQL result.",
             "examples": [
               50,
               200
             ]
+          },
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
           }
         },
         "additionalProperties": false,
-        "description": "Execute one allowlisted read-only SQL query and return a query_id plus a non-pageable result of at most 200 rows. SQL query_ids are analysis-only and cannot be exported.",
-        "required": [
-          "sql"
+        "description": "Execute one allowlisted read-only SQL query and return a query_id plus a cursor-based display page of at most 200 rows. Supply sql on the first call. On continuation, send only the opaque cursor and optional max_rows. A bulk-enabled server may export the same validated query through its query_id.",
+        "anyOf": [
+          {
+            "required": [
+              "sql"
+            ]
+          },
+          {
+            "required": [
+              "cursor"
+            ],
+            "properties": {
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
         ]
       },
       "outputSchema": {
@@ -1765,8 +1960,31 @@
                     "type": "boolean"
                   },
                   "row_pagination_available": {
-                    "type": "boolean",
-                    "const": false
+                    "type": "boolean"
+                  },
+                  "displayed_row_start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "displayed_row_end": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "browsable_row_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200000
+                  },
+                  "pagination_limit_reached": {
+                    "type": "boolean"
+                  },
+                  "pagination_next_action": {
+                    "type": "string",
+                    "enum": [
+                      "call_same_tool_with_cursor",
+                      "refine_query",
+                      "none"
+                    ]
                   },
                   "server_side_analysis_supported": {
                     "type": "boolean",
@@ -1790,6 +2008,11 @@
                   "display_row_limit",
                   "result_is_preview",
                   "row_pagination_available",
+                  "displayed_row_start",
+                  "displayed_row_end",
+                  "browsable_row_limit",
+                  "pagination_limit_reached",
+                  "pagination_next_action",
                   "server_side_analysis_supported",
                   "query_classification"
                 ]
@@ -1797,6 +2020,13 @@
               "export_policy": {
                 "type": "object",
                 "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "restricted",
+                      "bulk_enabled"
+                    ]
+                  },
                   "policy_version": {
                     "type": "string"
                   },
@@ -1827,36 +2057,66 @@
                     },
                     "maxItems": 10
                   },
-                  "source_tool_required": {
-                    "type": "string",
-                    "const": "screen_stocks"
+                  "source_tools_allowed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "screen_stocks",
+                        "run_readonly_sql"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "uniqueItems": true
                   },
                   "limits": {
                     "type": "object",
                     "properties": {
                       "max_rows": {
                         "type": "integer",
-                        "const": 1000
+                        "minimum": 1,
+                        "maximum": 200000
                       },
                       "max_columns": {
                         "type": "integer",
-                        "const": 25
+                        "minimum": 3,
+                        "maximum": 100
                       },
                       "max_cells": {
                         "type": "integer",
-                        "const": 20000
+                        "minimum": 1,
+                        "maximum": 20000000
+                      },
+                      "max_bytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 50000000
                       },
                       "max_top_n": {
-                        "type": "integer",
-                        "const": 200
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
                       },
                       "max_explicit_tickers": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      },
+                      "max_partitions": {
                         "type": "integer",
-                        "const": 50
+                        "minimum": 1,
+                        "maximum": 1000
                       },
                       "complete_exchange_day_allowed": {
-                        "type": "boolean",
-                        "const": false
+                        "type": "boolean"
+                      },
+                      "sql_export_allowed": {
+                        "type": "boolean"
                       }
                     },
                     "additionalProperties": false,
@@ -1864,20 +2124,24 @@
                       "max_rows",
                       "max_columns",
                       "max_cells",
+                      "max_bytes",
                       "max_top_n",
                       "max_explicit_tickers",
-                      "complete_exchange_day_allowed"
+                      "max_partitions",
+                      "complete_exchange_day_allowed",
+                      "sql_export_allowed"
                     ]
                   }
                 },
                 "additionalProperties": false,
                 "required": [
+                  "mode",
                   "policy_version",
                   "eligible_by_query",
                   "classification",
                   "contains_complete_partition",
                   "reasons",
-                  "source_tool_required",
+                  "source_tools_allowed",
                   "limits"
                 ]
               }
@@ -1952,8 +2216,12 @@
                 "type": "boolean"
               },
               "next_cursor": {
-                "type": "null",
-                "description": "Always null. Stock row previews are intentionally non-pageable."
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096,
+                "description": "Opaque next_cursor returned by the immediately preceding page of the same tool. Omit or pass null for the first page; never construct or edit this value."
               }
             },
             "additionalProperties": false,
@@ -2610,7 +2878,7 @@
     {
       "name": "create_csv_export",
       "title": "Create temporary CSV export",
-      "description": "Use this when the user explicitly asks to download a prior selective screen_stocks result as CSV. Complete exchange-day partitions and large results are not downloadable.",
+      "description": "Use this when the user explicitly asks to download a prior rowset whose export_policy marks it eligible. The server revalidates the query under the current data policy before creating a temporary CSV.",
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -90,7 +90,7 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.6.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.7.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
@@ -109,10 +109,11 @@ class HostedContractTest(unittest.TestCase):
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "public_noauth")
         self.assertEqual(source["server_name"], "Anchises Analysis")
-        self.assertEqual(source["server_version"], "0.6.0")
-        self.assertIn("first 200 rows", source["instructions"])
-        self.assertIn("no next-page cursor", source["instructions"])
-        self.assertIn("Raw SQL results cannot be exported", source["instructions"])
+        self.assertEqual(source["server_version"], "0.7.1")
+        self.assertIn("limited to 200 rows per call", source["instructions"])
+        self.assertIn("short-lived opaque cursor", source["instructions"])
+        self.assertIn("User-authored SQL OFFSET remains forbidden", source["instructions"])
+        self.assertIn("active server data policy", source["instructions"])
         self.assertIn("resolve a company name or ticker", source["instructions"])
         self.assertIn("Company-report requests always use", source["instructions"])
         self.assertIn("host must perform live web research", source["instructions"])
@@ -174,6 +175,8 @@ class HostedContractTest(unittest.TestCase):
                 self.assertFalse(descriptor["annotations"]["destructiveHint"])
                 self.assertFalse(descriptor["annotations"]["openWorldHint"])
                 for prop in _property_schemas(descriptor["inputSchema"]):
+                    if set(prop) == {"type"}:
+                        continue
                     self.assertIn("description", prop)
 
     def test_public_success_schemas_omit_internal_identifiers(self) -> None:
@@ -228,13 +231,14 @@ class HostedContractTest(unittest.TestCase):
             else:
                 self.assertIsNone(page)
 
-    def test_stock_row_pages_have_null_only_next_cursor(self) -> None:
+    def test_stock_row_pages_publish_opaque_nullable_cursor(self) -> None:
         for name in ("screen_stocks", "run_readonly_sql"):
             page = descriptor_by_name(name)["outputSchema"]["properties"]["page"]
             next_cursor = page["properties"]["next_cursor"]
-            self.assertEqual(next_cursor["type"], "null")
+            self.assertEqual(next_cursor["type"], ["string", "null"])
+            self.assertEqual(next_cursor["maxLength"], 4096)
 
-    def test_screen_0_6_inputs_analysis_and_export_policy_are_strict(self) -> None:
+    def test_screen_0_7_inputs_analysis_and_export_policy_are_strict(self) -> None:
         descriptor = descriptor_by_name("screen_stocks")
         schema = descriptor["inputSchema"]
         properties = schema["properties"]
@@ -250,12 +254,12 @@ class HostedContractTest(unittest.TestCase):
                 "sort",
                 "top_n",
                 "base_query_id",
+                "cursor",
                 "page_size",
             },
         )
-        self.assertNotIn("cursor", properties)
-        self.assertEqual(set(schema["required"]), {"filters"})
-        self.assertEqual(properties["top_n"]["maximum"], 200)
+        self.assertNotIn("required", schema)
+        self.assertEqual(properties["top_n"]["maximum"], 200000)
         self.assertEqual(properties["page_size"]["maximum"], 200)
         self.assertIn("Cannot be combined with as_of_date", properties["start_date"]["description"])
         self.assertIn("Cannot be combined with as_of_date", properties["end_date"]["description"])
@@ -272,44 +276,81 @@ class HostedContractTest(unittest.TestCase):
             "page_size": 100,
         }
         self.assertFalse(list(validator.iter_errors(valid)))
-        self.assertTrue(
-            list(validator.iter_errors({**valid, "cursor": "legacy-cursor"}))
-        )
+        self.assertFalse(list(validator.iter_errors({"cursor": "opaque", "page_size": 200})))
 
         data = descriptor["outputSchema"]["properties"]["data"]["properties"]
         analysis = data["analysis"]["properties"]
         self.assertEqual(analysis["display_row_limit"]["const"], 200)
-        self.assertEqual(analysis["row_pagination_available"]["const"], False)
         self.assertEqual(analysis["server_side_analysis_supported"]["const"], True)
+        self.assertEqual(
+            analysis["pagination_next_action"]["enum"],
+            ["call_same_tool_with_cursor", "refine_query", "none"],
+        )
+        self.assertTrue(
+            {
+                "displayed_row_start",
+                "displayed_row_end",
+                "browsable_row_limit",
+                "pagination_limit_reached",
+                "pagination_next_action",
+            }
+            <= set(data["analysis"]["required"])
+        )
         policy = data["export_policy"]["properties"]
         self.assertIn("eligible_by_query", policy)
         self.assertNotIn("eligible", policy)
-        self.assertEqual(policy["source_tool_required"]["const"], "screen_stocks")
+        self.assertEqual(policy["mode"]["enum"], ["restricted", "bulk_enabled"])
+        self.assertEqual(
+            policy["source_tools_allowed"]["items"]["enum"],
+            ["screen_stocks", "run_readonly_sql"],
+        )
         limits = policy["limits"]["properties"]
-        expected = {
-            "max_rows": 1000,
-            "max_columns": 25,
-            "max_cells": 20000,
-            "max_top_n": 200,
-            "max_explicit_tickers": 50,
-            "complete_exchange_day_allowed": False,
-        }
-        for key, value in expected.items():
-            self.assertEqual(limits[key]["const"], value)
+        self.assertEqual(
+            set(limits),
+            {
+                "max_rows",
+                "max_columns",
+                "max_cells",
+                "max_bytes",
+                "max_top_n",
+                "max_explicit_tickers",
+                "max_partitions",
+                "complete_exchange_day_allowed",
+                "sql_export_allowed",
+            },
+        )
+        status_data = descriptor_by_name("get_connection_status")["outputSchema"][
+            "properties"
+        ]["data_policy"]["oneOf"][0]
+        self.assertEqual(
+            status_data["properties"]["mode"]["enum"],
+            ["restricted", "bulk_enabled"],
+        )
+        self.assertEqual(
+            set(status_data["properties"]["effective_limits"]["required"]),
+            set(limits),
+        )
 
-    def test_sql_is_non_pageable_bounded_and_not_exportable(self) -> None:
+    def test_sql_supports_cursor_pages_and_dynamic_exports(self) -> None:
         descriptor = descriptor_by_name("run_readonly_sql")
-        properties = descriptor["inputSchema"]["properties"]
-        self.assertEqual(set(properties), {"sql", "max_rows"})
+        schema = descriptor["inputSchema"]
+        properties = schema["properties"]
+        self.assertEqual(set(properties), {"sql", "max_rows", "cursor"})
         self.assertEqual(properties["max_rows"]["maximum"], 200)
-        self.assertNotIn("cursor", properties)
         self.assertNotIn("page_size", properties)
-        self.assertIn("cannot be exported", descriptor["inputSchema"]["description"])
+        validator = Draft202012Validator(schema)
+        for valid in (
+            {"sql": "SELECT 1", "max_rows": 200},
+            {"cursor": "opaque-next-page", "max_rows": 200},
+        ):
+            self.assertFalse(list(validator.iter_errors(valid)), valid)
+        self.assertTrue(list(validator.iter_errors({"max_rows": 200})))
+        self.assertIn("bulk-enabled server may export", schema["description"])
         policy = descriptor["outputSchema"]["properties"]["data"]["properties"][
             "export_policy"
         ]["properties"]
-        self.assertEqual(policy["source_tool_required"]["const"], "screen_stocks")
         self.assertIn("eligible_by_query", policy)
+        self.assertIn("source_tools_allowed", policy)
         self.assertNotIn("eligible", policy)
 
     def test_screen_filter_value_is_strict_and_between_runtime_shape_is_documented(self) -> None:
@@ -363,7 +404,7 @@ class HostedContractTest(unittest.TestCase):
         ):
             self.assertTrue(list(validator.iter_errors(invalid)), invalid)
         self.assertIn(
-            "screen_stocks result",
+            "prior rowset",
             descriptor_by_name("create_csv_export")["description"],
         )
 

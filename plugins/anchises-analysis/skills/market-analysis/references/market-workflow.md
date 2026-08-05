@@ -7,7 +7,7 @@ This file defines tool execution only. Do not reclassify the request here.
 
 ## Choose the smallest tool sequence
 
-1. `get_connection_status` for the public service state.
+1. `get_connection_status` for service state and the active `data_policy`.
 2. `resolve_company_identity` for a single-company market-data request.
 3. `get_available_exchanges` for authoritative structured-data markets.
 4. `get_latest_dates` for market-data freshness.
@@ -15,35 +15,46 @@ This file defines tool execution only. Do not reclassify the request here.
 6. `list_stock_tables` and `get_table_schema` for historical coverage.
 7. `screen_stocks` for ordinary filters, rankings, and latest snapshots.
 8. `validate_readonly_sql` and then `run_readonly_sql` for complex aggregate
-   fallback queries.
-9. `create_csv_export` only for an explicit CSV request backed by an eligible
-   preceding screen.
+   or bounded read-only fallback queries.
+9. `create_csv_export` only for an explicit CSV request backed by a currently
+   eligible screen or SQL query ID.
 
 Never call `prepare_company_report_generation` in this workflow.
 
-## Result envelopes
+## Result envelopes and pagination
 
-Data tools return `data_date`, `data`, `warnings`, and `quota`. Public success
-responses omit internal request, principal, connection, and policy identifiers.
-Quota reports its scope, remaining amount, limit, period, and reset time.
-
+Data tools return `data_date`, `data`, `warnings`, and `quota`.
 `list_stock_tables`, `screen_stocks`, and `run_readonly_sql` also return a
-`page` object. Stock-row results use a bounded non-pageable preview:
+`page` object. A stock-row page contains no more than 200 rows:
 
 ```json
 {
   "page": {
     "row_count": 200,
-    "total_count": 4125,
+    "total_count": 500,
     "truncated": true,
-    "next_cursor": null
+    "next_cursor": "opaque-server-value"
   }
 }
 ```
 
 Treat `data_date` as source freshness, not the current date. Preserve warnings.
-`screen_stocks` and `run_readonly_sql` never provide stock-row pagination.
-`list_stock_tables` is metadata listing and may use its own opaque cursor.
+For rowsets, read:
+
+- `displayed_row_start` and `displayed_row_end` for the current visible range;
+- `browsable_row_limit` and `pagination_limit_reached` for the query boundary;
+- `pagination_next_action` for the only permitted next step.
+
+On a first call, send the complete screen or SQL request. On a continuation,
+send only the exact opaque cursor and the same tool's display-size field:
+
+- `screen_stocks`: `cursor` and optional `page_size`;
+- `run_readonly_sql`: `cursor` and optional `max_rows`.
+
+Do not construct, decode, edit, cache for later use, or transfer a cursor
+between tools. Do not continue until the user explicitly asks for the next
+page. If the action is `refine_query`, offer a narrower query instead. If it
+is `none`, the logical result is complete.
 
 ## Company identity
 
@@ -59,82 +70,71 @@ listing.
 
 ## Structured screens
 
-`screen_stocks` requires a filters array and accepts optional exchanges,
-`as_of_date`, a paired `start_date` plus `end_date`, selected fields, zero to
-30 AND-combined filters, sort keys, `top_n`, `base_query_id`, and `page_size`
-up to 200.
+`screen_stocks` accepts optional exchanges, `as_of_date`, a paired
+`start_date` plus `end_date`, selected fields, zero to 30 AND-combined filters,
+sort keys, `top_n`, `base_query_id`, `cursor`, and `page_size` up to 200.
 
 - Never combine an exact date with a range or send only one range boundary.
 - Use only fields returned by `get_stock_schema`.
 - Use scalar values for `eq`, `ne`, `gt`, `gte`, `lt`, and `lte`; one to 100
   values for `in`; and exactly two ordered values for `between`.
 - Never pass an object as a filter value.
-- Use `top_n` only with a non-empty explicit sort.
-- Never send a stock-row cursor.
+- Use `top_n` only with a non-empty stable sort. It bounds the complete
+  logical result, while `page_size` bounds only the displayed page.
+- Never combine a cursor continuation with any original query field.
 
-The result includes:
-
-- `data.analysis`: matched and displayed counts, preview state, display limit,
-  row-pagination availability, server-side-analysis support, and query
-  classification.
-- `data.export_policy`: `eligible_by_query`, classification, complete
-  partition state, reasons, policy version, required source tool, and limits.
-
-Use `eligible_by_query` exactly. Do not read a legacy `eligible` field.
+The result includes `data.analysis` for matched/displayed counts, display
+range, pagination decision, browse limit, and classification. It also includes
+`data.export_policy` with the active mode, policy version, eligibility,
+reasons, allowed source tools, and dynamic limits.
 
 ## SQL fallback
 
-Use SQL only when structured filters cannot represent a server-side statistic
-or aggregation, or for at most 50 explicitly named tickers. Generate one
-bounded `SELECT` or `WITH ... SELECT`, call `validate_readonly_sql` with only
-`sql`, and execute only after validation succeeds.
+Generate one allowlisted `SELECT` or `WITH ... SELECT`, call
+`validate_readonly_sql` with only `sql`, and execute only after validation
+succeeds. Include a stable `ORDER BY` when row continuation may be needed.
 
-`run_readonly_sql` accepts only `sql` and optional `max_rows` up to 200. It has
-no cursor or OFFSET. Do not construct UNION, JOIN, Boolean OR, ticker-letter
-range, date-slice, or sort-direction schemes for enumerating market rows. SQL
-query IDs are analysis-only.
+The first `run_readonly_sql` call uses `sql` and optional `max_rows` up to 200.
+A continuation uses only `cursor` and optional `max_rows`. Never use SQL
+`OFFSET`; the server cursor owns the offset and registered query state.
 
-## Exports
+Do not construct UNION, JOIN, Boolean OR, ticker-letter range, date-slice, or
+sort-direction schemes for enumerating market rows.
+
+## Dynamic exports
 
 `create_csv_export` is the only non-read-only and non-idempotent tool. Pass
-only the current `query_id` from an immediately preceding `screen_stocks`
-result whose `export_policy.eligible_by_query` is true. Never pass a SQL query
-ID.
+only the current query ID when all of these are true:
 
-The screen must explicitly select fields derived from the user's analytical
-question and verified with `get_stock_schema`; never use a fixed universal CSV
-schema. If a broad download is ineligible, preserve the analysis and offer a
-focused research subset or a suitable verified bulk-market-data API or
-licensed exchange-data vendor.
+- the user requested a file;
+- `export_policy.eligible_by_query` is true;
+- the originating tool is listed in `source_tools_allowed`;
+- the query still belongs to the current policy version.
 
-One file is limited to 1,000 rows, 25 total columns, 20,000 cells, Top-N 200,
-or 50 exact tickers, and it can never contain a complete exchange-day
-partition. `EXCHANGE`, `Date`, and `TICKER` are automatically included and
-count toward the column limit.
+Do not assume SQL or complete exchange-day results are always forbidden. Do
+not assume bulk mode is unlimited. Read the query's `mode`, `reasons`, and
+`limits` every time. In restricted mode, never split one ineligible result
+into filters, fields, tickers, date partitions, sort ranges, or multiple files.
 
-These numeric limits are tool-construction guardrails, not an ordinary refusal
-script. When the user asks for an exact applicable threshold, use the value
-returned by the current `data.export_policy.limits`.
-
-Omit `expires_in_seconds` for the default 3,600-second lifetime. If the user
-requests another lifetime, pass an integer from 60 through 3,600 seconds. The
-HTTPS URL is a temporary bearer capability, not a permanent archive.
+For screens, select question-led fields verified with `get_stock_schema`.
+Omit `expires_in_seconds` for the default 3,600-second lifetime; otherwise use
+60 through 3,600 seconds. The HTTPS URL is a temporary bearer capability.
 
 ## Stable errors
 
 | Code | Handling |
 |---|---|
-| `query_rejected` | Narrow or safely rewrite the query. |
-| `query_requires_bounded_analysis` | Use a server-side aggregate or no more than 50 exact tickers. |
-| `resource_not_found` | Rerun the original request if needed; do not edit an opaque capability. |
-| `export_requires_selective_query` | Continue analysis and offer a selective research subset. |
+| `query_rejected` | Narrow or safely rewrite a new first-page query. |
+| `query_requires_bounded_analysis` | Use a server-side aggregate or a bounded query. |
+| `resource_not_found` | Rerun the original intent; do not edit an opaque capability. |
+| `export_requires_selective_query` | Continue analysis and offer a policy-compatible subset. |
 | `export_row_limit_exceeded` | Reduce rows without splitting files. |
-| `export_column_limit_exceeded` | Select fewer relevant fields; identity fields count. |
-| `export_cell_limit_exceeded` | Reduce rows or fields in one subset. |
-| `export_complete_partition_not_allowed` | Analyze in-session; offer a selective subset. |
-| `export_top_n_limit_exceeded` | Use one explicitly sorted Top-N of at most 200. |
-| `export_ticker_limit_exceeded` | Reduce the exact watchlist to at most 50 tickers. |
-| `query_not_exportable` | Do not export SQL; restate an eligible request as a screen. |
-| `query_policy_expired` | Rerun the original screen and inspect the new policy and query ID. |
-| `query_partition_limit_exceeded` or `result_too_large` | Narrow or aggregate; do not partition or paginate. |
-| `temporarily_unavailable` | If only CSV failed, preserve analysis and state that download is unavailable. |
+| `export_column_limit_exceeded` | Select fewer relevant fields. |
+| `export_cell_limit_exceeded` | Reduce rows or fields in one query. |
+| `export_complete_partition_not_allowed` | Preserve analysis and refine only if useful. |
+| `export_top_n_limit_exceeded` | Use the current policy's returned Top-N limit. |
+| `export_ticker_limit_exceeded` | Use the current policy's returned ticker limit. |
+| `query_not_exportable` | Preserve analysis and follow the returned policy reasons. |
+| `query_policy_expired` | Discard cursor/query ID and rerun the original intent. |
+| `query_partition_limit_exceeded` or `result_too_large` | Narrow or aggregate; do not reconstruct partitions. |
+| `temporarily_unavailable` | Preserve analysis and report only the unavailable operation. |

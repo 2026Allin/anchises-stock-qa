@@ -42,13 +42,14 @@ class MarketplaceManifestTest(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.2")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.3")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.2(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.3(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
-        self.assertEqual(contract["source"]["server_version"], "0.6.0")
+        self.assertEqual(contract["contract_version"], "1.7.0-draft")
+        self.assertEqual(contract["source"]["server_version"], "0.7.1")
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
 
 

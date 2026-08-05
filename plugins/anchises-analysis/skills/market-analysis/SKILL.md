@@ -52,11 +52,12 @@ order and contracts. In summary:
 4. Use `validate_readonly_sql` followed by `run_readonly_sql` only when a
    requested server-side statistic cannot be represented by a screen.
 5. Use the complete matched range for server-side filtering, counting,
-   statistics, ranking, and aggregation; display no more than the first 200
-   rows in current sort order.
+   statistics, ranking, and aggregation; display no more than 200 rows per
+   call and continue only when the user explicitly asks for the next page.
 6. Call `create_csv_export` only when the user asks for a file and the
-   immediately preceding screen reports
-   `data.export_policy.eligible_by_query=true`.
+   current `screen_stocks` or `run_readonly_sql` result reports
+   `data.export_policy.eligible_by_query=true` and names that source tool in
+   `source_tools_allowed`.
 
 Read
 [references/market-data-policy.md](references/market-data-policy.md)
@@ -85,8 +86,13 @@ On a continuation batch, reuse the prior result set, order, filters, and
 - Keep SQL to one `SELECT` or `WITH ... SELECT`. Never attempt writes, DDL,
   procedures, locks, file access, sleeps, benchmarks, system schemas, or
   unlisted tables.
-- Never use cursors, repeated sorts, split filters, date partitions, SQL, or
-  local stitching to reconstruct omitted stock rows.
+- Use only an unmodified opaque `page.next_cursor` for the immediately
+  requested next page of the same tool. Never invent a cursor, combine it with
+  the original query, traverse pages speculatively, or use repeated sorts,
+  split filters, date partitions, SQL, or local stitching to reconstruct rows.
+- When `data_policy.mode=restricted`, never split or reshape one query to
+  rebuild an ineligible dataset. In bulk mode, follow the returned policy and
+  hard limits rather than assuming unrestricted access.
 - Treat query IDs and export URLs as short-lived bearer capabilities. Never
   share, edit, or reuse them outside the related workflow.
 - Ground numeric claims in returned data. Disclose the data date or range,

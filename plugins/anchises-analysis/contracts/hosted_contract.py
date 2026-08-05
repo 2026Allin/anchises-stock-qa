@@ -90,10 +90,11 @@ def _schema_properties(schema: Dict[str, Any], label: str) -> Dict[str, Any]:
     return _object(schema.get("properties"), f"{label}.properties")
 
 
-def _validate_stock_access_policy(tools: List[Dict[str, Any]]) -> None:
-    """Validate cross-tool invariants introduced by stock-data-export-v1."""
+def _validate_legacy_stock_access_policy(
+    by_name: Dict[str, Dict[str, Any]],
+) -> None:
+    """Validate the frozen MCP 0.6 descriptor shape during contract upgrades."""
 
-    by_name = {tool["name"]: tool for tool in tools}
     required_tools = {"screen_stocks", "run_readonly_sql", "create_csv_export"}
     missing = required_tools - set(by_name)
     if missing:
@@ -210,6 +211,273 @@ def _validate_stock_access_policy(tools: List[Dict[str, Any]]) -> None:
         )
     if set(export["inputSchema"].get("required", [])) != {"query_id"}:
         raise ContractError("create_csv_export must require query_id")
+
+
+def _validate_dynamic_stock_access_policy(
+    by_name: Dict[str, Dict[str, Any]],
+) -> None:
+    """Validate MCP 0.7 cursor pagination and dynamic export policy schemas."""
+
+    required_tools = {
+        "get_connection_status",
+        "screen_stocks",
+        "run_readonly_sql",
+        "create_csv_export",
+    }
+    missing = required_tools - set(by_name)
+    if missing:
+        raise ContractError(
+            f"stock access policy tools are missing: {sorted(missing)}"
+        )
+
+    status_output = _schema_properties(
+        by_name["get_connection_status"]["outputSchema"],
+        "get_connection_status.outputSchema",
+    )
+    if "data_policy" not in status_output:
+        raise ContractError("get_connection_status must publish data_policy")
+    if "data_policy" not in set(
+        by_name["get_connection_status"]["outputSchema"].get("required", [])
+    ):
+        raise ContractError("get_connection_status must require data_policy")
+    data_policy_union = _object(
+        status_output["data_policy"], "get_connection_status.data_policy"
+    )
+    data_policy_objects = [
+        branch
+        for branch in data_policy_union.get("oneOf", [])
+        if isinstance(branch, dict) and branch.get("type") == "object"
+    ]
+    if len(data_policy_objects) != 1:
+        raise ContractError("get_connection_status data_policy must allow one object shape")
+    data_policy = data_policy_objects[0]
+    expected_data_policy = {
+        "mode",
+        "restrictions",
+        "policy_version",
+        "effective_limits",
+    }
+    data_policy_properties = _schema_properties(
+        data_policy, "get_connection_status.data_policy"
+    )
+    if (
+        set(data_policy_properties) != expected_data_policy
+        or set(data_policy.get("required", [])) != expected_data_policy
+    ):
+        raise ContractError("get_connection_status data_policy schema is incomplete")
+    if data_policy_properties["mode"].get("enum") != [
+        "restricted",
+        "bulk_enabled",
+    ]:
+        raise ContractError("get_connection_status data_policy modes are incomplete")
+
+    screen = by_name["screen_stocks"]
+    screen_input = _schema_properties(
+        screen["inputSchema"], "screen_stocks.inputSchema"
+    )
+    expected_screen_inputs = {
+        "exchanges",
+        "as_of_date",
+        "start_date",
+        "end_date",
+        "fields",
+        "filters",
+        "sort",
+        "top_n",
+        "base_query_id",
+        "cursor",
+        "page_size",
+    }
+    if set(screen_input) != expected_screen_inputs:
+        raise ContractError(
+            "screen_stocks input properties do not match the 0.7 contract"
+        )
+    if screen["inputSchema"].get("required"):
+        raise ContractError("screen_stocks 0.7 inputs must not be globally required")
+    if screen_input["top_n"].get("maximum") != 200_000:
+        raise ContractError("screen_stocks top_n maximum must be 200000")
+    if screen_input["page_size"].get("maximum") != 200:
+        raise ContractError("screen_stocks page_size maximum must be 200")
+    if screen_input["cursor"].get("type") != ["string", "null"]:
+        raise ContractError("screen_stocks cursor must allow string or null")
+    if screen_input["cursor"].get("maxLength") != 4096:
+        raise ContractError("screen_stocks cursor must be bounded")
+
+    sql = by_name["run_readonly_sql"]
+    sql_input = _schema_properties(sql["inputSchema"], "run_readonly_sql.inputSchema")
+    if set(sql_input) != {"sql", "max_rows", "cursor"}:
+        raise ContractError(
+            "run_readonly_sql must accept sql, max_rows, and cursor"
+        )
+    if sql_input["max_rows"].get("maximum") != 200:
+        raise ContractError("run_readonly_sql max_rows maximum must be 200")
+    if sql_input["cursor"].get("type") != ["string", "null"]:
+        raise ContractError("run_readonly_sql cursor must allow string or null")
+    if sql_input["cursor"].get("maxLength") != 4096:
+        raise ContractError("run_readonly_sql cursor must be bounded")
+    continuation_requirements = {
+        frozenset(branch.get("required", []))
+        for branch in sql["inputSchema"].get("anyOf", [])
+    }
+    if continuation_requirements != {frozenset({"sql"}), frozenset({"cursor"})}:
+        raise ContractError("run_readonly_sql must require sql or cursor")
+
+    expected_analysis = {
+        "matched_row_count",
+        "displayed_row_count",
+        "display_row_limit",
+        "result_is_preview",
+        "row_pagination_available",
+        "displayed_row_start",
+        "displayed_row_end",
+        "browsable_row_limit",
+        "pagination_limit_reached",
+        "pagination_next_action",
+        "server_side_analysis_supported",
+        "query_classification",
+    }
+    expected_policy = {
+        "mode",
+        "policy_version",
+        "eligible_by_query",
+        "classification",
+        "contains_complete_partition",
+        "reasons",
+        "source_tools_allowed",
+        "limits",
+    }
+    expected_limits = {
+        "max_rows",
+        "max_columns",
+        "max_cells",
+        "max_bytes",
+        "max_top_n",
+        "max_explicit_tickers",
+        "max_partitions",
+        "complete_exchange_day_allowed",
+        "sql_export_allowed",
+    }
+    effective_limits = _object(
+        data_policy_properties["effective_limits"],
+        "get_connection_status.data_policy.effective_limits",
+    )
+    effective_limit_properties = _schema_properties(
+        effective_limits,
+        "get_connection_status.data_policy.effective_limits",
+    )
+    if (
+        set(effective_limit_properties) != expected_limits
+        or set(effective_limits.get("required", [])) != expected_limits
+    ):
+        raise ContractError("get_connection_status effective limits are incomplete")
+    if any("const" in schema for schema in effective_limit_properties.values()):
+        raise ContractError("get_connection_status effective limits must be dynamic")
+
+    for tool_name in ("screen_stocks", "run_readonly_sql"):
+        output = by_name[tool_name]["outputSchema"]
+        output_properties = _schema_properties(output, f"{tool_name}.outputSchema")
+        page = _object(output_properties.get("page"), f"{tool_name}.page")
+        page_properties = _schema_properties(page, f"{tool_name}.page")
+        next_cursor = page_properties.get("next_cursor", {})
+        if set(page.get("required", [])) != {
+            "row_count",
+            "total_count",
+            "truncated",
+            "next_cursor",
+        }:
+            raise ContractError(f"{tool_name} page schema is incomplete")
+        if next_cursor.get("type") != ["string", "null"]:
+            raise ContractError(
+                f"{tool_name} next_cursor must allow string or null"
+            )
+        if next_cursor.get("maxLength") != 4096:
+            raise ContractError(f"{tool_name} next_cursor must be bounded")
+
+        data = _object(output_properties.get("data"), f"{tool_name}.data")
+        data_properties = _schema_properties(data, f"{tool_name}.data")
+        analysis = _object(data_properties.get("analysis"), f"{tool_name}.analysis")
+        analysis_properties = _schema_properties(
+            analysis, f"{tool_name}.analysis"
+        )
+        if set(analysis_properties) != expected_analysis:
+            raise ContractError(f"{tool_name} analysis schema is incomplete")
+        if set(analysis.get("required", [])) != expected_analysis:
+            raise ContractError(f"{tool_name} analysis fields must all be required")
+        if analysis_properties["display_row_limit"].get("const") != 200:
+            raise ContractError(f"{tool_name} display row limit must be 200")
+        if analysis_properties["pagination_next_action"].get("enum") != [
+            "call_same_tool_with_cursor",
+            "refine_query",
+            "none",
+        ]:
+            raise ContractError(
+                f"{tool_name} pagination_next_action enum is incomplete"
+            )
+
+        policy = _object(
+            data_properties.get("export_policy"),
+            f"{tool_name}.export_policy",
+        )
+        policy_properties = _schema_properties(
+            policy, f"{tool_name}.export_policy"
+        )
+        if set(policy_properties) != expected_policy or "eligible" in policy_properties:
+            raise ContractError(
+                f"{tool_name} must publish eligible_by_query and the dynamic "
+                "export policy contract"
+            )
+        if set(policy.get("required", [])) != expected_policy:
+            raise ContractError(f"{tool_name} export policy fields must all be required")
+        if policy_properties["mode"].get("enum") != [
+            "restricted",
+            "bulk_enabled",
+        ]:
+            raise ContractError(f"{tool_name} export policy modes are incomplete")
+        allowed_sources = policy_properties["source_tools_allowed"].get("items", {})
+        if set(allowed_sources.get("enum", [])) != {
+            "screen_stocks",
+            "run_readonly_sql",
+        }:
+            raise ContractError(
+                f"{tool_name} export policy must describe both rowset sources"
+            )
+        limits = _schema_properties(
+            _object(policy_properties["limits"], f"{tool_name}.export_policy.limits"),
+            f"{tool_name}.export_policy.limits",
+        )
+        if set(limits) != expected_limits:
+            raise ContractError(f"{tool_name} export policy limits are incomplete")
+        if set(policy_properties["limits"].get("required", [])) != expected_limits:
+            raise ContractError(f"{tool_name} export policy limits must all be required")
+        if any("const" in schema for schema in limits.values()):
+            raise ContractError(f"{tool_name} export policy limits must be dynamic")
+
+    export = by_name["create_csv_export"]
+    export_input = _schema_properties(
+        export["inputSchema"], "create_csv_export.inputSchema"
+    )
+    if set(export_input) != {"query_id", "expires_in_seconds"}:
+        raise ContractError(
+            "create_csv_export must accept only query_id and expires_in_seconds"
+        )
+    if set(export["inputSchema"].get("required", [])) != {"query_id"}:
+        raise ContractError("create_csv_export must require query_id")
+
+
+def _validate_stock_access_policy(
+    tools: List[Dict[str, Any]], contract_version: str
+) -> None:
+    """Validate versioned stock access and export invariants."""
+
+    by_name = {tool["name"]: tool for tool in tools}
+    required_tools = {"screen_stocks", "run_readonly_sql", "create_csv_export"}
+    if contract_version == "1.6.0-draft":
+        _validate_legacy_stock_access_policy(by_name)
+        return
+    if contract_version == "1.7.0-draft":
+        _validate_dynamic_stock_access_policy(by_name)
+        return
+    raise ContractError(f"unsupported contract version: {contract_version}")
 
 
 def mode_profiles(contract: Dict[str, Any]) -> Dict[str, str]:
@@ -357,7 +625,7 @@ def validate_contract(contract: Dict[str, Any]) -> None:
 
     if len(names) != len(set(names)):
         raise ContractError("tool names must be unique")
-    _validate_stock_access_policy(tools)
+    _validate_stock_access_policy(tools, contract["contract_version"])
     scopes_supported = _string_list(
         oauth.get("scopes_supported"),
         "oauth.scopes_supported",

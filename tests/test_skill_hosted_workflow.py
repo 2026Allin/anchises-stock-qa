@@ -825,8 +825,8 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(len(names), 12)
         self.assertEqual(set(names), EXPECTED_TOOLS)
         self.assertEqual(contract["source"]["server_name"], "Anchises Analysis")
-        self.assertEqual(contract["contract_version"], "1.6.0-draft")
-        self.assertEqual(contract["source"]["server_version"], "0.6.0")
+        self.assertEqual(contract["contract_version"], "1.7.0-draft")
+        self.assertEqual(contract["source"]["server_version"], "0.7.1")
         self.assertEqual(contract["source"]["sync_state"], "live")
         self.assertRegex(contract["source"]["descriptor_sha256"], r"^[0-9a-f]{64}$")
 
@@ -848,16 +848,16 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             ["run_host_web_research", None],
         )
 
-    def test_csv_export_guidance_publishes_default_and_allowed_lifetimes(self) -> None:
+    def test_csv_export_guidance_uses_dynamic_policy_and_allowed_lifetimes(self) -> None:
         combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
         self.assertIn("default 60-minute", combined)
         self.assertIn("60 through 3,600 seconds", combined)
         self.assertIn("`expires_in_seconds`", combined)
-        self.assertIn("1,000 rows", combined)
-        self.assertIn("25 total columns", combined)
-        self.assertIn("20,000", combined)
-        self.assertIn("50 tickers", combined)
-        self.assertIn("count toward the column limit", combined)
+        self.assertIn("`get_connection_status.data_policy`", combined)
+        self.assertIn("`restricted`", combined)
+        self.assertIn("`bulk_enabled`", combined)
+        self.assertIn("`source_tools_allowed`", combined)
+        self.assertIn("dynamic `limits`", combined)
 
     def test_user_facing_export_copy_is_question_led_without_limit_recital(self) -> None:
         answer_format = (
@@ -873,25 +873,26 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         ):
             self.assertNotIn(threshold, normalized)
         self.assertIn("Tailor suggested fields to the user's question", normalized)
-        self.assertIn("confirm their names with `get_stock_schema`", normalized)
+        self.assertIn("confirm them with `get_stock_schema`", normalized)
         self.assertIn("verify their current official documentation", normalized)
         self.assertNotIn(
             "Ticker, Company, Exchange, Open, High, Low, Close",
             normalized,
         )
 
-    def test_market_data_policy_uses_only_the_new_export_gate(self) -> None:
+    def test_market_data_policy_uses_cursor_and_dynamic_export_contract(self) -> None:
         combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
         self.assertIn("data.export_policy.eligible_by_query", combined)
-        self.assertIn("Never infer eligibility from a legacy `eligible` field", combined)
-        self.assertNotIn("current screen or SQL workflow", combined)
-        self.assertIn("Never pass a SQL query ID", combined)
-        self.assertIn("page.next_cursor` is always null", combined)
-        self.assertIn("Do not retrieve row 201 onward", combined)
-        self.assertIn("Do not evade an ineligible export by splitting fields", combined)
+        self.assertIn("never infer eligibility from a legacy field", combined)
+        self.assertIn("`data.export_policy.source_tools_allowed`", combined)
+        self.assertIn("`pagination_next_action=call_same_tool_with_cursor`", combined)
+        self.assertIn("only the unmodified `page.next_cursor`", combined)
+        self.assertIn("Never resend or rewrite the SQL", combined)
+        self.assertIn("never add or use SQL `OFFSET`", combined)
+        self.assertIn("never split filters, fields, tickers, dates", combined)
 
     def test_policy_errors_have_safe_recovery_instructions(self) -> None:
-        combined = _bundle_text(MARKET_SKILL_ROOT)
+        combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
         for code in (
             "export_requires_selective_query",
             "export_row_limit_exceeded",
@@ -908,15 +909,16 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "temporarily_unavailable",
         ):
             self.assertIn(f"`{code}`", combined)
-        self.assertIn("rerun the original screen", combined)
-        self.assertIn("download is unavailable", combined)
+        self.assertIn("rerun the original intent", combined)
+        self.assertIn("download is temporarily unavailable", combined)
 
-    def test_bulk_export_refusal_is_courteous_and_not_a_fake_quota_error(self) -> None:
+    def test_restricted_export_refusal_is_courteous_and_policy_specific(self) -> None:
         combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
-        self.assertIn("current export workflow is for focused research extracts", combined)
+        self.assertIn("When restricted mode refuses", combined)
         self.assertIn("licensed exchange-data vendor", combined)
         self.assertIn("Tailor suggested fields to the user's question", combined)
         self.assertIn("complete matched range can still be analyzed", combined)
+        self.assertIn("Do not use this restricted-mode wording when bulk mode", combined)
         self.assertNotIn("connector has reached its monthly call limit", combined)
 
     def test_normal_analyst_requests_are_policy_transparent(self) -> None:
@@ -949,7 +951,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         )
         self.assertIn("40 values", by_id["watchlist-40-tickers"]["expected_behavior"])
         self.assertIn("paired start_date and end_date", by_id["single-stock-one-year"]["expected_behavior"])
-        self.assertIn("no next page", by_id["broad-result-preview"]["expected_behavior"])
+        self.assertIn("offer the next page", by_id["broad-result-preview"]["expected_behavior"])
         self.assertIn(
             "price, volume, dollar volume, and price change",
             by_id["liquidity-fields-from-question"]["expected_behavior"],
@@ -997,10 +999,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.2")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.3")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.2(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.3(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
@@ -1018,11 +1020,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertTrue(all(len(prompt) <= 128 for prompt in interface["defaultPrompt"]))
         self.assertIn("ASX, CSE, NASDAQ, NYSE, TSX, and TSXV", interface["longDescription"])
         self.assertIn("does not persist", interface["longDescription"])
-        self.assertIn("bounded sorted preview", interface["longDescription"])
-        self.assertIn("no subsequent row-level pages", interface["longDescription"])
-        self.assertIn("current export policy marks it eligible", interface["longDescription"])
-        self.assertIn("fields selected from the live schema", interface["longDescription"])
-        self.assertIn("does not use a market-percentage limit", interface["longDescription"])
+        self.assertIn("at most 200 rows", interface["longDescription"])
+        self.assertIn("opaque cursor", interface["longDescription"])
+        self.assertIn("Top-N bounds the complete logical ranked result", interface["longDescription"])
+        self.assertIn("restricted or bulk-enabled data policy", interface["longDescription"])
+        self.assertIn("allowed screen or SQL source tools", interface["longDescription"])
         self.assertIn("no account-linked cross-session cumulative budget", interface["longDescription"])
 
     def test_developer_mode_app_is_not_public_submission_target(self) -> None:

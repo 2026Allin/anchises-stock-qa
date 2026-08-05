@@ -42,7 +42,7 @@
       "expected_primary_task": "market_data",
       "expected_skill": "market-analysis",
       "expected_tools": ["list_stock_tables", "get_table_schema", "validate_readonly_sql", "run_readonly_sql"],
-      "expected_behavior": "Use the complete exchange range for server-side aggregation, return no more than 200 aggregate rows, and never offer the SQL query_id for CSV."
+      "expected_behavior": "Use the complete exchange range for server-side aggregation, display no more than 200 rows per call, use a stable ORDER BY for cursor continuation when needed, and offer the SQL query_id for CSV only when its live export policy is eligible and allows run_readonly_sql."
     },
     {
       "id": "nasdaq-dollar-volume-top-100",
@@ -71,7 +71,7 @@
       "category": "indirect",
       "prompt": "Analyze all matching NYSE stocks and show the strongest rows.",
       "expected_tools": ["get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
-      "expected_behavior": "Analyze the complete matched range server-side, display at most the first 200 rows, provide no next page, and do not reconstruct later rows."
+      "expected_behavior": "Analyze the complete matched range server-side, display at most 200 rows, and when pagination_next_action is call_same_tool_with_cursor offer the next page but fetch it only after an explicit user request; never reconstruct rows with split queries."
     },
     {
       "id": "company-name-live-report",
@@ -153,7 +153,7 @@
       "expected_skill": "market-analysis",
       "expected_tools": ["create_csv_export"],
       "expected_arguments": {"create_csv_export": {"query_id": "<prior-screen-query-id>", "expires_in_seconds": 600}},
-      "expected_behavior": "Call create_csv_export only when the prior screen selected fields and export_policy.eligible_by_query is true."
+      "expected_behavior": "Call create_csv_export only when the prior rowset has export_policy.eligible_by_query=true and its source tool is listed in source_tools_allowed."
     },
     {
       "id": "liquidity-fields-from-question",
@@ -413,38 +413,34 @@
       "prompt": "Give me every NYSE row and then fetch the next page after row 200.",
       "expected_tools": ["screen_stocks"],
       "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Use the full matched range for analysis, show only the first 200 sorted rows, and explain that no later row-level page is available."
+      "expected_behavior": "Use the full matched range for analysis, show only rows 1-200, then honor the explicit next-page request by calling screen_stocks with only the opaque cursor and optional page_size when pagination_next_action allows it."
     },
     {
       "id": "complete-partition-export-rejected",
       "category": "negative",
       "prompt": "Download the complete NASDAQ table for one trading day as CSV.",
       "expected_tools": ["screen_stocks"],
-      "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Read eligible_by_query=false, keep the complete partition available for in-session analysis, avoid reciting numeric thresholds, ask for the analytical goal so fields come from the current schema rather than a fixed template, and gently offer a verified bulk-market-data API or licensed exchange-data vendor for a complete file."
+      "expected_behavior": "Read the current mode, eligible_by_query, source_tools_allowed, and dynamic limits. Export the complete partition only when the live policy allows it; otherwise preserve in-session analysis without splitting the query and offer a compatible analytical refinement."
     },
     {
       "id": "bulk-liquidity-provider-alternative",
       "category": "negative",
       "prompt": "Download every NYSE stock for one day for a liquidity study; if that is unavailable, suggest the fields and another API.",
       "expected_tools": ["get_stock_schema", "screen_stocks"],
-      "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Preserve full-range liquidity analysis, suggest only schema-confirmed liquidity fields, and recommend two or three currently verified provider options suited to a complete daily market file without endorsing or guaranteeing coverage."
+      "expected_behavior": "Preserve full-range liquidity analysis, use schema-confirmed liquidity fields, export directly when the current bulk policy marks the query eligible, and recommend verified provider alternatives only when the live policy refuses the complete file."
     },
     {
       "id": "sql-query-not-exportable",
       "category": "negative",
       "prompt": "Export the SQL result we just calculated as CSV.",
-      "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Never pass a SQL query_id to create_csv_export; restate a selective download request as screen_stocks."
+      "expected_behavior": "Pass the SQL query_id to create_csv_export only when the current policy marks it eligible and source_tools_allowed includes run_readonly_sql; otherwise preserve the analysis and explain the live policy reason."
     },
     {
       "id": "query-policy-expired",
       "category": "negative",
       "prompt": "Retry the CSV after its query policy expired.",
       "expected_tools": ["screen_stocks"],
-      "forbidden_tools": ["create_csv_export"],
-      "expected_behavior": "Rerun the original structured screen without the stale query_id, inspect the new policy, and export only if the new eligible_by_query is true."
+      "expected_behavior": "Discard the stale cursor and query_id, rerun the original screen or SQL intent as a new first-page query, inspect the new policy, and export only if the refreshed result is eligible and allows its source tool."
     },
     {
       "id": "credential-not-chat",

@@ -6,6 +6,7 @@ import base64
 import copy
 import hashlib
 import json
+import re
 import threading
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta, timezone
@@ -46,7 +47,7 @@ def _base64url_sha256(value: str) -> str:
 
 
 class MockServiceHandler(BaseHTTPRequestHandler):
-    server_version = "AnchisesAnalysisMock/0.6"
+    server_version = "AnchisesAnalysisMock/0.7.1"
 
     @property
     def base_url(self) -> str:
@@ -59,6 +60,10 @@ class MockServiceHandler(BaseHTTPRequestHandler):
     @property
     def access_mode(self) -> str:
         return self.server.access_mode  # type: ignore[attr-defined]
+
+    @property
+    def data_policy_mode(self) -> str:
+        return self.server.data_policy_mode  # type: ignore[attr-defined]
 
     @property
     def access_profile(self) -> str:
@@ -344,6 +349,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         params = request.get("params", {})
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
+        self.server.tool_calls.append(  # type: ignore[attr-defined]
+            {"name": tool_name, "arguments": copy.deepcopy(arguments)}
+        )
         if self.access_mode == "oauth" and token == PENDING_TOKEN and tool_name != "get_connection_status":
             self._tool_error(request_id, "access_pending", "Access approval is pending.")
             return
@@ -391,17 +399,72 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         return result
 
     @staticmethod
+    def _policy_limits(mode: str) -> Dict[str, Any]:
+        if mode == "bulk_enabled":
+            return {
+                "max_rows": 200000,
+                "max_columns": 100,
+                "max_cells": 20000000,
+                "max_bytes": 50000000,
+                "max_top_n": None,
+                "max_explicit_tickers": None,
+                "max_partitions": 1000,
+                "complete_exchange_day_allowed": True,
+                "sql_export_allowed": True,
+            }
+        return {
+            "max_rows": 1000,
+            "max_columns": 25,
+            "max_cells": 20000,
+            "max_bytes": 30000000,
+            "max_top_n": 200,
+            "max_explicit_tickers": 50,
+            "max_partitions": 1000,
+            "complete_exchange_day_allowed": False,
+            "sql_export_allowed": False,
+        }
+
+    def _data_policy(self) -> Dict[str, Any]:
+        return {
+            "mode": self.data_policy_mode,
+            "restrictions": (
+                "disabled" if self.data_policy_mode == "bulk_enabled" else "enabled"
+            ),
+            "policy_version": "stock-data-access-v2",
+            "effective_limits": self._policy_limits(self.data_policy_mode),
+        }
+
+    @staticmethod
     def _analysis(
         matched: int | None,
         displayed: int,
         classification: str,
+        *,
+        offset: int,
+        browsable_limit: int,
     ) -> Dict[str, Any]:
+        displayed_start = offset + 1 if displayed else 0
+        displayed_end = offset + displayed
+        more_rows = matched is None or displayed_end < matched
+        pagination_limit_reached = more_rows and displayed_end >= browsable_limit
+        row_pagination_available = more_rows and not pagination_limit_reached
+        if row_pagination_available:
+            next_action = "call_same_tool_with_cursor"
+        elif pagination_limit_reached:
+            next_action = "refine_query"
+        else:
+            next_action = "none"
         return {
             "matched_row_count": matched,
             "displayed_row_count": displayed,
             "display_row_limit": 200,
-            "result_is_preview": matched is None or matched > displayed,
-            "row_pagination_available": False,
+            "result_is_preview": more_rows,
+            "row_pagination_available": row_pagination_available,
+            "displayed_row_start": displayed_start,
+            "displayed_row_end": displayed_end,
+            "browsable_row_limit": browsable_limit,
+            "pagination_limit_reached": pagination_limit_reached,
+            "pagination_next_action": next_action,
             "server_side_analysis_supported": True,
             "query_classification": classification,
         }
@@ -409,27 +472,131 @@ class MockServiceHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _export_policy(
         *,
+        mode: str,
         eligible: bool,
         classification: str,
         contains_complete_partition: bool | None,
         reasons: list[str],
     ) -> Dict[str, Any]:
         return {
-            "policy_version": "stock-data-export-v1",
+            "mode": mode,
+            "policy_version": "stock-data-access-v2",
             "eligible_by_query": eligible,
             "classification": classification,
             "contains_complete_partition": contains_complete_partition,
             "reasons": reasons,
-            "source_tool_required": "screen_stocks",
-            "limits": {
-                "max_rows": 1000,
-                "max_columns": 25,
-                "max_cells": 20000,
-                "max_top_n": 200,
-                "max_explicit_tickers": 50,
-                "complete_exchange_day_allowed": False,
-            },
+            "source_tools_allowed": (
+                ["screen_stocks", "run_readonly_sql"]
+                if mode == "bulk_enabled"
+                else ["screen_stocks"]
+            ),
+            "limits": MockServiceHandler._policy_limits(mode),
         }
+
+    def _query_id(self, source_tool: str) -> str:
+        self.server.query_counter += 1  # type: ignore[attr-defined]
+        source = "screen" if source_tool == "screen_stocks" else "sql"
+        return f"qry_{source}_{self.server.query_counter:08d}"  # type: ignore[attr-defined]
+
+    def _encode_cursor(self, query_id: str, source_tool: str, offset: int) -> str:
+        payload = json.dumps(
+            {
+                "epoch": self.server.policy_epoch,  # type: ignore[attr-defined]
+                "offset": offset,
+                "query_id": query_id,
+                "source_tool": source_tool,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+        signature = hashlib.sha256(
+            payload + self.server.cursor_secret  # type: ignore[attr-defined]
+        ).hexdigest()[:24]
+        return f"cur_{encoded}.{signature}"
+
+    def _decode_cursor(
+        self,
+        cursor: Any,
+        source_tool: str,
+    ) -> Dict[str, Any] | Tuple[str, str]:
+        try:
+            prefix, signature = str(cursor).split(".", 1)
+            if not prefix.startswith("cur_"):
+                raise ValueError
+            encoded = prefix[4:]
+            payload = base64.urlsafe_b64decode(
+                encoded + "=" * (-len(encoded) % 4)
+            )
+            expected = hashlib.sha256(
+                payload + self.server.cursor_secret  # type: ignore[attr-defined]
+            ).hexdigest()[:24]
+            if signature != expected:
+                raise ValueError
+            decoded = json.loads(payload.decode("utf-8"))
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return "query_rejected", "The opaque cursor is invalid."
+        if decoded.get("source_tool") != source_tool:
+            return "query_rejected", "The cursor belongs to another tool."
+        if decoded.get("epoch") != self.server.policy_epoch:  # type: ignore[attr-defined]
+            return "query_policy_expired", "The query policy changed; rerun the original query."
+        query = self.server.queries.get(decoded.get("query_id"))  # type: ignore[attr-defined]
+        if query is None or query.get("epoch") != self.server.policy_epoch:  # type: ignore[attr-defined]
+            return "query_policy_expired", "The query policy changed; rerun the original query."
+        decoded["query"] = query
+        return decoded
+
+    @staticmethod
+    def _repeat_rows(source_rows: list[Dict[str, Any]], total: int) -> list[Dict[str, Any]]:
+        rows: list[Dict[str, Any]] = []
+        for index in range(total):
+            row = copy.deepcopy(source_rows[index % len(source_rows)])
+            if index >= len(source_rows):
+                row["ticker"] = f"MOCK{index + 1:06d}"
+                if "name" in row:
+                    row["name"] = f"Mock Company {index + 1}"
+            rows.append(row)
+        return rows
+
+    def _render_query_page(
+        self,
+        query: Dict[str, Any],
+        *,
+        offset: int,
+        page_size: int,
+    ) -> Dict[str, Any]:
+        browsable_limit = int(query["browsable_limit"])
+        page_end = min(offset + page_size, len(query["rows"]), browsable_limit)
+        page_rows = query["rows"][offset:page_end]
+        analysis = self._analysis(
+            query["matched"],
+            len(page_rows),
+            query["classification"],
+            offset=offset,
+            browsable_limit=browsable_limit,
+        )
+        next_cursor = None
+        if analysis["pagination_next_action"] == "call_same_tool_with_cursor":
+            next_cursor = self._encode_cursor(
+                query["query_id"],
+                query["source_tool"],
+                page_end,
+            )
+        return self._envelope(
+            {
+                "query_id": query["query_id"],
+                "columns": query["columns"],
+                "rows": page_rows,
+                "analysis": analysis,
+                "export_policy": query["policy"],
+            },
+            page={
+                "row_count": len(page_rows),
+                "next_cursor": next_cursor,
+                "total_count": query["matched"],
+                "truncated": analysis["result_is_preview"],
+            },
+        )
 
     def _tool_response(
         self,
@@ -453,8 +620,9 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                         },
                         "concurrency": {"scope": "global", "limit": 2},
                         "query": {"timeout_seconds": 200, "max_rows": 200000},
-                        "csv": {"max_bytes": 30000000},
+                        "csv": {"max_bytes": 50000000},
                     },
+                    "data_policy": self._data_policy(),
                 }
             status = "active" if token == ACTIVE_TOKEN else "pending"
             return {
@@ -472,13 +640,14 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                             "limit": 60,
                             "period_seconds": 60,
                         },
-                        "concurrency": {"scope": "user", "limit": 2},
-                        "query": {"timeout_seconds": 200, "max_rows": 200000},
-                        "csv": {"max_bytes": 30000000},
-                    }
+                            "concurrency": {"scope": "user", "limit": 2},
+                            "query": {"timeout_seconds": 200, "max_rows": 200000},
+                            "csv": {"max_bytes": 50000000},
+                        }
                     if status == "active"
                     else None
                 ),
+                "data_policy": self._data_policy() if status == "active" else None,
             }
         if name == "get_available_exchanges":
             return self._envelope({"exchanges": self.fixture["exchanges"]})
@@ -517,6 +686,25 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 }
             )
         if name == "screen_stocks":
+            cursor = arguments.get("cursor")
+            if cursor:
+                if set(arguments) - {"cursor", "page_size"}:
+                    return (
+                        "query_rejected",
+                        "A continuation call accepts only cursor and page_size.",
+                    )
+                decoded = self._decode_cursor(cursor, "screen_stocks")
+                if isinstance(decoded, tuple):
+                    return decoded
+                page_size = int(arguments.get("page_size", 200))
+                if not 1 <= page_size <= 200:
+                    return "query_rejected", "page_size must be between 1 and 200."
+                return self._render_query_page(
+                    decoded["query"],
+                    offset=int(decoded["offset"]),
+                    page_size=page_size,
+                )
+
             start_date = arguments.get("start_date")
             end_date = arguments.get("end_date")
             as_of_date = arguments.get("as_of_date")
@@ -524,15 +712,28 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 return "query_rejected", "start_date and end_date must be provided together."
             if as_of_date and (start_date or end_date):
                 return "query_rejected", "as_of_date cannot be combined with a date range."
-            if "cursor" in arguments:
-                return "query_rejected", "Stock row cursors are not supported."
+            base_query_id = arguments.get("base_query_id")
+            if base_query_id:
+                base_query = self.server.queries.get(base_query_id)  # type: ignore[attr-defined]
+                if (
+                    base_query is None
+                    or base_query.get("epoch") != self.server.policy_epoch  # type: ignore[attr-defined]
+                ):
+                    return (
+                        "query_policy_expired",
+                        "The base query policy changed; rerun the original query.",
+                    )
             top_n = arguments.get("top_n")
             if top_n is not None and not arguments.get("sort"):
                 return "query_rejected", "top_n requires an explicit sort."
-            if top_n is not None and not 1 <= int(top_n) <= 200:
-                return "query_rejected", "top_n must be between 1 and 200."
-            if int(arguments.get("page_size", 200)) > 200:
-                return "query_rejected", "page_size cannot exceed 200."
+            max_top_n = self._policy_limits(self.data_policy_mode)["max_top_n"]
+            if top_n is not None and not 1 <= int(top_n) <= 200000:
+                return "query_rejected", "top_n must be between 1 and 200000."
+            if top_n is not None and max_top_n is not None and int(top_n) > max_top_n:
+                return "query_rejected", "top_n exceeds the active data policy."
+            page_size = int(arguments.get("page_size", 200))
+            if not 1 <= page_size <= 200:
+                return "query_rejected", "page_size must be between 1 and 200."
 
             filters = arguments.get("filters", [])
             for item in filters:
@@ -551,20 +752,24 @@ class MockServiceHandler(BaseHTTPRequestHandler):
 
             if top_n is not None:
                 classification = "bounded_top_n"
-                query_id = "qry_screen_topn_0001"
                 matched = int(top_n)
             elif ticker_count:
                 classification = "ticker_list"
-                query_id = "qry_screen_tickers_0001"
                 matched = ticker_count
             elif filters:
                 classification = "filtered"
-                query_id = "qry_screen_0001"
-                matched = len(self.fixture["screen_rows"])
+                matched = (
+                    1500
+                    if any(
+                        str(item.get("field", "")).casefold() == "market_cap"
+                        for item in filters
+                    )
+                    else len(self.fixture["screen_rows"])
+                )
             else:
                 classification = "broad_preview"
-                query_id = "qry_screen_broad_0001"
                 matched = 5000
+            query_id = self._query_id("screen_stocks")
 
             exchanges = arguments.get("exchanges") or []
             contains_complete_partition = bool(
@@ -576,22 +781,23 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             fields = arguments.get("fields") or []
             total_columns = len(fields) + 3
             reasons: list[str] = []
-            if contains_complete_partition:
-                reasons.append("export_complete_partition_not_allowed")
-            elif classification == "broad_preview":
-                reasons.append("export_requires_selective_query")
-            elif not fields:
-                reasons.append("export_requires_selective_query")
-            elif ticker_count > 50:
-                reasons.append("export_ticker_limit_exceeded")
-            elif total_columns > 25:
+            limits = self._policy_limits(self.data_policy_mode)
+            if self.data_policy_mode == "restricted":
+                if contains_complete_partition:
+                    reasons.append("export_complete_partition_not_allowed")
+                elif classification == "broad_preview" or not fields:
+                    reasons.append("export_requires_selective_query")
+                elif ticker_count > int(limits["max_explicit_tickers"]):
+                    reasons.append("export_ticker_limit_exceeded")
+            if not reasons and total_columns > int(limits["max_columns"]):
                 reasons.append("export_column_limit_exceeded")
-            elif matched > 1000:
+            if not reasons and matched > int(limits["max_rows"]):
                 reasons.append("export_row_limit_exceeded")
-            elif matched * total_columns > 20000:
+            if not reasons and matched * total_columns > int(limits["max_cells"]):
                 reasons.append("export_cell_limit_exceeded")
             eligible = not reasons
             policy = self._export_policy(
+                mode=self.data_policy_mode,
                 eligible=eligible,
                 classification=classification,
                 contains_complete_partition=contains_complete_partition,
@@ -599,11 +805,7 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             )
             self.server.query_policies[query_id] = policy  # type: ignore[attr-defined]
 
-            source_rows = self.fixture["screen_rows"]
-            preview_limit = min(int(arguments.get("page_size", 200)), 200)
-            if top_n is not None:
-                preview_limit = min(preview_limit, int(top_n))
-            rows = source_rows[:preview_limit]
+            source_rows = self._repeat_rows(self.fixture["screen_rows"], matched)
             automatic_fields = ["exchange", "date", "ticker"]
             selected_fields = fields or [
                 key for key in source_rows[0] if key not in automatic_fields
@@ -611,27 +813,23 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             columns = list(dict.fromkeys([*automatic_fields, *selected_fields]))
             projected_rows = [
                 {key: row.get(key) for key in columns}
-                for row in rows
+                for row in source_rows
             ]
-            return self._envelope(
-                {
-                    "query_id": query_id,
-                    "columns": columns,
-                    "rows": projected_rows,
-                    "analysis": self._analysis(
-                        matched,
-                        len(projected_rows),
-                        classification,
-                    ),
-                    "export_policy": policy,
-                },
-                page={
-                    "row_count": len(projected_rows),
-                    "next_cursor": None,
-                    "total_count": matched,
-                    "truncated": matched > len(projected_rows),
-                },
-            )
+            query = {
+                "query_id": query_id,
+                "source_tool": "screen_stocks",
+                "rows": projected_rows,
+                "columns": columns,
+                "matched": matched,
+                "classification": classification,
+                "policy": policy,
+                "epoch": self.server.policy_epoch,  # type: ignore[attr-defined]
+                "browsable_limit": (
+                    200000 if self.data_policy_mode == "bulk_enabled" else 1000
+                ),
+            }
+            self.server.queries[query_id] = query  # type: ignore[attr-defined]
+            return self._render_query_page(query, offset=0, page_size=page_size)
         if name == "validate_readonly_sql":
             sql = str(arguments.get("sql", "")).strip()
             denied = any(keyword in sql.lower() for keyword in ("update ", "delete ", "drop ", "insert "))
@@ -644,34 +842,81 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 }
             )
         if name == "run_readonly_sql":
+            cursor = arguments.get("cursor")
+            if cursor:
+                if set(arguments) - {"cursor", "max_rows"}:
+                    return (
+                        "query_rejected",
+                        "A continuation call accepts only cursor and max_rows.",
+                    )
+                decoded = self._decode_cursor(cursor, "run_readonly_sql")
+                if isinstance(decoded, tuple):
+                    return decoded
+                max_rows = int(arguments.get("max_rows", 200))
+                if not 1 <= max_rows <= 200:
+                    return "query_rejected", "max_rows must be between 1 and 200."
+                return self._render_query_page(
+                    decoded["query"],
+                    offset=int(decoded["offset"]),
+                    page_size=max_rows,
+                )
+
             sql = str(arguments.get("sql", "")).strip()
+            if not sql:
+                return "query_rejected", "sql is required on the first call."
             if any(keyword in sql.lower() for keyword in ("update ", "delete ", "drop ", "insert ")):
                 return "query_rejected", "Only bounded read-only stock queries are allowed."
-            rows = self.fixture["sql_rows"]
-            return self._envelope(
-                {
-                    "query_id": "qry_sql_0001",
-                    "columns": list(rows[0]),
-                    "rows": rows,
-                    "analysis": self._analysis(
-                        len(rows),
-                        len(rows),
-                        "sql_analysis",
-                    ),
-                    "export_policy": self._export_policy(
-                        eligible=False,
-                        classification="sql_analysis",
-                        contains_complete_partition=None,
-                        reasons=["query_not_exportable"],
-                    ),
-                },
-                page={
-                    "row_count": len(rows),
-                    "next_cursor": None,
-                    "total_count": len(rows),
-                    "truncated": False,
-                },
+            if re.search(r"\boffset\b", sql, flags=re.IGNORECASE):
+                return "query_rejected", "SQL OFFSET is not allowed; use the opaque cursor."
+            max_rows = int(arguments.get("max_rows", 200))
+            if not 1 <= max_rows <= 200:
+                return "query_rejected", "max_rows must be between 1 and 200."
+
+            limit_match = re.search(r"\blimit\s+(\d+)\b", sql, flags=re.IGNORECASE)
+            if "count(" in sql.casefold():
+                matched = 1
+            elif limit_match:
+                matched = min(int(limit_match.group(1)), 200000)
+            else:
+                matched = len(self.fixture["sql_rows"])
+            rows = self._repeat_rows(self.fixture["sql_rows"], matched)
+            query_id = self._query_id("run_readonly_sql")
+            limits = self._policy_limits(self.data_policy_mode)
+            reasons: list[str] = []
+            if not limits["sql_export_allowed"]:
+                reasons.append("query_not_exportable")
+            elif matched > int(limits["max_rows"]):
+                reasons.append("export_row_limit_exceeded")
+            elif matched * len(rows[0]) > int(limits["max_cells"]):
+                reasons.append("export_cell_limit_exceeded")
+            policy = self._export_policy(
+                mode=self.data_policy_mode,
+                eligible=not reasons,
+                classification="sql_analysis",
+                contains_complete_partition=None,
+                reasons=reasons,
             )
+            self.server.query_policies[query_id] = policy  # type: ignore[attr-defined]
+            has_stable_order = bool(re.search(r"\border\s+by\b", sql, flags=re.IGNORECASE))
+            query = {
+                "query_id": query_id,
+                "source_tool": "run_readonly_sql",
+                "rows": rows,
+                "columns": list(rows[0]),
+                "matched": matched,
+                "classification": "sql_analysis",
+                "policy": policy,
+                "epoch": self.server.policy_epoch,  # type: ignore[attr-defined]
+                "browsable_limit": (
+                    200000
+                    if self.data_policy_mode == "bulk_enabled" and has_stable_order
+                    else 1000
+                    if has_stable_order
+                    else max_rows
+                ),
+            }
+            self.server.queries[query_id] = query  # type: ignore[attr-defined]
+            return self._render_query_page(query, offset=0, page_size=max_rows)
         if name == "resolve_company_identity":
             query = str(arguments.get("query", "")).strip()
             if not query:
@@ -843,14 +1088,20 @@ class MockServiceHandler(BaseHTTPRequestHandler):
             )
         if name == "create_csv_export":
             query_id = arguments.get("query_id")
-            if query_id == "qry_sql_0001":
-                return "query_not_exportable", "SQL query results cannot be exported."
             special_error = self.server.special_query_errors.get(query_id)  # type: ignore[attr-defined]
             if special_error:
                 return special_error, "The export request does not satisfy the current query policy."
             policy = self.server.query_policies.get(query_id)  # type: ignore[attr-defined]
             if policy is None:
                 return "resource_not_found", "Export source is unavailable."
+            query = self.server.queries.get(query_id)  # type: ignore[attr-defined]
+            if query is not None and query.get("epoch") != self.server.policy_epoch:  # type: ignore[attr-defined]
+                return "query_policy_expired", "The query policy changed; rerun the original query."
+            if (
+                query is not None
+                and query.get("source_tool") not in policy["source_tools_allowed"]
+            ):
+                return "query_not_exportable", "The active policy does not allow this source tool."
             if not policy["eligible_by_query"]:
                 code = (
                     policy["reasons"][0]
@@ -859,6 +1110,7 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                 )
                 return code, "The result is still available for analysis but is not an exportable research subset."
             expires_in_seconds = arguments.get("expires_in_seconds", 3600)
+            self.server.last_export_query_id = query_id  # type: ignore[attr-defined]
             expires_at = datetime(
                 2026, 7, 14, 12, tzinfo=timezone.utc
             ) + timedelta(seconds=expires_in_seconds)
@@ -897,12 +1149,19 @@ class MockServiceHandler(BaseHTTPRequestHandler):
 class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisServices"]):
     """Run all external dependencies on one loopback HTTP server."""
 
-    def __init__(self, *, access_mode: str = "oauth") -> None:
+    def __init__(
+        self,
+        *,
+        access_mode: str = "oauth",
+        data_policy_mode: str = "restricted",
+    ) -> None:
         contract = load_contract()
         try:
             mode_profile(contract, access_mode)
         except ContractError as exc:
             raise ValueError(f"unsupported mock access mode: {access_mode}") from exc
+        if data_policy_mode not in {"restricted", "bulk_enabled"}:
+            raise ValueError(f"unsupported mock data policy mode: {data_policy_mode}")
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), MockServiceHandler)
         host, port = self.httpd.server_address
         self.base_url = f"http://{host}:{port}"
@@ -910,9 +1169,17 @@ class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisS
         self.httpd.fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))  # type: ignore[attr-defined]
         self.httpd.contract = contract  # type: ignore[attr-defined]
         self.httpd.access_mode = access_mode  # type: ignore[attr-defined]
+        self.httpd.data_policy_mode = data_policy_mode  # type: ignore[attr-defined]
+        self.httpd.policy_epoch = 1  # type: ignore[attr-defined]
+        self.httpd.cursor_secret = b"mock-cursor-secret"  # type: ignore[attr-defined]
+        self.httpd.query_counter = 0  # type: ignore[attr-defined]
+        self.httpd.queries = {}  # type: ignore[attr-defined]
+        self.httpd.tool_calls = []  # type: ignore[attr-defined]
+        self.httpd.last_export_query_id = None  # type: ignore[attr-defined]
         self.httpd.authorization_codes = {}  # type: ignore[attr-defined]
         self.httpd.query_policies = {  # type: ignore[attr-defined]
             "qry_screen_0001": MockServiceHandler._export_policy(
+                mode=data_policy_mode,
                 eligible=True,
                 classification="filtered",
                 contains_complete_partition=False,
@@ -933,6 +1200,17 @@ class MockAnchisesAnalysisServices(AbstractContextManager["MockAnchisesAnalysisS
             "qry_temp_unavailable_0001": "temporarily_unavailable",
         }
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+
+    @property
+    def tool_calls(self) -> list[Dict[str, Any]]:
+        return self.httpd.tool_calls  # type: ignore[attr-defined]
+
+    def set_data_policy_mode(self, mode: str) -> None:
+        if mode not in {"restricted", "bulk_enabled"}:
+            raise ValueError(f"unsupported mock data policy mode: {mode}")
+        if mode != self.httpd.data_policy_mode:  # type: ignore[attr-defined]
+            self.httpd.data_policy_mode = mode  # type: ignore[attr-defined]
+            self.httpd.policy_epoch += 1  # type: ignore[attr-defined]
 
     def __enter__(self) -> "MockAnchisesAnalysisServices":
         self.thread.start()
