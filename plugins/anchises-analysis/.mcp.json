@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "anchises_analysis": {
+      "type": "http",
+      "url": "https://mcp.anchisesdata.com/mcp"
+    }
+  }
+}

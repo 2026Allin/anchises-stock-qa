@@ -13,7 +13,7 @@ analysis.
   `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.3`
+- Target semantic version: `0.6.0-dev.4`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: `0.7.1`
@@ -22,17 +22,18 @@ analysis.
 - Data policy: live `restricted` or `bulk_enabled` policy from MCP
 - Prompt pack: `5.1`
 
-The local QA Developer Mode App is
-`asdk_app_6a5a007aa5bc8191bbb5409005af37a6`; `.app.json` stores the matching
-plugin resource ID under the `anchises_analysis` namespace. The App is used by
-local and Repo Marketplace installations. A public Plugin Directory submission
-must submit and scan the production MCP URL directly and use the same final
-Skill bundle and public metadata.
+The package uses `.mcp.json` to connect the `anchises_analysis` server directly
+to the production Streamable HTTP endpoint. It does not depend on a Developer
+Mode App ID. Local and cross-workspace Repo Marketplace installations use the
+same endpoint, five Skills, and public metadata. A future public Plugin
+Directory submission must submit and scan the production MCP URL directly and
+use the same five-Skill bundle and public metadata.
 
 ## Skill architecture and entry
 
-The plugin package is the installation entry, `.app.json` is the single Hosted
-App entry, and the five Skill descriptions are peer request-routing entries:
+The plugin package is the installation entry, `.mcp.json` is the single bundled
+remote MCP entry, and the five Skill descriptions are peer request-routing
+entries:
 
 - `anchises-analysis` is a thin coordinator for generic, mixed, and ambiguous
   requests. Its references provide the canonical classification, global
@@ -139,6 +140,26 @@ limits, permitted source tools, and `eligible_by_query` gate. A currently
 eligible `screen_stocks` or `run_readonly_sql` query ID may be exported. In
 restricted mode the Skill never splits queries to reconstruct a refused
 dataset; in bulk mode it still follows the returned hard limits.
+
+## Cross-workspace Codex installation
+
+The public repository can be installed from a different OpenAI workspace
+without creating an Anchises Analysis App ID:
+
+```bash
+codex plugin marketplace add \
+  https://github.com/2026Allin/anchises-stock-qa.git \
+  --ref qa-v2-auth \
+  --sparse .agents/plugins \
+  --sparse plugins/anchises-analysis
+
+codex plugin add anchises-analysis@Anchises-Analysis
+```
+
+The plugin install supplies both the five Skills and the remote MCP definition;
+a separate `codex mcp add` is not required. Managed workspaces may require an
+administrator to allowlist the Git source and exact MCP URL. Start a new Codex
+task after installing or updating the plugin.
 
 ## Contract sync
 

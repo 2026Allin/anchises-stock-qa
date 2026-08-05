@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Current QA directory copy for `Anchises Analysis 0.6.0-dev.3`.
+Current QA directory copy for `Anchises Analysis 0.6.0-dev.4`.
 
 ## Identity
 
@@ -9,7 +9,7 @@ Current QA directory copy for `Anchises Analysis 0.6.0-dev.3`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.6.0-dev.3
+- Version: 0.6.0-dev.4
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - MCP version: 0.7.1
 - Data API version: 0.3.0
@@ -93,9 +93,10 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 
 ## Portal notes
 
-Submit and scan the production MCP URL directly. Do not submit the local
-Developer Mode App as the public Directory target. Refresh the Developer Mode
-App after the MCP schema change and test in a new task before submission.
+The current cross-workspace Codex release is distributed through the Git
+Marketplace and does not use Portal Scan. For a future public Directory
+release, submit and scan the production MCP URL directly. Do not submit the old
+Developer Mode App as the public Directory target.
 
 Before submission, complete exact CSP validation even though this release has
 no custom component UI.

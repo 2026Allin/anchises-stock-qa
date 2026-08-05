@@ -7,7 +7,7 @@
   Market Analysis
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Version: `0.6.0-dev.3`
+- Version: `0.6.0-dev.4`
 - Marketplace: `Anchises-Analysis`
 - Hosted MCP: `0.7.1`
 - Data API: `0.3.0`
@@ -16,12 +16,15 @@
 - Prompt pack: `5.1`
 - Tools: 12
 
-The Developer Mode App ID, MCP URL, website, privacy, terms, support URL, MCP
-Python package name, and VPS service names remain unchanged.
+The MCP URL, website, privacy, terms, support URL, MCP Python package name, and
+VPS service names remain unchanged. The Codex package now bundles the remote
+MCP definition directly and no longer references a Developer Mode App ID.
 
 ## Automated release gates
 
-1. Plugin and Skill directories, names, and manifests agree.
+1. Plugin and Skill directories, names, and manifests agree. The package
+   contains `.mcp.json`, declares `mcpServers`, contains no `.app.json`, and
+   contains no `plugin_asdk_app` identifier.
 2. `agents/openai.yaml` explicitly invokes `$anchises-analysis`.
 3. The checked-in live snapshot contains exactly 12 tools, including
    `resolve_company_identity`; both row tools accept opaque cursor
@@ -41,18 +44,32 @@ Python package name, and VPS service names remain unchanged.
    original intent and inspect the new policy.
 9. CSV copy states a 60-minute default and a 60-3600 second explicit range.
 10. Full unit/mock/live tests, Skill validation, and plugin validation pass.
-11. Cachebuster update and local reinstall succeed.
+11. Cachebuster update and local reinstall succeed; the installed plugin shows
+    all five Skills and one `anchises_analysis` bundled MCP server.
 
-## Manual Portal and Developer Mode gates
+## Cross-workspace Codex gates
 
-1. Refresh the existing Developer Mode App so it discovers the 0.7.1 schemas.
-2. Confirm the App ID value did not change; record the newly generated Version
-   ID if the Portal creates one.
-3. Test from a new task to avoid prior Skill or descriptor state.
-4. Verify public name, publisher, logo alt text, starter prompts, website,
-   Privacy, Terms, and support URLs.
-5. Submit and scan the production MCP URL directly for the Directory listing.
-6. Run all reviewer cases and capture current evidence.
+1. From a Codex account in a different OpenAI workspace with no Anchises
+   Developer Mode App, add the Git marketplace at `qa-v2-auth` and install
+   `anchises-analysis@Anchises-Analysis`.
+2. Confirm the plugin installs without an App ID, authentication credential,
+   Portal Scan, or workspace share link.
+3. Start a new task and confirm all five Skills are available.
+4. Confirm `/mcp` shows the bundled `anchises_analysis` server and exactly 12
+   production tools from MCP `0.7.1`.
+5. Run representative Company Brief, Company Report, Company Comparison, and
+   Market Analysis requests, including one cursor continuation and one dynamic
+   export-policy case.
+6. If the target workspace restricts custom marketplaces or plugin MCP
+   servers, have its administrator allowlist the exact Git source, ref, plugin
+   name, server name, and MCP URL before repeating the test.
+
+## Future Plugin Directory gates
+
+This Git Marketplace release does not use Portal Scan. If a later public
+Plugin Directory release is requested, submit and scan the production MCP URL
+directly rather than submitting the old Developer Mode App, then use the same
+five-Skill bundle and public metadata.
 
 ## Rollback boundary
 

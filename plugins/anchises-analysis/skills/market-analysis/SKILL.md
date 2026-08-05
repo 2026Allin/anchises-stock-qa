@@ -5,7 +5,7 @@ description: Analyze structured stock-market data through Anchises Analysis, inc
 
 # Market Analysis
 
-Use the Anchises Analysis Hosted App for supported-market quantitative work.
+Use the Anchises Analysis MCP for supported-market quantitative work.
 Let users ask in natural language; do not require schemas, SQL, tickers, local
 files, Python, or credentials.
 

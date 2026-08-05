@@ -4,11 +4,23 @@
 
 This repository contains the `Anchises-Analysis` development marketplace and
 the `anchises-analysis` plugin package published by Anchises Capital. The plugin
-connects to the public Hosted MCP at `https://mcp.anchisesdata.com/mcp` through
-the existing Developer Mode App ID.
+bundles five Skills and connects directly to the public Hosted MCP at
+`https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
+Developer Mode App ID.
 
-Current QA development target: `0.6.0-dev.3`. The submitted public-review
+Current QA development target: `0.6.0-dev.4`. The submitted public-review
 release remains `0.4.0-beta.2`.
+
+## What changed in 0.6.0-dev.4
+
+- The Codex package now bundles one remote HTTP MCP definition in `.mcp.json`
+  instead of referencing a Developer Mode App through `.app.json`.
+- Local and cross-workspace Repo Marketplace installations load the same five
+  Skills and MCP endpoint from one plugin package.
+- A teammate can install from the public GitHub marketplace without creating
+  an Anchises Analysis App ID or using workspace sharing.
+- The former Developer Mode App may remain available as a short-term rollback
+  resource, but it is not part of or required by this package.
 
 ## What changed for MCP 0.7.1
 
@@ -40,8 +52,8 @@ release remains `0.4.0-beta.2`.
   tables, rankings, and comparison matrices keep their own display limits.
 - Successful substantive analysis uses one shared response-finalization
   contract for continuation and semantic questions.
-- Local QA now uses Developer Mode App
-  `asdk_app_6a5a007aa5bc8191bbb5409005af37a6`.
+- Each Skill uses the bundled Anchises Analysis MCP while preserving the same
+  public-service access, privacy, and response contracts.
 
 ## What changed in 0.4
 
@@ -66,7 +78,7 @@ release remains `0.4.0-beta.2`.
 .agents/plugins/marketplace.json
 plugins/anchises-analysis/
   .codex-plugin/plugin.json
-  .app.json
+  .mcp.json
   assets/
   contracts/
   skills/
@@ -134,6 +146,37 @@ codex plugin add anchises-analysis@Anchises-Analysis
 
 After changing plugin content, run the cachebuster helper before reinstalling
 and start a new Codex task so the new Skill and MCP schema are loaded.
+
+## Cross-workspace Codex install
+
+For QA from another OpenAI workspace, add the public Git marketplace with the
+current QA ref and only the two required sparse paths:
+
+```bash
+codex plugin marketplace add \
+  https://github.com/2026Allin/anchises-stock-qa.git \
+  --ref qa-v2-auth \
+  --sparse .agents/plugins \
+  --sparse plugins/anchises-analysis
+
+codex plugin add anchises-analysis@Anchises-Analysis
+```
+
+The equivalent desktop form uses the repository URL as **Source**,
+`qa-v2-auth` as **Git ref**, and these two **Sparse paths**:
+
+```text
+.agents/plugins
+plugins/anchises-analysis
+```
+
+This install does not use `Share with you`, Portal Scan, or a Developer Mode
+App ID. A managed workspace may still require its administrator to allowlist
+the Git marketplace source and the bundled MCP URL. Start a new Codex task
+after installation.
+
+See the complete
+[cross-workspace installation guide](docs/anchises-analysis-codex-cross-workspace-install.md).
 
 See [release notes](docs/anchises-analysis-0.4.0-beta.2-release-notes.md),
 [Directory listing](docs/anchises-analysis-plugin-directory-listing.md), and

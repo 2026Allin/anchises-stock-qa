@@ -54,7 +54,7 @@ separate requested, contextual, and discovered entities.
 
 Before an access-sensitive workflow, read
 [references/service-access.md](references/service-access.md) and check the
-public Hosted App once for the request.
+bundled Anchises Analysis MCP once for the request.
 
 Before a company brief, full report, comparison, or single-company market-data
 workflow, read

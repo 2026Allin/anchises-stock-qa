@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
+CROSS_WORKSPACE_GUIDE = (
+    ROOT / "docs" / "anchises-analysis-codex-cross-workspace-install.md"
+)
 
 
 class MarketplaceManifestTest(unittest.TestCase):
@@ -24,8 +27,8 @@ class MarketplaceManifestTest(unittest.TestCase):
 
         plugin_root = ROOT / plugin["source"]["path"]
         self.assertTrue((plugin_root / ".codex-plugin" / "plugin.json").exists())
-        self.assertTrue((plugin_root / ".app.json").exists())
-        self.assertFalse((plugin_root / ".mcp.json").exists())
+        self.assertFalse((plugin_root / ".app.json").exists())
+        self.assertTrue((plugin_root / ".mcp.json").exists())
         self.assertTrue((plugin_root / "skills" / "anchises-analysis").is_dir())
         self.assertTrue((plugin_root / "skills" / "company-brief").is_dir())
         self.assertTrue((plugin_root / "skills" / "company-report").is_dir())
@@ -37,20 +40,52 @@ class MarketplaceManifestTest(unittest.TestCase):
                 encoding="utf-8"
             )
         )
+        mcp_manifest = json.loads(
+            (plugin_root / ".mcp.json").read_text(encoding="utf-8")
+        )
         contract = json.loads(
             (plugin_root / "contracts" / "hosted-mcp-v1.json").read_text(
                 encoding="utf-8"
             )
         )
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.3")
+        self.assertEqual(manifest["mcpServers"], "./.mcp.json")
+        self.assertNotIn("apps", manifest)
+        self.assertEqual(
+            mcp_manifest,
+            {
+                "mcpServers": {
+                    "anchises_analysis": {
+                        "type": "http",
+                        "url": "https://mcp.anchisesdata.com/mcp",
+                    }
+                }
+            },
+        )
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.4")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.3(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.4(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(contract["contract_version"], "1.7.0-draft")
         self.assertEqual(contract["source"]["server_version"], "0.7.1")
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
+
+    def test_cross_workspace_install_uses_git_and_bundled_mcp(self) -> None:
+        guide = CROSS_WORKSPACE_GUIDE.read_text(encoding="utf-8")
+        normalized = " ".join(guide.split())
+        for expected in (
+            "https://github.com/2026Allin/anchises-stock-qa.git",
+            "--ref qa-v2-auth",
+            "--sparse .agents/plugins",
+            "--sparse plugins/anchises-analysis",
+            "codex plugin add anchises-analysis@Anchises-Analysis",
+            "https://mcp.anchisesdata.com/mcp",
+            "all five Skills",
+            "exactly 12 tools",
+        ):
+            self.assertIn(expected, normalized)
+        self.assertNotIn("plugin_asdk_app", guide)
 
 
 if __name__ == "__main__":

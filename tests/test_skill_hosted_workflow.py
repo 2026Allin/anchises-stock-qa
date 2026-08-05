@@ -24,7 +24,8 @@ MARKET_SKILL_ROOT = PLUGIN_ROOT / "skills" / "market-analysis"
 MARKET_SKILL = MARKET_SKILL_ROOT / "SKILL.md"
 MARKET_OPENAI_YAML = MARKET_SKILL_ROOT / "agents" / "openai.yaml"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
-APP_MANIFEST = PLUGIN_ROOT / ".app.json"
+MCP_MANIFEST = PLUGIN_ROOT / ".mcp.json"
+LEGACY_APP_MANIFEST = PLUGIN_ROOT / ".app.json"
 CONTRACT = PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"
 GOLDEN_CASES = ROOT / "tests" / "fixtures" / "golden_prompts.json"
 REVIEWER_CASES = ROOT / "tests" / "fixtures" / "reviewer_cases.json"
@@ -121,7 +122,7 @@ def _golden_cases() -> dict:
 
 
 class SkillHostedWorkflowTest(unittest.TestCase):
-    def test_five_skills_share_the_existing_hosted_app_contract(self) -> None:
+    def test_five_skills_share_the_existing_hosted_mcp_contract(self) -> None:
         skill_dirs = sorted(
             path.name
             for path in (PLUGIN_ROOT / "skills").iterdir()
@@ -982,27 +983,36 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertIn(invocation, text)
             self.assertIn("allow_implicit_invocation: true", text)
 
-    def test_manifest_connects_the_6a5a_developer_app(self) -> None:
+    def test_manifest_bundles_cross_workspace_remote_mcp(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        app_manifest = json.loads(APP_MANIFEST.read_text(encoding="utf-8"))
+        mcp_manifest = json.loads(MCP_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "anchises-analysis")
-        self.assertEqual(manifest["apps"], "./.app.json")
-        self.assertNotIn("mcpServers", manifest)
-        self.assertEqual(set(app_manifest["apps"]), {"anchises_analysis"})
-        self.assertEqual(
-            app_manifest["apps"]["anchises_analysis"]["id"],
-            "plugin_asdk_app_6a5a007aa5bc8191bbb5409005af37a6",
-        )
-        serialized = json.dumps(app_manifest).lower()
-        for forbidden in ("client_secret", "api_token", "authorization", "bearer"):
+        self.assertEqual(manifest["mcpServers"], "./.mcp.json")
+        self.assertNotIn("apps", manifest)
+        self.assertFalse(LEGACY_APP_MANIFEST.exists())
+        self.assertEqual(set(mcp_manifest), {"mcpServers"})
+        self.assertEqual(set(mcp_manifest["mcpServers"]), {"anchises_analysis"})
+        server = mcp_manifest["mcpServers"]["anchises_analysis"]
+        self.assertEqual(server["type"], "http")
+        self.assertEqual(server["url"], "https://mcp.anchisesdata.com/mcp")
+        self.assertEqual(set(server), {"type", "url"})
+        serialized = json.dumps(mcp_manifest).lower()
+        for forbidden in (
+            "client_secret",
+            "api_token",
+            "authorization",
+            "bearer",
+            "headers",
+            "oauth",
+        ):
             self.assertNotIn(forbidden, serialized)
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.3")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.4")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.3(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.4(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
@@ -1027,11 +1037,12 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("allowed screen or SQL source tools", interface["longDescription"])
         self.assertIn("no account-linked cross-session cumulative budget", interface["longDescription"])
 
-    def test_developer_mode_app_is_not_public_submission_target(self) -> None:
+    def test_repo_distribution_uses_bundled_mcp_and_keeps_directory_separate(self) -> None:
         normalized = " ".join(PLUGIN_README.read_text(encoding="utf-8").split())
-        self.assertIn("used by local and Repo Marketplace installations", normalized)
+        self.assertIn("does not depend on a Developer Mode App ID", normalized)
+        self.assertIn("Local and cross-workspace Repo Marketplace installations", normalized)
         self.assertIn("must submit and scan the production MCP URL directly", normalized)
-        self.assertIn("same final Skill bundle", normalized)
+        self.assertIn("same five-Skill bundle", normalized)
 
     def test_submission_fixture_remains_five_positive_and_three_negative(self) -> None:
         cases = json.loads(REVIEWER_CASES.read_text(encoding="utf-8"))
