@@ -1,0 +1,7 @@
+interface:
+  display_name: "Company Brief"
+  short_description: "Current public-company snapshots in 3–4 sentences."
+  default_prompt: "Use $company-brief to introduce Apple, NVIDIA, and AMD in 3–4 current sentences each."
+
+policy:
+  allow_implicit_invocation: true

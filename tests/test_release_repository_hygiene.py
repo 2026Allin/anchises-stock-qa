@@ -7,18 +7,18 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_ROOT = (
-    ROOT / "plugins" / "anchises-analysis" / "skills" / "anchises-analysis"
+    ROOT / "plugins" / "anchises-analysis" / "skills" / "company-report"
 )
 OAUTH_PLAN = ROOT / "docs" / "hosted-mcp-oauth-migration-plan.md"
 
 
 class ReleaseRepositoryHygieneTest(unittest.TestCase):
     def test_company_report_workflow_is_required_by_the_skill(self) -> None:
-        workflow = SKILL_ROOT / "references" / "company-report-workflow.md"
+        workflow = SKILL_ROOT / "references" / "report-workflow.md"
         self.assertTrue(workflow.is_file())
 
         skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("references/company-report-workflow.md", skill)
+        self.assertIn("references/report-workflow.md", skill)
 
     def test_generated_output_directories_are_ignored(self) -> None:
         rules = {

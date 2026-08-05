@@ -1,0 +1,7 @@
+interface:
+  display_name: "Company Comparison"
+  short_description: "Structured cross-company positioning and risk comparison."
+  default_prompt: "Use $company-comparison to compare NVIDIA and AMD across business mix, positioning, catalysts, and risks."
+
+policy:
+  allow_implicit_invocation: true

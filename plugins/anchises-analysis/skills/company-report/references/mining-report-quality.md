@@ -34,6 +34,7 @@ available:
 
 Do not double-count warrants, options, convertibles, or shares already included
 in the basic count. Tie every cash, debt, and warrant figure to a source date;
-write “not disclosed” when a material figure is unavailable. State formulas and
-assumptions, distinguish company guidance from analyst calculation, and conclude
-whether current liquidity appears sufficient to reach the next major milestone.
+write “not disclosed” when a material figure is unavailable. State formulas
+and assumptions, distinguish company guidance from analyst calculation, and
+conclude whether current liquidity appears sufficient to reach the next major
+milestone.

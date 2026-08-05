@@ -27,6 +27,10 @@ class MarketplaceManifestTest(unittest.TestCase):
         self.assertTrue((plugin_root / ".app.json").exists())
         self.assertFalse((plugin_root / ".mcp.json").exists())
         self.assertTrue((plugin_root / "skills" / "anchises-analysis").is_dir())
+        self.assertTrue((plugin_root / "skills" / "company-brief").is_dir())
+        self.assertTrue((plugin_root / "skills" / "company-report").is_dir())
+        self.assertTrue((plugin_root / "skills" / "company-comparison").is_dir())
+        self.assertTrue((plugin_root / "skills" / "market-analysis").is_dir())
 
         manifest = json.loads(
             (plugin_root / ".codex-plugin" / "plugin.json").read_text(
@@ -38,7 +42,12 @@ class MarketplaceManifestTest(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(manifest["version"], "0.4.0-beta.2")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.2")
+        self.assertRegex(
+            manifest["version"],
+            r"^0\.6\.0-dev\.2(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+        )
+        self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(contract["source"]["server_version"], "0.6.0")
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
 

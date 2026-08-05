@@ -132,11 +132,11 @@ class PublicListingTest(unittest.TestCase):
         expected = {
             "logo.png": (
                 (512, 512),
-                "de6c611c6c88de224b0d52bc9b03d6a62b1de807bd5c2452fa82031260a815b7",
+                "3eef3b9fcb0b64e9d6168a47363fdd65e09f368e2dfc3adced04cde683580c6d",
             ),
             "composer-icon.png": (
-                (128, 128),
-                "a3070135807ac135ebb373669b646a126a10eb9e9028827a1bdec552a36c0564",
+                (512, 512),
+                "3eef3b9fcb0b64e9d6168a47363fdd65e09f368e2dfc3adced04cde683580c6d",
             ),
         }
         for filename, (dimensions, digest) in expected.items():

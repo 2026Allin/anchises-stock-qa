@@ -1,0 +1,7 @@
+interface:
+  display_name: "Company Report"
+  short_description: "Deep source-linked seven-section company research."
+  default_prompt: "Use $company-report to research NVIDIA deeply and produce a fresh seven-section report."
+
+policy:
+  allow_implicit_invocation: true

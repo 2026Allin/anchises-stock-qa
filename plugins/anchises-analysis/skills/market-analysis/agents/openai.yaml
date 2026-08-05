@@ -1,0 +1,7 @@
+interface:
+  display_name: "Market Analysis"
+  short_description: "Server-side stock screens, rankings, history, and CSV."
+  default_prompt: "Use $market-analysis to rank the NASDAQ Top 100 by dollar volume and export the relevant fields."
+
+policy:
+  allow_implicit_invocation: true

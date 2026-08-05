@@ -1,6 +1,6 @@
 {
   "name": "anchises-analysis",
-  "version": "0.4.0-beta.2",
+  "version": "0.6.0-dev.2+codex.20260729090427",
   "description": "Research public companies with live web sources and analyze stock-market data.",
   "author": {
     "name": "Anchises Capital",

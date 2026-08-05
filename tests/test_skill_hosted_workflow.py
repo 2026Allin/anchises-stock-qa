@@ -11,6 +11,18 @@ PLUGIN_README = PLUGIN_ROOT / "README.md"
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "anchises-analysis"
 SKILL = SKILL_ROOT / "SKILL.md"
 OPENAI_YAML = SKILL_ROOT / "agents" / "openai.yaml"
+BRIEF_SKILL_ROOT = PLUGIN_ROOT / "skills" / "company-brief"
+BRIEF_SKILL = BRIEF_SKILL_ROOT / "SKILL.md"
+BRIEF_OPENAI_YAML = BRIEF_SKILL_ROOT / "agents" / "openai.yaml"
+REPORT_SKILL_ROOT = PLUGIN_ROOT / "skills" / "company-report"
+REPORT_SKILL = REPORT_SKILL_ROOT / "SKILL.md"
+REPORT_OPENAI_YAML = REPORT_SKILL_ROOT / "agents" / "openai.yaml"
+COMPARISON_SKILL_ROOT = PLUGIN_ROOT / "skills" / "company-comparison"
+COMPARISON_SKILL = COMPARISON_SKILL_ROOT / "SKILL.md"
+COMPARISON_OPENAI_YAML = COMPARISON_SKILL_ROOT / "agents" / "openai.yaml"
+MARKET_SKILL_ROOT = PLUGIN_ROOT / "skills" / "market-analysis"
+MARKET_SKILL = MARKET_SKILL_ROOT / "SKILL.md"
+MARKET_OPENAI_YAML = MARKET_SKILL_ROOT / "agents" / "openai.yaml"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
 APP_MANIFEST = PLUGIN_ROOT / ".app.json"
 CONTRACT = PLUGIN_ROOT / "contracts" / "hosted-mcp-v1.json"
@@ -37,19 +49,71 @@ EXPECTED_TOOLS = {
 EXPECTED_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
-    Path("references/answer-format.md"),
-    Path("references/company-report-workflow.md"),
+    Path("references/common-errors.md"),
+    Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
-    Path("references/market-data-policy.md"),
-    Path("references/mining-report-quality.md"),
+    Path("references/global-contract.md"),
     Path("references/query-interpretation.md"),
-    Path("references/workflow.md"),
+    Path("references/response-finalization.md"),
+    Path("references/service-access.md"),
+}
+
+EXPECTED_BRIEF_SKILL_BUNDLE_FILES = {
+    Path("SKILL.md"),
+    Path("agents/openai.yaml"),
+}
+
+EXPECTED_REPORT_SKILL_BUNDLE_FILES = {
+    Path("SKILL.md"),
+    Path("agents/openai.yaml"),
+    Path("references/mining-report-quality.md"),
+    Path("references/report-format.md"),
+    Path("references/report-workflow.md"),
+}
+
+EXPECTED_COMPARISON_SKILL_BUNDLE_FILES = {
+    Path("SKILL.md"),
+    Path("agents/openai.yaml"),
+    Path("references/comparison-format.md"),
+    Path("references/comparison-workflow.md"),
+}
+
+EXPECTED_MARKET_SKILL_BUNDLE_FILES = {
+    Path("SKILL.md"),
+    Path("agents/openai.yaml"),
+    Path("references/market-answer-format.md"),
+    Path("references/market-data-policy.md"),
+    Path("references/market-workflow.md"),
+}
+
+SKILL_ROOTS = {
+    "anchises-analysis": SKILL_ROOT,
+    "company-brief": BRIEF_SKILL_ROOT,
+    "company-report": REPORT_SKILL_ROOT,
+    "company-comparison": COMPARISON_SKILL_ROOT,
+    "market-analysis": MARKET_SKILL_ROOT,
+}
+
+EXPECTED_BUNDLE_FILES = {
+    "anchises-analysis": EXPECTED_SKILL_BUNDLE_FILES,
+    "company-brief": EXPECTED_BRIEF_SKILL_BUNDLE_FILES,
+    "company-report": EXPECTED_REPORT_SKILL_BUNDLE_FILES,
+    "company-comparison": EXPECTED_COMPARISON_SKILL_BUNDLE_FILES,
+    "market-analysis": EXPECTED_MARKET_SKILL_BUNDLE_FILES,
 }
 
 
-def _skill_bundle_text() -> str:
-    paths = [SKILL, *sorted((SKILL_ROOT / "references").glob("*.md"))]
+def _bundle_text(root: Path) -> str:
+    paths = [root / "SKILL.md", *sorted((root / "references").glob("*.md"))]
     return "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+
+def _skill_bundle_text() -> str:
+    return "\n".join(_bundle_text(root) for root in SKILL_ROOTS.values())
+
+
+def _brief_skill_bundle_text() -> str:
+    return _bundle_text(BRIEF_SKILL_ROOT)
 
 
 def _golden_cases() -> dict:
@@ -57,24 +121,58 @@ def _golden_cases() -> dict:
 
 
 class SkillHostedWorkflowTest(unittest.TestCase):
-    def test_single_skill_targets_all_twelve_hosted_tools(self) -> None:
-        skill_dirs = [path for path in (PLUGIN_ROOT / "skills").iterdir() if path.is_dir()]
-        self.assertEqual([path.name for path in skill_dirs], ["anchises-analysis"])
-        text = SKILL.read_text(encoding="utf-8")
-        self.assertIn("name: anchises-analysis", text)
-        self.assertIn("credential-free public access", " ".join(text.split()))
+    def test_five_skills_share_the_existing_hosted_app_contract(self) -> None:
+        skill_dirs = sorted(
+            path.name
+            for path in (PLUGIN_ROOT / "skills").iterdir()
+            if path.is_dir()
+        )
+        self.assertEqual(
+            skill_dirs,
+            [
+                "anchises-analysis",
+                "company-brief",
+                "company-comparison",
+                "company-report",
+                "market-analysis",
+            ],
+        )
+        combined = _skill_bundle_text()
+        self.assertIn("credential-free public service", " ".join(combined.split()))
         for tool in EXPECTED_TOOLS:
-            self.assertIn(f"`{tool}`", text)
+            self.assertIn(f"`{tool}`", combined)
 
-    def test_release_skill_bundle_tree_is_exact_and_safe(self) -> None:
-        actual = {
-            path.relative_to(SKILL_ROOT)
-            for path in SKILL_ROOT.rglob("*")
-            if path.is_file()
-        }
-        self.assertEqual(actual, EXPECTED_SKILL_BUNDLE_FILES)
-        self.assertTrue(all(not path.is_symlink() for path in SKILL_ROOT.rglob("*")))
-        self.assertLess(len(SKILL.read_text(encoding="utf-8").splitlines()), 500)
+        for name, root in SKILL_ROOTS.items():
+            self.assertIn(
+                f"name: {name}",
+                (root / "SKILL.md").read_text(encoding="utf-8"),
+            )
+
+        brief = BRIEF_SKILL.read_text(encoding="utf-8")
+        intro_component = (
+            SKILL_ROOT / "references" / "company-introductions.md"
+        ).read_text(encoding="utf-8")
+        brief_normalized = " ".join((brief + intro_component).split())
+        self.assertIn("`get_connection_status`", brief)
+        self.assertIn("`resolve_company_identity`", intro_component)
+        self.assertIn(
+            "Do not call `prepare_company_report_generation`",
+            brief_normalized,
+        )
+        self.assertIn(
+            "only plugin Skill allowed to call `prepare_company_report_generation`",
+            " ".join(REPORT_SKILL.read_text(encoding="utf-8").split()),
+        )
+        self.assertIn(
+            "must never call that tool",
+            " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split()),
+        )
+        self.assertIn(
+            "Never call `prepare_company_report_generation`",
+            _bundle_text(MARKET_SKILL_ROOT),
+        )
+
+    def test_release_skill_bundle_trees_are_exact_and_safe(self) -> None:
         forbidden_fragments = (
             "[TODO:",
             "plugin_asdk_app_",
@@ -84,10 +182,27 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "/Users/",
             "/var/lib/",
         )
-        for relative in sorted(EXPECTED_SKILL_BUNDLE_FILES):
-            text = (SKILL_ROOT / relative).read_text(encoding="utf-8")
-            for fragment in forbidden_fragments:
-                self.assertNotIn(fragment, text, f"{relative}: {fragment}")
+        for name, root in SKILL_ROOTS.items():
+            expected = EXPECTED_BUNDLE_FILES[name]
+            actual = {
+                path.relative_to(root)
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(actual, expected)
+            self.assertTrue(all(not path.is_symlink() for path in root.rglob("*")))
+            self.assertLess(
+                len((root / "SKILL.md").read_text(encoding="utf-8").splitlines()),
+                500,
+            )
+            for relative in sorted(expected):
+                text = (root / relative).read_text(encoding="utf-8")
+                for fragment in forbidden_fragments:
+                    self.assertNotIn(
+                        fragment,
+                        text,
+                        f"{root.name}/{relative}: {fragment}",
+                    )
 
     def test_skill_freezes_public_access_without_login_guidance(self) -> None:
         combined = " ".join(_skill_bundle_text().split())
@@ -104,7 +219,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("HTTP 503", combined)
 
     def test_primary_skill_has_no_secret_or_local_runtime_setup(self) -> None:
-        text = SKILL.read_text(encoding="utf-8").lower()
+        text = _bundle_text(SKILL_ROOT).lower()
         for forbidden in (
             "config.toml",
             "mysql",
@@ -147,19 +262,179 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertIn(value, normalized)
 
     def test_company_report_requests_start_live_research_without_confirmation(self) -> None:
-        text = _skill_bundle_text()
+        text = _bundle_text(REPORT_SKILL_ROOT)
         normalized = " ".join(text.split())
-        self.assertIn("request itself authorizes immediate live research", normalized)
+        self.assertIn("explicit report request authorizes immediate live research", normalized)
         self.assertIn("do not ask whether to generate it", normalized)
         self.assertIn("Do not read a prior stored report first", normalized)
         self.assertIn("The MCP returns a research prompt", normalized)
         self.assertIn("The Host must execute", normalized)
-        self.assertIn("Do not send it back to MCP", normalized)
+        self.assertIn("Do not send the report back to MCP", normalized)
+
+    def test_primary_task_arbitration_is_canonical_and_one_way(self) -> None:
+        interpretation = (
+            SKILL_ROOT / "references" / "query-interpretation.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(interpretation.split())
+        self.assertIn("Classify an in-scope request into exactly one `primary_task`", normalized)
+        for task in (
+            "company_brief",
+            "full_report",
+            "news",
+            "comparison",
+            "market_data",
+            "discovery",
+            "ambiguous",
+        ):
+            self.assertIn(task, interpretation)
+        self.assertIn("only source of task arbitration", normalized)
+        self.assertIn("do not reclassify", normalized.lower())
+        self.assertIn("modifiers", interpretation)
+        self.assertIn("entities", interpretation)
+        self.assertIn("presentation policies", interpretation)
+        self.assertIn("finalize the response", interpretation)
+
+        main = " ".join(SKILL.read_text(encoding="utf-8").split())
+        market_workflow = " ".join(
+            (MARKET_SKILL_ROOT / "references" / "market-workflow.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        report = " ".join(
+            (REPORT_SKILL_ROOT / "references" / "report-workflow.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        brief = " ".join(BRIEF_SKILL.read_text(encoding="utf-8").split())
+        comparison = " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split())
+        market = " ".join(MARKET_SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("references/query-interpretation.md", main)
+        self.assertIn("Do not reclassify the request here", market_workflow)
+        self.assertIn("Do not reclassify it here", report)
+        for specialist in (brief, comparison, market):
+            self.assertIn(
+                "../anchises-analysis/references/query-interpretation.md",
+                specialist,
+            )
+        for root in SKILL_ROOTS.values():
+            skill_text = (root / "SKILL.md").read_text(encoding="utf-8")
+            if root == SKILL_ROOT:
+                self.assertIn("references/global-contract.md", skill_text)
+            else:
+                self.assertIn(
+                    "../anchises-analysis/references/global-contract.md",
+                    skill_text,
+                )
+        self.assertNotIn("company profiles", SKILL.read_text(encoding="utf-8").lower())
+
+    def test_specialized_skills_have_disjoint_execution_ownership(self) -> None:
+        report = " ".join(_bundle_text(REPORT_SKILL_ROOT).split())
+        comparison = " ".join(_bundle_text(COMPARISON_SKILL_ROOT).split())
+        market = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
+        brief = " ".join(_bundle_text(BRIEF_SKILL_ROOT).split())
+
+        self.assertIn("Proceed only when `primary_task=full_report`", report)
+        self.assertIn("Proceed only when `primary_task=comparison`", comparison)
+        self.assertIn("`primary_task=market_data`", market)
+        self.assertIn("`primary_task` is `company_brief`", brief)
+
+        self.assertIn("Call `prepare_company_report_generation` directly", report)
+        self.assertNotIn(
+            "Call `prepare_company_report_generation` directly",
+            "\n".join((brief, comparison, market)),
+        )
+        self.assertIn("must never call that tool", comparison)
+        self.assertIn(
+            "Never call `prepare_company_report_generation`",
+            market,
+        )
+
+    def test_core_is_a_thin_coordinator_not_a_specialist_executor(self) -> None:
+        core = " ".join(SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("thin coordination entry", core)
+        self.assertIn("This Skill coordinates", core)
+        self.assertIn("does not duplicate the specialized delivery workflows", core)
+        self.assertNotIn("## Generate a live company report", core)
+        self.assertNotIn("## Analyze stock data", core)
+
+    def test_shared_company_introduction_contract_is_bounded_and_non_recursive(self) -> None:
+        text = (
+            SKILL_ROOT / "references" / "company-introductions.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+        for value in (
+            "current_intro_batch = ordered_intro_entities[0:5]",
+            "remaining_intro_entities = ordered_intro_entities[5:]",
+            "Research and write introductions only for `current_intro_batch`",
+            "exactly three or four prose sentences",
+            "most recent 90 days",
+            "most recent 12 months",
+            "material independent news item",
+            "Do not reorder by perceived importance",
+            "Do not scan the full conversation",
+            "Do not add customers, suppliers, competitors",
+            "does not authorize `prepare_company_report_generation`",
+        ):
+            self.assertIn(value, normalized)
+
+    def test_global_finalization_contract_handles_all_response_states(self) -> None:
+        text = " ".join(
+            (
+                SKILL_ROOT / "references" / "response-finalization.md"
+            ).read_text(encoding="utf-8").split()
+        )
+        self.assertIn(
+            "one continuation question, then one semantic question",
+            text,
+        )
+        self.assertIn(
+            "exactly one semantic question",
+            text,
+        )
+        self.assertIn("may concern only `current_intro_batch`", text)
+        self.assertIn("two most recent assistant messages", text)
+        self.assertIn("suggestions_allowed=false", text)
+        self.assertIn("no semantic question; give safe recovery guidance", text)
+        self.assertIn("`mechanical_result`", text)
+        self.assertIn("must be the final sentence", text)
+
+    def test_global_policies_have_single_canonical_sources(self) -> None:
+        combined = _skill_bundle_text()
+        self.assertEqual(
+            combined.count(
+                "current_intro_batch = ordered_intro_entities[0:5]"
+            ),
+            1,
+        )
+        self.assertEqual(
+            combined.count(
+                "remaining_intro_entities = ordered_intro_entities[5:]"
+            ),
+            1,
+        )
+        self.assertFalse(
+            (SKILL_ROOT / "references" / "common-follow-up.md").exists()
+        )
+        for root in SKILL_ROOTS.values():
+            skill = (root / "SKILL.md").read_text(encoding="utf-8")
+            if root == SKILL_ROOT:
+                self.assertIn("references/response-finalization.md", skill)
+            else:
+                self.assertIn(
+                    "../anchises-analysis/references/response-finalization.md",
+                    skill,
+                )
 
     def test_removed_report_state_machine_is_absent_from_skill_tests_and_examples(self) -> None:
         paths = [
-            SKILL,
-            *sorted((SKILL_ROOT / "references").glob("*.md")),
+            *[
+                path
+                for root in SKILL_ROOTS.values()
+                for path in (
+                    root / "SKILL.md",
+                    *sorted((root / "references").glob("*.md")),
+                )
+            ],
             GOLDEN_CASES,
             REVIEWER_CASES,
             REVIEWER_DOC,
@@ -218,6 +493,213 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("resolve_company_identity", case["expected_tools"])
         self.assertIn("never send the full conversation", case["expected_behavior"])
         self.assertIn("this company", _skill_bundle_text())
+
+    def test_company_brief_golden_cases_cover_scope_batching_and_modifiers(self) -> None:
+        cases = _golden_cases()
+        all_cases = cases["positive"] + cases["negative"]
+        by_id = {case["id"]: case for case in all_cases}
+
+        brief_ids = {
+            "company-brief-three",
+            "company-brief-context-reference",
+            "company-brief-eight",
+            "company-brief-user-priority",
+            "company-brief-news-modifier",
+            "company-brief-no-suggestions-with-remaining",
+            "company-brief-no-suggestions-complete",
+        }
+        for case_id in brief_ids:
+            case = by_id[case_id]
+            self.assertEqual(case["expected_primary_task"], "company_brief")
+            self.assertIn("resolve_company_identity", case["expected_tools"])
+            self.assertIn(
+                "prepare_company_report_generation",
+                case["forbidden_tools"],
+            )
+
+        eight = by_id["company-brief-eight"]["expected_behavior"]
+        for company in (
+            "Apple",
+            "NVIDIA",
+            "AMD",
+            "Intel",
+            "TSMC",
+            "ASML",
+            "Broadcom",
+            "Qualcomm",
+        ):
+            self.assertIn(company, eight)
+        self.assertIn("exactly one continuation question", eight)
+        self.assertIn("one semantic question", eight)
+        self.assertIn(
+            "omit the optional semantic question",
+            by_id["company-brief-no-suggestions-with-remaining"][
+                "expected_behavior"
+            ],
+        )
+        self.assertEqual(
+            by_id["company-brief-no-suggestions-complete"][
+                "expected_output_contract"
+            ]["semantic_questions"],
+            0,
+        )
+        self.assertIn(
+            "AMD, Apple, then NVIDIA",
+            by_id["company-brief-user-priority"]["expected_behavior"],
+        )
+        self.assertIn(
+            "rather than reclassifying the request as news-only",
+            by_id["company-brief-news-modifier"]["expected_behavior"],
+        )
+
+    def test_context_and_incidental_mentions_do_not_force_company_briefs(self) -> None:
+        cases = _golden_cases()
+        all_cases = cases["positive"] + cases["negative"]
+        by_id = {case["id"]: case for case in all_cases}
+        comparison = by_id["context-comparison-not-brief"]
+        discovery = by_id["incidental-company-list-not-brief"]
+        self.assertEqual(comparison["expected_primary_task"], "comparison")
+        self.assertEqual(discovery["expected_primary_task"], "discovery")
+        self.assertIn(
+            "prepare_company_report_generation",
+            comparison["forbidden_tools"],
+        )
+        self.assertIn(
+            "prepare_company_report_generation",
+            discovery["forbidden_tools"],
+        )
+        self.assertIn(
+            "contextual reference as the entity source",
+            comparison["expected_behavior"],
+        )
+        self.assertIn(
+            "without automatically expanding every company",
+            discovery["expected_behavior"],
+        )
+
+    def test_golden_routes_cover_all_five_skill_entries(self) -> None:
+        cases = _golden_cases()
+        by_id = {
+            case["id"]: case
+            for case in cases["positive"] + cases["negative"]
+        }
+        expected_routes = {
+            "ambiguous-company-request-routes-to-core": "anchises-analysis",
+            "company-brief-three": "company-brief",
+            "company-name-live-report": "company-report",
+            "company-comparison-business-context": "company-comparison",
+            "structured-screen": "market-analysis",
+        }
+        for case_id, expected_skill in expected_routes.items():
+            self.assertEqual(by_id[case_id]["expected_skill"], expected_skill)
+
+        self.assertEqual(
+            by_id["mixed-company-and-market-analysis"]["expected_primary_task"],
+            "full_report",
+        )
+        self.assertEqual(
+            by_id["mixed-company-and-market-analysis"]["expected_skill"],
+            "company-report",
+        )
+        self.assertEqual(
+            by_id["market-discovery"]["expected_skill"],
+            "market-analysis",
+        )
+
+    def test_comparison_set_does_not_inherit_introduction_window(self) -> None:
+        case = next(
+            item
+            for item in _golden_cases()["positive"]
+            if item["id"] == "company-comparison-six-no-brief-window"
+        )
+        self.assertEqual(case["expected_primary_task"], "comparison")
+        self.assertEqual(case["expected_skill"], "company-comparison")
+        self.assertIn(
+            "Do not apply the standalone introduction window",
+            case["expected_behavior"],
+        )
+        comparison = " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split())
+        self.assertIn(
+            "standalone company-introduction window does not limit",
+            comparison,
+        )
+        self.assertIn("Never silently compare only the first five", comparison)
+
+    def test_market_screen_with_introductions_keeps_table_and_batches_profiles(self) -> None:
+        by_id = {
+            case["id"]: case
+            for cases in _golden_cases().values()
+            for case in cases
+        }
+        case = by_id["market-screen-with-company-introductions"]
+        self.assertEqual(case["expected_primary_task"], "market_data")
+        self.assertEqual(case["expected_skill"], "market-analysis")
+        self.assertIn("screen_stocks", case["expected_tools"])
+        self.assertIn("resolve_company_identity", case["expected_tools"])
+        contract = case["expected_output_contract"]
+        self.assertTrue(contract["quantitative_result_not_capped"])
+        self.assertEqual(contract["max_introduction_blocks"], 5)
+        self.assertEqual(contract["continuation_questions"], 1)
+        self.assertEqual(contract["semantic_questions"], 1)
+
+        market = " ".join(MARKET_SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("company_introductions=true", market)
+        self.assertIn("Keep the full quantitative result", market)
+        self.assertIn("five-company window only to the standalone introduction section", market)
+        self.assertIn("Do not rerun the screen", market)
+
+    def test_comparison_with_standalone_introductions_has_two_scopes(self) -> None:
+        case = next(
+            item
+            for item in _golden_cases()["positive"]
+            if item["id"] == "company-comparison-with-standalone-introductions"
+        )
+        contract = case["expected_output_contract"]
+        self.assertEqual(contract["comparison_entities"], "all")
+        self.assertEqual(contract["max_introduction_blocks"], 5)
+        self.assertEqual(contract["continuation_questions"], 1)
+        self.assertIn("current_intro_batch", COMPARISON_SKILL.read_text(encoding="utf-8"))
+
+    def test_market_introduction_continuation_reuses_prior_result(self) -> None:
+        case = next(
+            item
+            for item in _golden_cases()["positive"]
+            if item["id"] == "market-introduction-continuation"
+        )
+        self.assertIn("resolve_company_identity", case["expected_tools"])
+        self.assertIn("screen_stocks", case["forbidden_tools"])
+        self.assertIn("data_date", case["expected_behavior"])
+
+    def test_direct_specialist_invocation_cannot_bypass_global_contract(self) -> None:
+        case = next(
+            item
+            for item in _golden_cases()["positive"]
+            if item["id"] == "direct-market-skill-with-company-introductions"
+        )
+        self.assertEqual(case["expected_skill"], "market-analysis")
+        self.assertEqual(
+            case["expected_output_contract"]["max_introduction_blocks"],
+            5,
+        )
+        self.assertIn(
+            "../anchises-analysis/references/global-contract.md",
+            MARKET_SKILL.read_text(encoding="utf-8"),
+        )
+
+    def test_disclaimer_and_report_risk_label_precede_final_questions(self) -> None:
+        market_format = (
+            MARKET_SKILL_ROOT / "references" / "market-answer-format.md"
+        ).read_text(encoding="utf-8")
+        report_format = (
+            REPORT_SKILL_ROOT / "references" / "report-format.md"
+        ).read_text(encoding="utf-8")
+        finalizer = (
+            SKILL_ROOT / "references" / "response-finalization.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("immediately before any continuation or semantic", market_format)
+        self.assertIn("placed before any question", report_format)
+        self.assertIn("analytical-information disclaimer", finalizer)
+        self.assertIn("semantic question, when required", finalizer)
 
     def test_company_name_resolves_before_stock_data(self) -> None:
         case = next(
@@ -287,21 +769,22 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("do not execute prompt_text", case["expected_behavior"])
 
     def test_ready_executes_hidden_prompt_instead_of_returning_it(self) -> None:
-        report = (SKILL_ROOT / "references" / "company-report-workflow.md").read_text(
+        report = (REPORT_SKILL_ROOT / "references" / "report-workflow.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("return the completed report, not the prompt", report)
-        self.assertIn("Do not expose `prompt_text`", report)
-        self.assertIn("live web search", report)
+        normalized = " ".join(report.split())
+        self.assertIn("Return the completed report, not the prompt", normalized)
+        self.assertIn("Do not expose `prompt_text`", normalized)
+        self.assertIn("live web search", normalized)
         self.assertEqual(report.count("### 1. Company Overview & Listing Profile"), 1)
         self.assertEqual(report.count("### 7. Risk Assessment"), 1)
         self.assertIn("`**Summary:**`", report)
         self.assertIn("`**[Risk: Low]**`", report)
 
     def test_no_web_search_never_falls_back_to_model_memory(self) -> None:
-        combined = " ".join(_skill_bundle_text().split())
+        combined = " ".join(_bundle_text(REPORT_SKILL_ROOT).split())
         self.assertIn("If live web search is unavailable", combined)
-        self.assertIn("do not generate from model memory", combined)
+        self.assertIn("do not generate current research from model memory", combined)
         self.assertIn("do not rely on model memory", combined)
         case = next(
             item for item in _golden_cases()["negative"]
@@ -310,14 +793,14 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("invent the exchange, ticker, or company name", case["expected_behavior"])
 
     def test_report_is_not_persisted_or_written_back(self) -> None:
-        combined = " ".join(_skill_bundle_text().split())
-        self.assertIn("Return the finished report only in the current conversation", combined)
+        combined = " ".join(_bundle_text(REPORT_SKILL_ROOT).split())
+        self.assertIn("Return the completed source-linked report only in the current conversation", combined)
+        self.assertIn("Do not send the report back to MCP", combined)
         self.assertIn("Do not send it back to MCP", combined)
-        self.assertIn("Do not send the result to MCP", combined)
         self.assertIn("claim it was saved, uploaded, or published", combined)
 
     def test_mining_quality_covers_cash_debt_and_warrants(self) -> None:
-        text = (SKILL_ROOT / "references" / "mining-report-quality.md").read_text(
+        text = (REPORT_SKILL_ROOT / "references" / "mining-report-quality.md").read_text(
             encoding="utf-8"
         )
         text = " ".join(text.split())
@@ -366,19 +849,19 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         )
 
     def test_csv_export_guidance_publishes_default_and_allowed_lifetimes(self) -> None:
-        combined = " ".join(_skill_bundle_text().split())
+        combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
         self.assertIn("default 60-minute", combined)
-        self.assertIn("60 through 3600 seconds", combined)
+        self.assertIn("60 through 3,600 seconds", combined)
         self.assertIn("`expires_in_seconds`", combined)
         self.assertIn("1,000 rows", combined)
         self.assertIn("25 total columns", combined)
         self.assertIn("20,000", combined)
         self.assertIn("50 tickers", combined)
-        self.assertIn("at most 22 additional fields", combined)
+        self.assertIn("count toward the column limit", combined)
 
     def test_user_facing_export_copy_is_question_led_without_limit_recital(self) -> None:
         answer_format = (
-            SKILL_ROOT / "references" / "answer-format.md"
+            MARKET_SKILL_ROOT / "references" / "market-answer-format.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(answer_format.split())
         for threshold in (
@@ -389,27 +872,26 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "50 exact tickers",
         ):
             self.assertNotIn(threshold, normalized)
-        self.assertIn("Never use a fixed target schema", normalized)
-        self.assertIn("derived from the user's actual question", normalized)
-        self.assertIn("confirmed by `get_stock_schema`", normalized)
-        self.assertIn("verify current official documentation", normalized)
+        self.assertIn("Tailor suggested fields to the user's question", normalized)
+        self.assertIn("confirm their names with `get_stock_schema`", normalized)
+        self.assertIn("verify their current official documentation", normalized)
         self.assertNotIn(
             "Ticker, Company, Exchange, Open, High, Low, Close",
             normalized,
         )
 
     def test_market_data_policy_uses_only_the_new_export_gate(self) -> None:
-        combined = " ".join(_skill_bundle_text().split())
+        combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
         self.assertIn("data.export_policy.eligible_by_query", combined)
-        self.assertIn("Never read or infer eligibility from a legacy `eligible` field", combined)
+        self.assertIn("Never infer eligibility from a legacy `eligible` field", combined)
         self.assertNotIn("current screen or SQL workflow", combined)
-        self.assertIn("Never export a SQL query ID", combined)
+        self.assertIn("Never pass a SQL query ID", combined)
         self.assertIn("page.next_cursor` is always null", combined)
         self.assertIn("Do not retrieve row 201 onward", combined)
-        self.assertIn("Do not evade a refusal by splitting fields", combined)
+        self.assertIn("Do not evade an ineligible export by splitting fields", combined)
 
     def test_policy_errors_have_safe_recovery_instructions(self) -> None:
-        combined = _skill_bundle_text()
+        combined = _bundle_text(MARKET_SKILL_ROOT)
         for code in (
             "export_requires_selective_query",
             "export_row_limit_exceeded",
@@ -426,17 +908,15 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "temporarily_unavailable",
         ):
             self.assertIn(f"`{code}`", combined)
-        self.assertIn("rerun the original structured screen", combined)
-        self.assertIn("download is temporarily unavailable", combined)
+        self.assertIn("rerun the original screen", combined)
+        self.assertIn("download is unavailable", combined)
 
     def test_bulk_export_refusal_is_courteous_and_not_a_fake_quota_error(self) -> None:
-        combined = " ".join(_skill_bundle_text().split())
-        self.assertIn("focused research extracts and does not provide", combined)
-        self.assertIn("licensed exchange-data vendor may be a better fit", combined)
-        self.assertIn("relevant to your research", combined)
-        self.assertIn("Tailor any proposed fields and provider type", combined)
-        self.assertIn("Do not invent usage counts or reset dates", combined)
-        self.assertIn("完整命中范围进行分析", combined)
+        combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
+        self.assertIn("current export workflow is for focused research extracts", combined)
+        self.assertIn("licensed exchange-data vendor", combined)
+        self.assertIn("Tailor suggested fields to the user's question", combined)
+        self.assertIn("complete matched range can still be analyzed", combined)
         self.assertNotIn("connector has reached its monthly call limit", combined)
 
     def test_normal_analyst_requests_are_policy_transparent(self) -> None:
@@ -483,15 +963,24 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             by_id["historical-fields-from-question"]["expected_behavior"],
         )
 
-    def test_openai_metadata_matches_renamed_skill(self) -> None:
-        text = OPENAI_YAML.read_text(encoding="utf-8")
-        self.assertIn('display_name: "Anchises Analysis"', text)
-        self.assertIn("$anchises-analysis", text)
-        self.assertIn("NASDAQ Top 100 by dollar volume", text)
-        self.assertIn("field-selected research subset", text)
-        self.assertIn("allow_implicit_invocation: true", text)
+    def test_openai_metadata_matches_all_five_skills(self) -> None:
+        expected = {
+            OPENAI_YAML: ("Anchises Analysis", "$anchises-analysis"),
+            BRIEF_OPENAI_YAML: ("Company Brief", "$company-brief"),
+            REPORT_OPENAI_YAML: ("Company Report", "$company-report"),
+            COMPARISON_OPENAI_YAML: (
+                "Company Comparison",
+                "$company-comparison",
+            ),
+            MARKET_OPENAI_YAML: ("Market Analysis", "$market-analysis"),
+        }
+        for path, (display_name, invocation) in expected.items():
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(f'display_name: "{display_name}"', text)
+            self.assertIn(invocation, text)
+            self.assertIn("allow_implicit_invocation: true", text)
 
-    def test_manifest_connects_same_app_id_with_renamed_key(self) -> None:
+    def test_manifest_connects_the_6a5a_developer_app(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         app_manifest = json.loads(APP_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(manifest["name"], "anchises-analysis")
@@ -500,7 +989,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(set(app_manifest["apps"]), {"anchises_analysis"})
         self.assertEqual(
             app_manifest["apps"]["anchises_analysis"]["id"],
-            "plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a",
+            "plugin_asdk_app_6a5a007aa5bc8191bbb5409005af37a6",
         )
         serialized = json.dumps(app_manifest).lower()
         for forbidden in ("client_secret", "api_token", "authorization", "bearer"):
@@ -508,8 +997,12 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"], "0.4.0-beta.2")
-        self.assertNotIn("+codex.", manifest["version"])
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.2")
+        self.assertRegex(
+            manifest["version"],
+            r"^0\.6\.0-dev\.2(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+        )
+        self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
         interface = manifest["interface"]
         self.assertEqual(interface["displayName"], "Anchises Analysis")
@@ -534,7 +1027,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_developer_mode_app_is_not_public_submission_target(self) -> None:
         normalized = " ".join(PLUGIN_README.read_text(encoding="utf-8").split())
-        self.assertIn("used only by local and Repo Marketplace installations", normalized)
+        self.assertIn("used by local and Repo Marketplace installations", normalized)
         self.assertIn("must submit and scan the production MCP URL directly", normalized)
         self.assertIn("same final Skill bundle", normalized)
 
@@ -566,6 +1059,22 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "company-name-live-report",
             "ticker-only-live-report",
             "context-reference-live-report",
+            "company-brief-three",
+            "company-brief-context-reference",
+            "company-brief-eight",
+            "company-brief-user-priority",
+            "company-brief-news-modifier",
+            "company-brief-no-suggestions-with-remaining",
+            "company-brief-no-suggestions-complete",
+            "company-comparison-business-context",
+            "company-comparison-six-no-brief-window",
+            "company-comparison-with-standalone-introductions",
+            "market-screen-with-company-introductions",
+            "market-introduction-continuation",
+            "direct-market-skill-with-company-introductions",
+            "context-comparison-not-brief",
+            "incidental-company-list-not-brief",
+            "ambiguous-company-request-routes-to-core",
             "company-name-stock-data",
             "cross-market-ticker-ambiguous",
             "share-class-ambiguous",

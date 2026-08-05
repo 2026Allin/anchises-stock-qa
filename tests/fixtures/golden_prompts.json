@@ -4,26 +4,43 @@
       "id": "status-direct",
       "category": "direct",
       "prompt": "Check whether Anchises Analysis is available before we start.",
+      "expected_skill": "anchises-analysis",
       "expected_tools": ["get_connection_status"],
-      "expected_arguments": {"get_connection_status": {}}
+      "expected_arguments": {"get_connection_status": {}},
+      "expected_output_contract": {
+        "response_status": "mechanical_result",
+        "semantic_questions": 0
+      }
     },
     {
       "id": "market-discovery",
       "category": "direct",
       "prompt": "List the supported exchanges and latest stock-data date for each one.",
+      "expected_primary_task": "discovery",
+      "expected_skill": "market-analysis",
       "expected_tools": ["get_available_exchanges", "get_latest_dates"]
     },
     {
       "id": "structured-screen",
       "category": "indirect",
       "prompt": "Find stocks with volume above one million and a daily gain above five percent, ranked by gain.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
       "expected_tools": ["get_available_exchanges", "get_stock_schema", "screen_stocks"],
-      "expected_behavior": "Use two AND-combined filters and an explicit descending sort without leading with export-policy language."
+      "expected_behavior": "Use two AND-combined filters and an explicit descending sort without leading with export-policy language.",
+      "expected_output_contract": {
+        "company_introductions": false,
+        "max_introduction_blocks": 0,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
     },
     {
       "id": "historical-sql-fallback",
       "category": "indirect",
       "prompt": "For the entire NYSE, calculate advance and decline counts, average return, and the return distribution.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
       "expected_tools": ["list_stock_tables", "get_table_schema", "validate_readonly_sql", "run_readonly_sql"],
       "expected_behavior": "Use the complete exchange range for server-side aggregation, return no more than 200 aggregate rows, and never offer the SQL query_id for CSV."
     },
@@ -60,6 +77,8 @@
       "id": "company-name-live-report",
       "category": "direct",
       "prompt": "Research Apple and generate a current Chinese company report with source links.",
+      "expected_primary_task": "full_report",
+      "expected_skill": "company-report",
       "expected_tools": ["resolve_company_identity", "prepare_company_report_generation"],
       "expected_arguments": {
         "resolve_company_identity": {"query": "Apple", "purpose": "company_report"},
@@ -121,6 +140,8 @@
       "id": "mixed-company-and-market-analysis",
       "category": "indirect",
       "prompt": "Research Apple, then analyze its latest 30-day price and volume trend.",
+      "expected_primary_task": "full_report",
+      "expected_skill": "company-report",
       "expected_tools": ["resolve_company_identity", "prepare_company_report_generation", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks"],
       "expected_behavior": "Complete live research first and separate it from canonical NASDAQ:AAPL market data."
     },
@@ -128,6 +149,8 @@
       "id": "csv-export",
       "category": "direct",
       "prompt": "Export the stock screen we just ran as a CSV that expires in ten minutes.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
       "expected_tools": ["create_csv_export"],
       "expected_arguments": {"create_csv_export": {"query_id": "<prior-screen-query-id>", "expires_in_seconds": 600}},
       "expected_behavior": "Call create_csv_export only when the prior screen selected fields and export_policy.eligible_by_query is true."
@@ -145,6 +168,183 @@
       "prompt": "Prepare a focused one-year AAPL historical-bar CSV.",
       "expected_tools": ["resolve_company_identity", "get_latest_dates", "get_stock_schema", "screen_stocks", "create_csv_export"],
       "expected_behavior": "Confirm schema names and select historical-bar fields such as OHLC, adjusted close, and volume rather than reusing the liquidity field set; export only after eligible_by_query=true."
+    },
+    {
+      "id": "company-brief-three",
+      "category": "direct",
+      "prompt": "Give Apple, NVIDIA, and AMD a current three-to-four-sentence introduction each, covering their core business, latest development, and recent news.",
+      "expected_primary_task": "company_brief",
+      "expected_skill": "company-brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Preserve the requested order, resolve each company separately, use dated live sources, write three or four prose sentences per company, and end with exactly one relevant semantic question."
+    },
+    {
+      "id": "company-brief-context-reference",
+      "category": "indirect",
+      "prompt": "Briefly introduce each company you just mentioned above in three or four sentences.",
+      "expected_primary_task": "company_brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Use only the most recent explicitly referenced company set, preserve its order, and never scan the full conversation or add companies discovered during research."
+    },
+    {
+      "id": "company-brief-eight",
+      "category": "direct",
+      "prompt": "Brief Apple, NVIDIA, AMD, Intel, TSMC, ASML, Broadcom, and Qualcomm.",
+      "expected_primary_task": "company_brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Research only Apple, NVIDIA, AMD, Intel, and TSMC in the current batch; list ASML, Broadcom, and Qualcomm as remaining; then ask exactly one continuation question and one semantic question about only the completed five.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "max_introduction_blocks": 5,
+        "continuation_questions": 1,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
+    },
+    {
+      "id": "company-brief-user-priority",
+      "category": "indirect",
+      "prompt": "Brief Apple, NVIDIA, and AMD, but prioritize AMD first and Apple second.",
+      "expected_primary_task": "company_brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Honor explicit priority as AMD, Apple, then NVIDIA rather than ranking companies by perceived importance."
+    },
+    {
+      "id": "company-brief-news-modifier",
+      "category": "direct",
+      "prompt": "Introduce Apple and NVIDIA briefly and include each company's latest material news.",
+      "expected_primary_task": "company_brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Keep company_brief as the single primary task and treat current news as a brief component rather than reclassifying the request as news-only."
+    },
+    {
+      "id": "company-brief-no-suggestions-with-remaining",
+      "category": "direct",
+      "prompt": "Brief Apple, NVIDIA, AMD, Intel, TSMC, and ASML, but do not give me optional suggestions.",
+      "expected_primary_task": "company_brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Research the first five, omit the optional semantic question, and keep only the ASML continuation question required to finish the original request.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "max_introduction_blocks": 5,
+        "continuation_questions": 1,
+        "semantic_questions": 0,
+        "final_item": "continuation_question"
+      }
+    },
+    {
+      "id": "company-comparison-business-context",
+      "category": "direct",
+      "prompt": "Compare Apple, Microsoft, and Alphabet by business mix, competitive position, catalysts, and risks, and briefly say what each one does.",
+      "expected_primary_task": "comparison",
+      "expected_skill": "company-comparison",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Resolve all three identities, use short business context only to support a dimension-by-dimension comparison, and do not generate separate Briefs or seven-section reports."
+    },
+    {
+      "id": "company-comparison-six-no-brief-window",
+      "category": "indirect",
+      "prompt": "Compare Apple, Microsoft, Alphabet, Amazon, Meta, and NVIDIA on AI positioning.",
+      "expected_primary_task": "comparison",
+      "expected_skill": "company-comparison",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Do not apply the standalone introduction window to the comparison set; compare the full requested set or ask one focused scope question if the requested dimensions would be unreadable.",
+      "expected_output_contract": {
+        "company_introductions": false,
+        "comparison_entities": "all",
+        "max_introduction_blocks": 0,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
+    },
+    {
+      "id": "market-screen-with-company-introductions",
+      "category": "indirect",
+      "prompt": "Screen TSXV, TSX, Nasdaq, and NYSE for recent price surges, verify which moves have real business developments, discoveries, or major news behind them, and give every validated company a separate introduction.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
+      "expected_tools": ["get_connection_status", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Complete the ranked market screen and evidence filter first; keep the quantitative result set intact, then introduce only the first five ranked validated companies and preserve every remaining company for continuation.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "quantitative_result_not_capped": true,
+        "max_introduction_blocks": 5,
+        "continuation_questions": 1,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
+    },
+    {
+      "id": "company-comparison-with-standalone-introductions",
+      "category": "indirect",
+      "prompt": "Compare Apple, NVIDIA, AMD, Intel, TSMC, and ASML on AI positioning, and also give each company a separate three-to-four-sentence introduction.",
+      "expected_primary_task": "comparison",
+      "expected_skill": "company-comparison",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Compare all six resolved companies, but apply the shared five-company window only to the standalone introduction section and keep ASML in the continuation queue.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "comparison_entities": "all",
+        "max_introduction_blocks": 5,
+        "continuation_questions": 1,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
+    },
+    {
+      "id": "market-introduction-continuation",
+      "category": "indirect",
+      "prompt": "Continue with the next five company introductions from the market screen above.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["screen_stocks", "prepare_company_report_generation"],
+      "expected_behavior": "Reuse the prior discovered result set, server-side order, filters, and data_date; introduce positions six through ten without rerunning the market screen."
+    },
+    {
+      "id": "direct-market-skill-with-company-introductions",
+      "category": "direct",
+      "prompt": "Use $market-analysis to screen TSX stocks for recent surges with verified catalysts and give every validated company a separate introduction.",
+      "expected_primary_task": "market_data",
+      "expected_skill": "market-analysis",
+      "expected_tools": ["get_connection_status", "get_available_exchanges", "get_latest_dates", "get_stock_schema", "screen_stocks", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Apply the same global introduction window and response finalization used through the coordinator, proving that direct specialist invocation cannot bypass the shared contract.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "quantitative_result_not_capped": true,
+        "max_introduction_blocks": 5,
+        "continuation_questions": 1,
+        "semantic_questions": 1,
+        "final_item": "semantic_question"
+      }
+    },
+    {
+      "id": "company-brief-no-suggestions-complete",
+      "category": "direct",
+      "prompt": "Brief Apple, NVIDIA, and AMD, but do not provide suggestions or follow-up questions.",
+      "expected_primary_task": "company_brief",
+      "expected_skill": "company-brief",
+      "expected_tools": ["get_connection_status", "resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Complete all three introductions and end without a continuation or semantic question.",
+      "expected_output_contract": {
+        "company_introductions": true,
+        "max_introduction_blocks": 5,
+        "continuation_questions": 0,
+        "semantic_questions": 0,
+        "final_item": "disclaimer"
+      }
     }
   ],
   "negative": [
@@ -252,6 +452,35 @@
       "prompt": "Save this API token in the conversation for later.",
       "expected_tools": [],
       "expected_behavior": "Do not accept or echo the token; recommend revocation and explain that public access does not use chat-supplied credentials."
+    },
+    {
+      "id": "context-comparison-not-brief",
+      "category": "negative",
+      "prompt": "Compare the companies you mentioned above and briefly identify what they do.",
+      "expected_primary_task": "comparison",
+      "expected_skill": "company-comparison",
+      "expected_tools": ["resolve_company_identity"],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Treat the contextual reference as the entity source and the cross-company comparison as the final deliverable; do not generate separate company briefs."
+    },
+    {
+      "id": "incidental-company-list-not-brief",
+      "category": "negative",
+      "prompt": "List eight important AI chip companies.",
+      "expected_primary_task": "discovery",
+      "expected_tools": [],
+      "forbidden_tools": ["prepare_company_report_generation"],
+      "expected_behavior": "Return the requested discovery list without automatically expanding every company into a current three-to-four-sentence brief."
+    },
+    {
+      "id": "ambiguous-company-request-routes-to-core",
+      "category": "negative",
+      "prompt": "Look at Apple, NVIDIA, and AMD.",
+      "expected_primary_task": "ambiguous",
+      "expected_skill": "anchises-analysis",
+      "expected_tools": [],
+      "forbidden_tools": ["prepare_company_report_generation", "screen_stocks"],
+      "expected_behavior": "Ask one focused question about the desired final deliverable and do not guess a Brief, report, comparison, or market-data workflow."
     }
   ]
 }

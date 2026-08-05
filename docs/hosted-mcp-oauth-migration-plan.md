@@ -1268,8 +1268,8 @@ Hosted App 尚未创建时，不得提前在 `plugin.json` 中添加 `apps`。`.
 ```json
 {
   "apps": {
-    "stock_data_desk": {
-      "id": "plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a"
+    "anchises_analysis": {
+      "id": "plugin_asdk_app_6a5a007aa5bc8191bbb5409005af37a6"
     }
   }
 }
@@ -1277,11 +1277,9 @@ Hosted App 尚未创建时，不得提前在 `plugin.json` 中添加 `apps`。`.
 
 其中 `id` 必须来自 ChatGPT Developer Mode 中用正式 MCP URL 创建的真实 App。这里不填写 MCP URL、OAuth client secret、服务端 API key 或用户 Token；MCP URL 和 OAuth 配置由 App/提交门户管理。占位 ID 不能进入公开插件版本。
 当前底层 App connector ID 为
-`asdk_app_6a58a0d4059c8191a6a06438e698154a`；`.app.json` 使用平台资源中与之对应的
-`plugin_asdk_app_6a58a0d4059c8191a6a06438e698154a`。
-当前 Developer Mode App version ID 为
-`asdk_app_v_6a58a0dd4d7081918a73fd2c41c097ad`；该版本标识只用于开发审计，
-不写入 `.app.json`。
+`asdk_app_6a5a007aa5bc8191bbb5409005af37a6`；`.app.json` 使用平台资源中与之对应的
+`plugin_asdk_app_6a5a007aa5bc8191bbb5409005af37a6`。Developer Mode App
+version ID 只用于平台侧开发审计，不写入 `.app.json`。
 
 ### 12.2 目标产品文案
 

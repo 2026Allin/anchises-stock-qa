@@ -7,7 +7,25 @@ the `anchises-analysis` plugin package published by Anchises Capital. The plugin
 connects to the public Hosted MCP at `https://mcp.anchisesdata.com/mcp` through
 the existing Developer Mode App ID.
 
-Current release target: `0.4.0-beta.2`.
+Current QA development target: `0.6.0-dev.2`. The submitted public-review
+release remains `0.4.0-beta.2`.
+
+## What changed in 0.6 development
+
+- The plugin now exposes five peer Skills: a thin coordination entry plus
+  dedicated Company Brief, Company Report, Company Comparison, and Market
+  Analysis workflows.
+- One canonical intent contract selects a single primary task before any
+  specialist executes, so a downstream Skill cannot reinterpret the request.
+- Only `company-report` may prepare the fixed seven-section live report;
+  comparison and market analysis use their own bounded workflows.
+- Every standalone multi-company introduction section is capped at five
+  companies per response, regardless of the owning primary workflow. Market
+  tables, rankings, and comparison matrices keep their own display limits.
+- Successful substantive analysis uses one shared response-finalization
+  contract for continuation and semantic questions.
+- Local QA now uses Developer Mode App
+  `asdk_app_6a5a007aa5bc8191bbb5409005af37a6`.
 
 ## What changed in 0.4
 
@@ -35,14 +53,19 @@ plugins/anchises-analysis/
   .app.json
   assets/
   contracts/
-  skills/anchises-analysis/
+  skills/
+    anchises-analysis/
+    company-brief/
+    company-report/
+    company-comparison/
+    market-analysis/
 tests/
 docs/
 ```
 
-The App ID value, MCP URL, website, privacy, terms, and support endpoints remain
-unchanged. This repository does not contain or modify the Hosted MCP service,
-AnchisesWeb, or the Data API.
+The MCP URL, website, privacy, terms, and support endpoints remain unchanged.
+This repository does not contain or modify the Hosted MCP service, AnchisesWeb,
+or the Data API.
 
 ## Validate
 
@@ -52,6 +75,22 @@ AnchisesWeb, or the Data API.
 .venv/bin/python \
   ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
   plugins/anchises-analysis/skills/anchises-analysis
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-brief
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-report
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-comparison
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/market-analysis
 
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \

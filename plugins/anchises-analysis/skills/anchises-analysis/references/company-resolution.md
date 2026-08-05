@@ -1,8 +1,9 @@
 # Company identity resolution
 
-Use this reference before a single-company report or stock-data request when
-the user provides a company name, ticker, exchange-ticker pair, or a clear
-reference to a company discussed earlier.
+Use this reference before a company brief, full report, comparison, or
+single-company stock-data request when the user provides a company name,
+ticker, exchange-ticker pair, or a clear reference to a company discussed
+earlier.
 
 ## Extract the target
 
@@ -48,7 +49,10 @@ Call:
 
 `query` is required. Omit `exchange_hint` unless it comes from the user,
 unambiguous chat context, or primary-source verification. Set `purpose` to the
-actual downstream workflow.
+actual downstream workflow. The current MCP enum has no `company_brief` or
+`comparison` value; use `purpose=company_report` for identity matching in those
+two workflows. That compatibility value does not authorize
+`prepare_company_report_generation`.
 
 ## Handle resolver states
 
@@ -82,11 +86,17 @@ uncertain after verification. Do not call downstream tools before resolution.
 For stock data, explain that Anchises structured coverage is limited to ASX,
 CSE, NASDAQ, NYSE, TSX, and TSXV. Do not imply coverage outside those markets.
 
-For a company report, this state is not a failure. Use primary public sources to
-establish the external or historical `exchange`, `ticker`, and `company_name`,
-then call `prepare_company_report_generation` with that verified triplet. The
-preparation response should use `identity_source=host_supplied`,
+For a full company report, this state is not a failure. Use primary public
+sources to establish the external or historical `exchange`, `ticker`, and
+`company_name`, then return that verified triplet to the `company-report`
+workflow. That owning Skill alone decides whether to call
+`prepare_company_report_generation`. The preparation response should use
+`identity_source=host_supplied`,
 `listing_status_verification_required=true`, and `selected_sector=Others`.
+
+For a company brief or comparison, establish the same public identity and
+continue with Host web research directly. Do not call
+`prepare_company_report_generation`.
 
 If the Host has no web-search capability and a complete identity cannot be
 verified, do not rely on model memory. Ask the user for a verifiable exchange,
@@ -96,5 +106,6 @@ completed.
 ## Reuse within one conversation
 
 After confirming a triplet, reuse it for later references to that same company
-unless the user changes the issuer, listing, or share class. Broad screens and
+unless the user changes the issuer, listing, or share class. Resolve each
+company selected for a brief or comparison separately. Broad screens and
 multi-company rankings do not need single-company identity resolution.

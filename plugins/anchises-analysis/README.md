@@ -1,16 +1,19 @@
 # Anchises Analysis
 
-Anchises Analysis is a single-Skill Codex plugin for live public-company
-research and structured stock-market analysis.
+Anchises Analysis is a five-Skill Codex plugin for concise company briefs,
+deep live reports, cross-company comparison, and structured stock-market
+analysis.
 
 ## Release identity
 
 - Plugin slug: `anchises-analysis`
-- Skill name: `anchises-analysis`
-- Explicit invocation: `$anchises-analysis`
+- Skill names: `anchises-analysis`, `company-brief`, `company-report`,
+  `company-comparison`, `market-analysis`
+- Explicit invocations: `$anchises-analysis`, `$company-brief`,
+  `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.4.0-beta.2`
+- Target semantic version: `0.6.0-dev.2`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: `0.6.0`
@@ -18,11 +21,56 @@ research and structured stock-market analysis.
 - Export policy: `stock-data-export-v1`
 - Prompt pack: `5.1`
 
-The Developer Mode App ID value in `.app.json` is intentionally unchanged. Its
-key is renamed to `anchises_analysis` to match the plugin namespace. The App is
-used only by local and Repo Marketplace installations. A public Plugin
-Directory submission must submit and scan the production MCP URL directly and
-use the same final Skill bundle and public metadata.
+The local QA Developer Mode App is
+`asdk_app_6a5a007aa5bc8191bbb5409005af37a6`; `.app.json` stores the matching
+plugin resource ID under the `anchises_analysis` namespace. The App is used by
+local and Repo Marketplace installations. A public Plugin Directory submission
+must submit and scan the production MCP URL directly and use the same final
+Skill bundle and public metadata.
+
+## Skill architecture and entry
+
+The plugin package is the installation entry, `.app.json` is the single Hosted
+App entry, and the five Skill descriptions are peer request-routing entries:
+
+- `anchises-analysis` is a thin coordinator for generic, mixed, and ambiguous
+  requests. Its references provide the canonical classification, global
+  request state, shared company-introduction component, access, identity,
+  safety, error, and response-finalization rules.
+- `company-brief` owns one-to-five current company introductions.
+- `company-report` owns deep research and is the only Skill allowed to call
+  `prepare_company_report_generation`.
+- `company-comparison` owns relative positioning and cross-company judgments.
+- `market-analysis` owns supported-market discovery, screens, rankings,
+  historical data, bounded SQL, and focused CSV exports.
+
+A clear specialist request may enter its matching Skill directly. Every
+specialist first reads the same canonical `primary_task` rules and must stop if
+it does not own the result; downstream Skills never reclassify.
+
+## Company briefs
+
+The `company-brief` Skill handles explicit or semantically equivalent requests
+for quick context on named companies or a clearly referenced company set. It
+classifies the request once, preserves user order, resolves each selected
+identity, and uses Host web research without calling the seven-section report
+preparation tool.
+
+Each company receives three or four source-linked sentences covering its core
+business, a dated official development, and a dated independent news item.
+Any standalone company-introduction section covers at most five companies,
+including an introduction section attached to Market Analysis or Company
+Comparison. Market tables, rankings, and comparison matrices are not capped by
+this rule. When introductions remain, the response asks how to continue and
+offers one relevant follow-up concerning only the completed batch.
+
+Successful substantive Brief, Report, Comparison, news, and Market Analysis
+answers use one response-finalization matrix. The disclaimer appears before
+required questions; a successful completed answer ends with one semantic
+question, while a successful partial introduction batch ends with one
+continuation question followed by one semantic question. Explicit requests for
+no suggestions and failed or mechanical workflows use the documented
+exceptions.
 
 ## Company identity and live research
 
@@ -112,6 +160,22 @@ From the repository root:
 .venv/bin/python \
   ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
   plugins/anchises-analysis/skills/anchises-analysis
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-brief
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-report
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/company-comparison
+
+.venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  plugins/anchises-analysis/skills/market-analysis
 
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
