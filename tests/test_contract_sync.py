@@ -23,7 +23,6 @@ from hosted_contract import (  # noqa: E402
     tool_descriptors,
     validate_contract,
 )
-from mock_services import _with_client_update_contract  # noqa: E402
 from sync_hosted_contract import (  # noqa: E402
     EXPECTED_ERRORS,
     MAX_RESPONSE_BYTES,
@@ -141,38 +140,21 @@ class ContractSyncTest(unittest.TestCase):
             self.assertTrue(path.read_bytes().endswith(b"\n"))
             self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
 
-    def test_validator_accepts_complete_1_8_client_update_contract_only(self) -> None:
-        future = _with_client_update_contract(self.contract)
-        validate_contract(future)
-        self.assertEqual(future["contract_version"], "1.8.0-draft")
-        self.assertEqual(future["source"]["server_version"], "0.7.2")
-        self.assertEqual(len(future["tools"]), 12)
-        legacy_tools = {tool["name"]: tool for tool in self.contract["tools"]}
-        future_tools = {tool["name"]: tool for tool in future["tools"]}
-        for name in set(legacy_tools) - {"get_connection_status"}:
-            self.assertEqual(future_tools[name], legacy_tools[name], name)
+    def test_validator_accepts_complete_service_metadata_but_rejects_drift(self) -> None:
+        self.assertEqual(self.contract["contract_version"], "1.8.0-draft")
+        validate_contract(self.contract)
+        drifted = copy.deepcopy(self.contract)
         status = next(
-            tool for tool in future["tools"] if tool["name"] == "get_connection_status"
+            tool for tool in drifted["tools"] if tool["name"] == "get_connection_status"
         )
-        self.assertEqual(set(status["inputSchema"]["properties"]), {"client"})
-        client_properties = status["inputSchema"]["properties"]["client"][
-            "properties"
-        ]
-        for field_schema in client_properties.values():
-            self.assertEqual(field_schema["type"], "string")
-            self.assertNotIn("const", field_schema)
-            self.assertNotIn("pattern", field_schema)
-        self.assertIn("client_update", status["outputSchema"]["properties"])
-
-        partial = copy.deepcopy(future)
-        del partial["tools"][0]["outputSchema"]["properties"]["client_update"]
-        partial["tools"][0]["outputSchema"]["required"].remove("client_update")
+        del status["outputSchema"]["properties"]["client_update"]
+        status["outputSchema"]["required"].remove("client_update")
         canonical = json.dumps(
-            partial["tools"], sort_keys=True, separators=(",", ":")
+            drifted["tools"], sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
-        partial["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
+        drifted["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
         with self.assertRaisesRegex(ContractError, "client_update"):
-            validate_contract(partial)
+            validate_contract(drifted)
 
 
 if __name__ == "__main__":

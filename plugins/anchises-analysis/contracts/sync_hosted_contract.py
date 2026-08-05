@@ -38,7 +38,7 @@ MCP_PROTOCOL_VERSION = "2025-06-18"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 LEGACY_CONTRACT_VERSION = "1.7.0-draft"
-CLIENT_UPDATE_CONTRACT_VERSION = "1.8.0-draft"
+CLIENT_METADATA_CONTRACT_VERSION = "1.8.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -363,7 +363,7 @@ def fetch_contract(
 
     contract = base
     contract["contract_version"] = (
-        CLIENT_UPDATE_CONTRACT_VERSION
+        CLIENT_METADATA_CONTRACT_VERSION
         if publishes_client
         else LEGACY_CONTRACT_VERSION
     )

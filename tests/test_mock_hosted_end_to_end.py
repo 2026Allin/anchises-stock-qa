@@ -913,139 +913,27 @@ class MockHostedEndToEndTest(unittest.TestCase):
         )
         self.assertNotIn("rows", body["result"]["structuredContent"])
 
-    def test_legacy_status_schema_rejects_client_instead_of_needing_a_retry(self) -> None:
+    def test_status_schema_accepts_but_does_not_drive_plugin_release_metadata(self) -> None:
         status, body, _ = self._mcp_call(
             "get_connection_status",
             {
                 "client": {
                     "name": "anchises-analysis",
                     "platform": "codex",
-                    "version": "0.6.0-dev.5",
+                    "version": "0.6.0-dev.6",
                     "release_id": "codex.20260805102442",
-                    "channel": "qa-v2-auth",
+                    "channel": "main",
                 }
             },
         )
         self.assertEqual(status, 200)
-        self.assertTrue(body["result"]["isError"])
+        self.assertFalse(body["result"]["isError"])
         self.assertEqual(
-            body["result"]["structuredContent"]["error"]["code"],
-            "query_rejected",
+            body["result"]["structuredContent"]["client_update"]["status"],
+            "unknown",
         )
         descriptor = descriptor_by_name("get_connection_status", self.contract)
-        self.assertEqual(descriptor["inputSchema"]["properties"], {})
-
-    def test_future_status_contract_reports_client_updates_and_keeps_12_tools(self) -> None:
-        with MockAnchisesAnalysisServices(
-            access_mode="public_noauth",
-            client_update_enabled=True,
-            client_update_status="update_available",
-            latest_client_version="0.6.0-dev.6",
-            latest_client_release_id="codex.20260806120000",
-            minimum_client_version="0.6.0-dev.5",
-            client_update_summary="A newer QA plugin release is available.",
-        ) as services:
-            refreshed = fetch_contract(
-                f"{services.base_url}/mcp",
-                base_contract=self.contract,
-                expected_mode="public_noauth",
-            )
-            self.assertEqual(refreshed["contract_version"], "1.8.0-draft")
-            self.assertEqual(refreshed["source"]["server_version"], "0.7.2")
-            self.assertEqual(len(refreshed["tools"]), 12)
-
-            client = {
-                "name": "anchises-analysis",
-                "platform": "codex",
-                "version": "0.6.0-dev.5",
-                "release_id": "codex.20260805102442",
-                "channel": "qa-v2-auth",
-            }
-            status, body, _ = self._mcp_call(
-                "get_connection_status",
-                {"client": client},
-                token="",
-                services=services,
-            )
-            self.assertEqual(status, 200)
-            self.assertFalse(body["result"]["isError"])
-            structured = body["result"]["structuredContent"]
-            descriptor = descriptor_by_name(
-                "get_connection_status", refreshed
-            )
-            Draft202012Validator(descriptor["outputSchema"]).validate(structured)
-            self.assertEqual(
-                structured["client_update"],
-                {
-                    "status": "update_available",
-                    "installed_version": "0.6.0-dev.5",
-                    "installed_release_id": "codex.20260805102442",
-                    "latest_version": "0.6.0-dev.6",
-                    "latest_release_id": "codex.20260806120000",
-                    "minimum_supported_version": "0.6.0-dev.5",
-                    "channel": "qa-v2-auth",
-                    "summary": "A newer QA plugin release is available.",
-                },
-            )
-            self.assertEqual(
-                services.tool_calls[-1],
-                {"name": "get_connection_status", "arguments": {"client": client}},
-            )
-
-            for update_status in ("current", "unsupported", "unknown"):
-                with self.subTest(update_status=update_status):
-                    services.httpd.client_update_status = update_status  # type: ignore[attr-defined]
-                    status, body, _ = self._mcp_call(
-                        "get_connection_status",
-                        {"client": client},
-                        token="",
-                        services=services,
-                    )
-                    self.assertEqual(status, 200)
-                    self.assertEqual(
-                        body["result"]["structuredContent"]["client_update"]["status"],
-                        update_status,
-                    )
-
-            status, body, _ = self._mcp_call(
-                "get_connection_status",
-                token="",
-                services=services,
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(
-                body["result"]["structuredContent"]["client_update"]["status"],
-                "unknown",
-            )
-
-            unknown_channel = dict(client)
-            unknown_channel["channel"] = "main"
-            status, body, _ = self._mcp_call(
-                "get_connection_status",
-                {"client": unknown_channel},
-                token="",
-                services=services,
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(
-                body["result"]["structuredContent"]["client_update"]["status"],
-                "unknown",
-            )
-
-            invalid_release = dict(client)
-            invalid_release["version"] = "not-semver"
-            invalid_release["release_id"] = "not-a-release"
-            status, body, _ = self._mcp_call(
-                "get_connection_status",
-                {"client": invalid_release},
-                token="",
-                services=services,
-            )
-            self.assertEqual(status, 200)
-            self.assertEqual(
-                body["result"]["structuredContent"]["client_update"]["status"],
-                "unknown",
-            )
+        self.assertEqual(set(descriptor["inputSchema"]["properties"]), {"client"})
 
     def test_public_noauth_requires_no_token_and_publishes_noauth(self) -> None:
         with MockAnchisesAnalysisServices(access_mode="public_noauth") as services:

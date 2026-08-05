@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize the Skill client-release metadata with the plugin manifest."""
+"""Synchronize Codex plugin release metadata with the plugin manifest."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ RELEASE_PATH = (
     / "skills"
     / "anchises-analysis"
     / "references"
-    / "client-release.json"
+    / "plugin-release.json"
 )
 FULL_VERSION_RE = re.compile(
     r"^(?P<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
@@ -26,14 +26,14 @@ FULL_VERSION_RE = re.compile(
     r"\+(?P<release_id>codex\.\d{14})$"
 )
 STATIC_RELEASE_FIELDS = {
-    "schema_version": 1,
+    "schema_version": 2,
     "name": "anchises-analysis",
     "platform": "codex",
-    "channel": "qa-v2-auth",
     "plugin_id": "anchises-analysis@Anchises-Analysis",
     "marketplace": "Anchises-Analysis",
     "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
-    "git_ref": "qa-v2-auth",
+    "git_ref": "main",
+    "tag_prefix": "anchises-analysis/codex/v",
 }
 EXPECTED_RELEASE_KEYS = {*STATIC_RELEASE_FIELDS, "version", "release_id"}
 
@@ -52,10 +52,10 @@ def expected_release(
     manifest = _load(manifest_path)
     release = _load(release_path)
     if set(release) != EXPECTED_RELEASE_KEYS:
-        raise ValueError("client release metadata has an unexpected shape")
+        raise ValueError("plugin release metadata has an unexpected shape")
     for key, expected in STATIC_RELEASE_FIELDS.items():
         if release.get(key) != expected:
-            raise ValueError(f"client release metadata has unsupported {key}")
+            raise ValueError(f"plugin release metadata has unsupported {key}")
     full_version = manifest.get("version")
     match = FULL_VERSION_RE.fullmatch(full_version) if isinstance(full_version, str) else None
     if not match:
@@ -77,7 +77,7 @@ def sync_release(
     if current == expected:
         return False
     if check:
-        raise ValueError("client release metadata is out of sync with plugin manifest")
+        raise ValueError("plugin release metadata is out of sync with plugin manifest")
     release_path.write_text(
         json.dumps(expected, indent=2) + "\n",
         encoding="utf-8",
@@ -98,7 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    print("client release metadata updated" if changed else "client release metadata matches")
+    print("plugin release metadata updated" if changed else "plugin release metadata matches")
     return 0
 
 

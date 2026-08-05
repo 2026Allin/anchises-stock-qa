@@ -51,7 +51,7 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
     Path("references/common-errors.md"),
-    Path("references/client-release.json"),
+    Path("references/plugin-release.json"),
     Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
     Path("references/global-contract.md"),
@@ -59,6 +59,7 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("references/plugin-update.md"),
     Path("references/response-finalization.md"),
     Path("references/service-access.md"),
+    Path("scripts/check_plugin_update.py"),
     Path("scripts/update_installed_plugin.py"),
 }
 
@@ -251,19 +252,17 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("revoking or rotating", normalized)
         self.assertIn("does not use chat-supplied credentials", normalized)
 
-    def test_all_five_skills_share_one_schema_aware_update_protocol(self) -> None:
+    def test_all_five_skills_share_one_tag_based_update_protocol(self) -> None:
         for name, root in SKILL_ROOTS.items():
             skill = (root / "SKILL.md").read_text(encoding="utf-8")
             normalized = " ".join(skill.split())
             self.assertIn("plugin-update.md", skill, name)
             self.assertIn("get_connection_status", skill, name)
-            if name == "anchises-analysis":
-                self.assertIn("exactly once for this user request", normalized)
-                self.assertIn("schema-aware client-metadata rule", normalized)
-            else:
-                self.assertIn("exactly once", normalized)
-                self.assertIn("retry with `{}`", skill, name)
-            self.assertIn("client_update", skill, name)
+            self.assertIn("tag checker", normalized, name)
+            self.assertIn("exactly once", normalized, name)
+            self.assertIn("plugin_update_check", skill, name)
+            self.assertIn("with `{}`", skill, name)
+            self.assertNotIn("client_update", skill, name)
 
         protocol = (
             SKILL_ROOT / "references" / "plugin-update.md"
@@ -271,8 +270,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         normalized = " ".join(protocol.split())
         for transition in (
             "idle",
+            "tag_check",
             "update_available",
             "explicit_authorization",
+            "tag_recheck",
             "preflight",
             "marketplace_upgrade",
             "plugin_install",
@@ -282,9 +283,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertIn(transition, protocol)
         self.assertIn("请为我安装 Anchises Analysis 更新。", protocol)
         self.assertIn("A bare “是”", normalized)
-        self.assertIn("there is no background polling", normalized)
+        self.assertIn("Silence never authorizes work", normalized)
         self.assertIn("A message unrelated to Anchises Analysis", normalized)
         self.assertIn("Do not persist an ignored release", normalized)
+        self.assertIn("anchises-analysis/codex/v*", protocol)
+        self.assertIn("remote `main` head", protocol)
         for command in (
             "codex plugin list --json",
             "codex plugin marketplace list --json",
@@ -307,10 +310,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("operational update footer", finalizer)
         self.assertIn("final sentence of the business answer", finalizer)
 
-    def test_client_release_metadata_is_closed_and_distribution_allowlisted(self) -> None:
+    def test_plugin_release_metadata_is_closed_and_distribution_allowlisted(self) -> None:
         release = json.loads(
             (
-                SKILL_ROOT / "references" / "client-release.json"
+                SKILL_ROOT / "references" / "plugin-release.json"
             ).read_text(encoding="utf-8")
         )
         self.assertEqual(
@@ -321,26 +324,27 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 "platform",
                 "version",
                 "release_id",
-                "channel",
                 "plugin_id",
                 "marketplace",
                 "repository",
                 "git_ref",
+                "tag_prefix",
             },
         )
-        self.assertEqual(release["version"], "0.6.0-dev.5")
+        self.assertEqual(release["version"], "0.6.0-dev.6")
         self.assertRegex(release["release_id"], r"^codex\.\d{14}$")
-        self.assertEqual(release["channel"], "qa-v2-auth")
+        self.assertEqual(release["git_ref"], "main")
+        self.assertEqual(release["tag_prefix"], "anchises-analysis/codex/v")
         self.assertEqual(release["marketplace"], "Anchises-Analysis")
         self.assertEqual(
             release["repository"],
             "https://github.com/2026Allin/anchises-stock-qa.git",
         )
-        handoff = (
-            ROOT / "docs" / "anchises-analysis-mcp-0.7.2-client-update-handoff.md"
+        protocol = (
+            SKILL_ROOT / "references" / "plugin-update.md"
         ).read_text(encoding="utf-8")
-        self.assertIn(f'"version": "{release["version"]}"', handoff)
-        self.assertIn(f'"release_id": "{release["release_id"]}"', handoff)
+        self.assertIn(release["repository"], protocol)
+        self.assertIn(release["tag_prefix"], protocol)
 
     def test_company_resolution_reference_is_complete_and_private(self) -> None:
         text = (SKILL_ROOT / "references" / "company-resolution.md").read_text(
@@ -930,8 +934,8 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(len(names), 12)
         self.assertEqual(set(names), EXPECTED_TOOLS)
         self.assertEqual(contract["source"]["server_name"], "Anchises Analysis")
-        self.assertEqual(contract["contract_version"], "1.7.0-draft")
-        self.assertEqual(contract["source"]["server_version"], "0.7.1")
+        self.assertEqual(contract["contract_version"], "1.8.0-draft")
+        self.assertEqual(contract["source"]["server_version"], "0.7.2")
         self.assertEqual(contract["source"]["sync_state"], "live")
         self.assertRegex(contract["source"]["descriptor_sha256"], r"^[0-9a-f]{64}$")
 
@@ -1113,10 +1117,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.5")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.6")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.5(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.6(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")

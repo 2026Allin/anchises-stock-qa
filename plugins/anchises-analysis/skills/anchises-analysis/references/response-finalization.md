@@ -88,8 +88,8 @@ final sentence of the business answer. An operational update footer may follow
 as a separate final paragraph; it never replaces, merges with, or answers a
 business question.
 
-Do not show update text for `current`, `unknown`, a failed version check, or a
-release already recorded in `installed_release_in_task`. Show the prescribed
-notice for `update_available` or `unsupported`. Suppress it on a “暂不安装”
-acknowledgement, while leaving the next substantive Anchises request eligible
-for a fresh check.
+Do not show update text for `current`, `unknown`, `release_inconsistent`,
+`unsupported_source`, a failed Tag check, or a release already recorded in
+`installed_release_in_task`. Show the prescribed notice only for
+`update_available`. Suppress it on a “暂不安装” acknowledgement, while leaving
+the next substantive Anchises request eligible for a fresh check.

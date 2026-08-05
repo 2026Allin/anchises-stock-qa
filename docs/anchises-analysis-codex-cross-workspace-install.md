@@ -14,7 +14,7 @@ Portal Scan, or a separate `codex mcp add` command.
   `company-comparison`, and `market-analysis`
 - MCP server key: `anchises_analysis`
 - MCP URL: `https://mcp.anchisesdata.com/mcp`
-- MCP version: `0.7.1`
+- MCP version: `0.7.2`
 - Tools: 12
 - Authentication: none
 
@@ -25,21 +25,21 @@ itself restrict the public MCP endpoint.
 
 ## Install from the Codex CLI
 
-During QA, pin the marketplace to `qa-v2-auth` and fetch only the marketplace
+Install the released marketplace from `main` and fetch only the marketplace
 metadata and plugin directory:
 
 ```bash
 codex plugin marketplace add \
   https://github.com/2026Allin/anchises-stock-qa.git \
-  --ref qa-v2-auth \
+  --ref main \
   --sparse .agents/plugins \
   --sparse plugins/anchises-analysis
 
 codex plugin add anchises-analysis@Anchises-Analysis
 ```
 
-After the release is merged, use the stable release ref selected by the
-maintainer instead of `qa-v2-auth`.
+`qa-v2-auth` is the maintainer's development branch and is not an end-user
+installation source.
 
 ## Install from the Codex desktop app
 
@@ -50,7 +50,7 @@ Source
 https://github.com/2026Allin/anchises-stock-qa.git
 
 Git ref
-qa-v2-auth
+main
 
 Sparse paths
 .agents/plugins
@@ -68,7 +68,7 @@ loaded.
    expected version.
 2. In a new task, verify that all five Skills are available.
 3. Open `/mcp` and confirm the bundled `anchises_analysis` server is connected.
-4. Confirm MCP discovery returns exactly 12 tools and reports version `0.7.1`.
+4. Confirm MCP discovery returns exactly 12 tools and reports version `0.7.2`.
 5. Run one Company Brief, Company Report, Company Comparison, and Market
    Analysis request.
 6. Verify a market result displays no more than 200 rows, cursor continuation
@@ -93,7 +93,7 @@ restrict_to_allowed_sources = true
 [marketplaces.allowed_sources.anchises_analysis]
 source = "git"
 url = "https://github.com/2026Allin/anchises-stock-qa.git"
-ref = "qa-v2-auth"
+ref = "main"
 
 [plugins."anchises-analysis".mcp_servers.anchises_analysis.identity]
 url = "https://mcp.anchisesdata.com/mcp"
@@ -104,7 +104,7 @@ the target workspace's change-control process.
 
 ## Update and rollback
 
-The bootstrap `0.6.0-dev.5` release must be installed manually. Refresh the
+The bootstrap `0.6.0-dev.6` release must be installed manually. Refresh the
 configured Git marketplace, reinstall the plugin, and start a new task:
 
 ```bash
@@ -112,16 +112,18 @@ codex plugin marketplace upgrade Anchises-Analysis
 codex plugin add anchises-analysis@Anchises-Analysis
 ```
 
-After MCP `0.7.2` is deployed, later Git Marketplace releases are checked once
-whenever an Anchises Skill is selected. No-update and unknown checks are
-silent. If a newer release exists, the answer ends with an update notice. The
-user must explicitly reply with the full named authorization sentence before
-Codex runs the single fixed Marketplace upgrade and plugin install flow. A bare
-“yes” or “install” does not authorize it, silence does nothing, and “not now”
-is remembered only for that acknowledgement turn.
+Later Git Marketplace releases are checked once whenever an Anchises Skill is
+selected for business work. The checker considers only
+`anchises-analysis/codex/v*` and requires the newest Codex tag to point to the
+remote `main` head. No-update and unknown checks are silent. If a newer release
+exists, the answer ends with an update notice. The user must explicitly reply
+with the full named authorization sentence before Codex runs the single fixed
+Marketplace upgrade and plugin install flow. A bare “yes” or “install” does
+not authorize it, silence does nothing, and “not now” applies only to that
+acknowledgement turn.
 
 The automated flow supports only Marketplace `Anchises-Analysis` from
-`https://github.com/2026Allin/anchises-stock-qa.git` at `qa-v2-auth`. It stops
+`https://github.com/2026Allin/anchises-stock-qa.git` at `main`. It stops
 for local development sources, another repository/ref, missing source details,
 permission denial, or any failed step. It never retries with Git commands,
 uninstall-first, Marketplace removal/re-addition, config edits, force, or
@@ -129,6 +131,11 @@ rollback. A successful update still requires a new Codex task.
 
 Maintainers using a local Marketplace must continue the manual cachebuster and
 reinstall flow; the in-Skill updater deliberately rejects local sources.
+
+The maintainer develops on `qa-v2-auth`, merges a tested release into `main`,
+and pushes `main`. A Codex tag is created only in a separate, explicit release
+action; commits, branch pushes, and updater runs never create one. Claude uses
+a separate tag namespace and cannot trigger the Codex checker.
 
 For rollback, pin the marketplace to a previously validated Git tag or commit,
 refresh it, and reinstall the same plugin slug. The old Developer Mode App is

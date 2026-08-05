@@ -8,24 +8,31 @@ bundles five Skills and connects directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current QA development target: `0.6.0-dev.5`. The submitted public-review
+Current Codex release target: `0.6.0-dev.6`. The submitted public-review
 release remains `0.4.0-beta.2`.
 
-## What changed in 0.6.0-dev.5
+## What changed in 0.6.0-dev.6
 
-- Every selected Anchises Skill performs one schema-aware version check through
-  `get_connection_status`; current, unknown, and failed checks stay silent.
+- Every selected Anchises Skill performs one read-only Codex release check
+  against `anchises-analysis/codex/v*` Git tags. This is independent of MCP
+  service versioning; current, unknown, and failed checks stay silent.
 - An available update adds one operational footer after the normal business
   answer. Installation requires an explicit Anchises Analysis update sentence;
   a bare “yes” or “install” never authorizes commands.
-- The only updater performs one Git Marketplace preflight, upgrade, install,
-  and verification sequence. It stops on local or mismatched sources and never
-  tries an alternative command, uninstall, Git operation, config edit, retry,
-  rollback, or force operation.
-- This first supporting release still requires one manual install. Production
-  MCP `0.7.1` does not yet publish client update metadata, so checks remain
-  silently `unknown` until the MCP team deploys the documented `0.7.2`
-  interface.
+- A Codex tag is valid only when it points to the current remote `main` head.
+  The fixed updater supports only the Git Marketplace on `main`, performs one
+  preflight/upgrade/install/verification sequence, and never tries an
+  alternative or retry.
+- `qa-v2-auth` is the development branch; `main` is the release branch. Tags
+  are maintainer-created release signals and are never created by ordinary
+  commits, branch pushes, installs, or updates. Codex and Claude use separate
+  tag namespaces.
+- This first tag-aware release still requires one manual install. A future
+  update is advertised only after the maintainer explicitly publishes its
+  Codex tag.
+- The bundled service snapshot tracks MCP `0.7.2`. Its optional client
+  compatibility fields are accepted as service output but ignored for plugin
+  release decisions.
 
 ## What changed in 0.6.0-dev.4
 
@@ -169,15 +176,16 @@ and start a new Codex task so the new Skill and MCP schema are loaded.
   plugins/anchises-analysis
 
 .venv/bin/python \
-  plugins/anchises-analysis/scripts/sync_client_release.py
+  plugins/anchises-analysis/scripts/sync_plugin_release.py
 
 .venv/bin/python \
-  plugins/anchises-analysis/scripts/sync_client_release.py --check
+  plugins/anchises-analysis/scripts/sync_plugin_release.py --check
 ```
 
-The first command preserves the `0.6.0-dev.5` base and creates one new
-`+codex.<timestamp>` suffix. The second copies that release ID into the client
-metadata used by the Skill and MCP status call.
+The first command preserves the `0.6.0-dev.6` base and creates one new
+`+codex.<timestamp>` suffix. The second copies that release identity into the
+plugin-side metadata used by the tag checker. Neither command creates a Git
+tag.
 
 The automated in-Skill updater intentionally rejects this local development
 Marketplace. Maintainers continue to use the manual cachebuster and reinstall
@@ -185,13 +193,13 @@ flow above.
 
 ## Cross-workspace Codex install
 
-For QA from another OpenAI workspace, add the public Git marketplace with the
-current QA ref and only the two required sparse paths:
+For another OpenAI workspace, add the released public Git marketplace from
+`main` and only the two required sparse paths:
 
 ```bash
 codex plugin marketplace add \
   https://github.com/2026Allin/anchises-stock-qa.git \
-  --ref qa-v2-auth \
+  --ref main \
   --sparse .agents/plugins \
   --sparse plugins/anchises-analysis
 
@@ -199,7 +207,7 @@ codex plugin add anchises-analysis@Anchises-Analysis
 ```
 
 The equivalent desktop form uses the repository URL as **Source**,
-`qa-v2-auth` as **Git ref**, and these two **Sparse paths**:
+`main` as **Git ref**, and these two **Sparse paths**:
 
 ```text
 .agents/plugins
@@ -211,11 +219,11 @@ App ID. A managed workspace may still require its administrator to allowlist
 the Git marketplace source and the bundled MCP URL. Start a new Codex task
 after installation.
 
-After the MCP `0.7.2` client-update interface is deployed, a Git Marketplace
-installation can detect newer QA releases during Anchises requests. It only
-installs after the user explicitly authorizes the named Anchises Analysis
-update. Local Marketplaces remain manual. See the
-[MCP 0.7.2 handoff](docs/anchises-analysis-mcp-0.7.2-client-update-handoff.md).
+A Git Marketplace installation checks only Codex tags during Anchises
+requests. It installs only after the user explicitly authorizes the named
+Anchises Analysis update. Local Marketplaces remain manual. MCP upgrades do
+not create plugin update notices unless a newer Codex plugin tag is also
+published.
 
 See the complete
 [cross-workspace installation guide](docs/anchises-analysis-codex-cross-workspace-install.md).

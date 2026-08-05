@@ -61,14 +61,14 @@ class MarketplaceManifestTest(unittest.TestCase):
                 }
             },
         )
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.5")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.6")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.5(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.6(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
-        self.assertEqual(contract["contract_version"], "1.7.0-draft")
-        self.assertEqual(contract["source"]["server_version"], "0.7.1")
+        self.assertEqual(contract["contract_version"], "1.8.0-draft")
+        self.assertEqual(contract["source"]["server_version"], "0.7.2")
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
 
     def test_cross_workspace_install_uses_git_and_bundled_mcp(self) -> None:
@@ -76,7 +76,7 @@ class MarketplaceManifestTest(unittest.TestCase):
         normalized = " ".join(guide.split())
         for expected in (
             "https://github.com/2026Allin/anchises-stock-qa.git",
-            "--ref qa-v2-auth",
+            "--ref main",
             "--sparse .agents/plugins",
             "--sparse plugins/anchises-analysis",
             "codex plugin add anchises-analysis@Anchises-Analysis",

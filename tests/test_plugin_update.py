@@ -14,21 +14,19 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = ROOT / "plugins" / "anchises-analysis"
-UPDATER_PATH = (
-    PLUGIN_ROOT
-    / "skills"
-    / "anchises-analysis"
-    / "scripts"
-    / "update_installed_plugin.py"
-)
-SYNC_PATH = PLUGIN_ROOT / "scripts" / "sync_client_release.py"
+SCRIPT_ROOT = PLUGIN_ROOT / "skills" / "anchises-analysis" / "scripts"
+CHECKER_PATH = SCRIPT_ROOT / "check_plugin_update.py"
+UPDATER_PATH = SCRIPT_ROOT / "update_installed_plugin.py"
+SYNC_PATH = PLUGIN_ROOT / "scripts" / "sync_plugin_release.py"
 RELEASE_PATH = (
     PLUGIN_ROOT
     / "skills"
     / "anchises-analysis"
     / "references"
-    / "client-release.json"
+    / "plugin-release.json"
 )
+if str(SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_ROOT))
 
 
 def _load_module(name: str, path: Path) -> Any:
@@ -41,6 +39,7 @@ def _load_module(name: str, path: Path) -> Any:
     return module
 
 
+checker = _load_module("check_plugin_update", CHECKER_PATH)
 updater = _load_module("anchises_plugin_updater", UPDATER_PATH)
 release_sync = _load_module("anchises_release_sync", SYNC_PATH)
 
@@ -48,12 +47,23 @@ release_sync = _load_module("anchises_release_sync", SYNC_PATH)
 PLUGIN_ID = "anchises-analysis@Anchises-Analysis"
 MARKETPLACE = "Anchises-Analysis"
 REPOSITORY = "https://github.com/2026Allin/anchises-stock-qa.git"
-GIT_REF = "qa-v2-auth"
-INITIAL = "0.6.0-dev.5+codex.20260805102442"
-TARGET_VERSION = "0.6.0-dev.6"
-TARGET_RELEASE_ID = "codex.20260806120000"
-TARGET = f"{TARGET_VERSION}+{TARGET_RELEASE_ID}"
+GIT_REF = "main"
+TAG_PREFIX = "anchises-analysis/codex/v"
+CURRENT_VERSION = "0.6.0-dev.6"
+CURRENT_RELEASE = "0.6.0-dev.6+codex.20260805135302"
+TARGET_VERSION = "0.6.0-dev.7"
+TARGET_RELEASE = "0.6.0-dev.7+codex.20260806120000"
+MAIN_COMMIT = "1" * 40
+OTHER_COMMIT = "2" * 40
+TAG_OBJECT = "3" * 40
 
+GIT_CHECK = (
+    "git",
+    "ls-remote",
+    REPOSITORY,
+    "refs/heads/main",
+    f"refs/tags/{TAG_PREFIX}*",
+)
 LIST = ("codex", "plugin", "list", "--json")
 MARKETPLACE_LIST = ("codex", "plugin", "marketplace", "list", "--json")
 UPGRADE = (
@@ -65,6 +75,45 @@ UPGRADE = (
     "--json",
 )
 INSTALL = ("codex", "plugin", "add", PLUGIN_ID, "--json")
+
+
+class FakeRunner:
+    def __init__(self, results: Sequence[Any]) -> None:
+        self.results = list(results)
+        self.commands: list[tuple[str, ...]] = []
+
+    def __call__(self, command: Sequence[str]) -> Any:
+        self.commands.append(tuple(command))
+        if not self.results:
+            raise AssertionError("an unexpected extra command was executed")
+        return self.results.pop(0)
+
+
+def _ok(stdout: str = "{}") -> Any:
+    return checker.CommandResult(0, stdout, "")
+
+
+def _fail(message: str = "denied") -> Any:
+    return checker.CommandResult(1, "", message)
+
+
+def _refs(
+    *versions: str,
+    main_commit: str = MAIN_COMMIT,
+    tag_commit: str | None = None,
+    annotated: bool = False,
+    extra: Sequence[str] = (),
+) -> str:
+    lines = [f"{main_commit}\trefs/heads/main"]
+    target_commit = tag_commit or main_commit
+    for version in versions:
+        ref = f"refs/tags/{TAG_PREFIX}{version}"
+        if annotated:
+            lines.extend((f"{TAG_OBJECT}\t{ref}", f"{target_commit}\t{ref}^{{}}"))
+        else:
+            lines.append(f"{target_commit}\t{ref}")
+    lines.extend(extra)
+    return "\n".join(lines) + "\n"
 
 
 def _plugin_list(version: str, *, enabled: bool = True) -> str:
@@ -105,165 +154,202 @@ def _marketplace_list(
     )
 
 
-class FakeRunner:
-    def __init__(self, results: Sequence[Any]) -> None:
-        self.results = list(results)
-        self.commands: list[tuple[str, ...]] = []
+class PluginTagCheckTest(unittest.TestCase):
+    def _check(self, output: str, *, now: float = 1000) -> tuple[dict[str, Any], FakeRunner]:
+        runner = FakeRunner([_ok(output)])
+        result = checker.check_for_update(
+            metadata_path=RELEASE_PATH,
+            runner=runner,
+            use_cache=False,
+            now=now,
+        )
+        return result, runner
 
-    def __call__(self, command: Sequence[str]) -> Any:
-        self.commands.append(tuple(command))
-        if not self.results:
-            raise AssertionError("updater executed an unexpected extra command")
-        return self.results.pop(0)
+    def test_no_newer_codex_tag_is_current(self) -> None:
+        for output in (_refs(), _refs(CURRENT_VERSION, "0.5.9")):
+            with self.subTest(output=output):
+                result, runner = self._check(output)
+                self.assertEqual(result["status"], "current")
+                self.assertEqual(runner.commands, [GIT_CHECK])
 
+    def test_newer_lightweight_or_annotated_tag_on_main_is_available(self) -> None:
+        for annotated in (False, True):
+            with self.subTest(annotated=annotated):
+                result, _ = self._check(_refs(TARGET_VERSION, annotated=annotated))
+                self.assertEqual(result["status"], "update_available")
+                self.assertEqual(result["target_version"], TARGET_VERSION)
+                self.assertEqual(result["target_tag"], f"{TAG_PREFIX}{TARGET_VERSION}")
+                self.assertEqual(result["target_commit"], MAIN_COMMIT)
 
-def _ok(stdout: str = "{}") -> Any:
-    return updater.CommandResult(0, stdout, "")
+    def test_newer_tag_not_on_main_is_fail_closed(self) -> None:
+        result, _ = self._check(_refs(TARGET_VERSION, tag_commit=OTHER_COMMIT))
+        self.assertEqual(result["status"], "release_inconsistent")
 
+    def test_codex_ignores_claude_tags_and_uses_semver_order(self) -> None:
+        claude = f"{MAIN_COMMIT}\trefs/tags/anchises-analysis/claude/v9.0.0"
+        result, _ = self._check(_refs("0.6.0-dev.10", extra=(claude,)))
+        self.assertEqual(result["target_version"], "0.6.0-dev.10")
+        self.assertGreater(checker.compare_versions("0.6.0-dev.10", "0.6.0-dev.9"), 0)
+        self.assertGreater(checker.compare_versions("0.6.0", "0.6.0-dev.99"), 0)
 
-def _fail(message: str = "denied") -> Any:
-    return updater.CommandResult(1, "", message)
+    def test_network_and_malformed_ref_failures_are_unknown(self) -> None:
+        failed = FakeRunner([_fail("network")])
+        result = checker.check_for_update(
+            metadata_path=RELEASE_PATH, runner=failed, use_cache=False
+        )
+        self.assertEqual(result["status"], "unknown")
+        malformed, _ = self._check("not-a-ref\n")
+        self.assertEqual(malformed["status"], "unknown")
+
+    def test_success_cache_is_used_then_expires_and_refresh_bypasses_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "tags.json"
+            first = FakeRunner([_ok(_refs(TARGET_VERSION))])
+            result = checker.check_for_update(
+                metadata_path=RELEASE_PATH,
+                runner=first,
+                cache_path=cache,
+                now=1000,
+            )
+            self.assertEqual(result["cache"], "miss")
+
+            cached = FakeRunner([])
+            result = checker.check_for_update(
+                metadata_path=RELEASE_PATH,
+                runner=cached,
+                cache_path=cache,
+                now=1001,
+            )
+            self.assertEqual(result["cache"], "hit")
+            self.assertEqual(cached.commands, [])
+
+            refreshed = FakeRunner([_ok(_refs())])
+            result = checker.check_for_update(
+                metadata_path=RELEASE_PATH,
+                runner=refreshed,
+                cache_path=cache,
+                refresh=True,
+                now=1002,
+            )
+            self.assertEqual(result["status"], "current")
+            self.assertEqual(refreshed.commands, [GIT_CHECK])
+
+            stale = FakeRunner([_ok(_refs(TARGET_VERSION))])
+            checker.check_for_update(
+                metadata_path=RELEASE_PATH,
+                runner=stale,
+                cache_path=cache,
+                now=1002 + checker.SUCCESS_CACHE_SECONDS,
+            )
+            self.assertEqual(stale.commands, [GIT_CHECK])
 
 
 class PluginUpdateTest(unittest.TestCase):
-    def _run(self, runner: FakeRunner) -> dict[str, Any]:
-        return updater.run_update(
-            TARGET_VERSION,
-            TARGET_RELEASE_ID,
+    def _run(
+        self,
+        runner: FakeRunner,
+        *,
+        tag_output: str | None = None,
+    ) -> tuple[dict[str, Any], FakeRunner]:
+        tag_runner = FakeRunner([_ok(tag_output or _refs(TARGET_VERSION))])
+        result = updater.run_update(
             runner=runner,
+            tag_runner=tag_runner,
             metadata_path=RELEASE_PATH,
         )
+        return result, tag_runner
 
-    def test_success_executes_the_only_five_commands_once(self) -> None:
+    def test_success_rechecks_one_tag_and_executes_only_five_codex_commands(self) -> None:
         runner = FakeRunner(
             [
-                _ok(_plugin_list(INITIAL)),
+                _ok(_plugin_list(CURRENT_RELEASE)),
                 _ok(_marketplace_list()),
                 _ok(),
                 _ok(),
-                _ok(_plugin_list(TARGET)),
+                _ok(_plugin_list(TARGET_RELEASE)),
             ]
         )
-        result = self._run(runner)
+        result, tag_runner = self._run(runner)
         self.assertEqual(result["status"], "updated")
-        self.assertEqual(result["installed_release"], TARGET)
-        self.assertEqual(
-            runner.commands,
-            [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST],
-        )
-        self.assertEqual(runner.results, [])
+        self.assertEqual(result["installed_release"], TARGET_RELEASE)
+        self.assertEqual(tag_runner.commands, [GIT_CHECK])
+        self.assertEqual(runner.commands, [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST])
 
-    def test_already_current_stops_after_complete_preflight(self) -> None:
-        runner = FakeRunner(
-            [_ok(_plugin_list(TARGET)), _ok(_marketplace_list())]
-        )
-        result = self._run(runner)
+    def test_tag_check_current_or_inconsistent_stops_before_codex(self) -> None:
+        for output, expected in (
+            (_refs(CURRENT_VERSION), "already_current"),
+            (_refs(TARGET_VERSION, tag_commit=OTHER_COMMIT), "preflight_failed"),
+        ):
+            with self.subTest(expected=expected):
+                runner = FakeRunner([])
+                result, _ = self._run(runner, tag_output=output)
+                self.assertEqual(result["status"], expected)
+                self.assertEqual(runner.commands, [])
+
+    def test_installed_target_stops_after_complete_source_preflight(self) -> None:
+        runner = FakeRunner([_ok(_plugin_list(TARGET_RELEASE)), _ok(_marketplace_list())])
+        result, _ = self._run(runner)
         self.assertEqual(result["status"], "already_current")
         self.assertEqual(runner.commands, [LIST, MARKETPLACE_LIST])
 
-    def test_local_wrong_and_incomplete_sources_are_unsupported(self) -> None:
+    def test_local_wrong_qa_and_incomplete_sources_are_unsupported(self) -> None:
         sources = (
             _marketplace_list(source_type="local", source="/tmp/dev"),
             _marketplace_list(source="https://github.com/example/wrong.git"),
-            _marketplace_list(git_ref="main"),
+            _marketplace_list(git_ref="qa-v2-auth"),
             json.dumps({"marketplaces": [{"name": MARKETPLACE}]}),
         )
         for payload in sources:
             with self.subTest(payload=payload):
-                runner = FakeRunner([_ok(_plugin_list(INITIAL)), _ok(payload)])
-                result = self._run(runner)
+                runner = FakeRunner([_ok(_plugin_list(CURRENT_RELEASE)), _ok(payload)])
+                result, _ = self._run(runner)
                 self.assertEqual(result["status"], "unsupported_source")
                 self.assertEqual(result["step"], "source_validation")
                 self.assertEqual(runner.commands, [LIST, MARKETPLACE_LIST])
 
-    def test_each_failure_stops_without_retry_or_fallback(self) -> None:
+    def test_each_fixed_step_failure_stops_without_retry(self) -> None:
         cases = (
             ([_fail()], "preflight_failed", [LIST]),
-            (
-                [_ok(_plugin_list(INITIAL)), _fail()],
-                "preflight_failed",
-                [LIST, MARKETPLACE_LIST],
-            ),
-            (
-                [_ok(_plugin_list(INITIAL)), _ok(_marketplace_list()), _fail()],
-                "upgrade_failed",
-                [LIST, MARKETPLACE_LIST, UPGRADE],
-            ),
-            (
-                [
-                    _ok(_plugin_list(INITIAL)),
-                    _ok(_marketplace_list()),
-                    _ok(),
-                    _fail(),
-                ],
-                "install_failed",
-                [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL],
-            ),
-            (
-                [
-                    _ok(_plugin_list(INITIAL)),
-                    _ok(_marketplace_list()),
-                    _ok(),
-                    _ok(),
-                    _fail(),
-                ],
-                "verification_failed",
-                [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST],
-            ),
+            ([_ok(_plugin_list(CURRENT_RELEASE)), _fail()], "preflight_failed", [LIST, MARKETPLACE_LIST]),
+            ([_ok(_plugin_list(CURRENT_RELEASE)), _ok(_marketplace_list()), _fail()], "upgrade_failed", [LIST, MARKETPLACE_LIST, UPGRADE]),
+            ([_ok(_plugin_list(CURRENT_RELEASE)), _ok(_marketplace_list()), _ok(), _fail()], "install_failed", [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL]),
+            ([_ok(_plugin_list(CURRENT_RELEASE)), _ok(_marketplace_list()), _ok(), _ok(), _fail()], "verification_failed", [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST]),
         )
         for results, status, expected_commands in cases:
             with self.subTest(status=status):
                 runner = FakeRunner(results)
-                result = self._run(runner)
+                result, _ = self._run(runner)
                 self.assertEqual(result["status"], status)
                 self.assertEqual(runner.commands, expected_commands)
 
-    def test_verification_requires_the_target_or_a_newer_release(self) -> None:
+    def test_verification_requires_target_or_newer_base_version(self) -> None:
         runner = FakeRunner(
             [
-                _ok(_plugin_list(INITIAL)),
+                _ok(_plugin_list(CURRENT_RELEASE)),
                 _ok(_marketplace_list()),
                 _ok(),
                 _ok(),
-                _ok(_plugin_list(INITIAL)),
+                _ok(_plugin_list(CURRENT_RELEASE)),
             ]
         )
-        result = self._run(runner)
+        result, _ = self._run(runner)
         self.assertEqual(result["status"], "verification_failed")
-
-    def test_release_comparison_handles_prerelease_and_cachebuster(self) -> None:
-        compare = updater.compare_releases
-        self.assertLess(compare(INITIAL, TARGET), 0)
-        self.assertGreater(compare(TARGET, INITIAL), 0)
-        self.assertEqual(compare(TARGET, TARGET), 0)
-        self.assertLess(
-            compare(
-                "0.6.0-dev.6+codex.20260806115959",
-                "0.6.0-dev.6+codex.20260806120000",
-            ),
-            0,
-        )
-        with self.assertRaises(ValueError):
-            compare("0.6.0-dev.6", TARGET)
 
     def test_release_metadata_matches_manifest_and_sync_helper(self) -> None:
         manifest = json.loads(
-            (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(
-                encoding="utf-8"
-            )
+            (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
         )
         release = json.loads(RELEASE_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(
-            manifest["version"],
-            f"{release['version']}+{release['release_id']}",
-        )
+        self.assertEqual(manifest["version"], f"{release['version']}+{release['release_id']}")
+        self.assertEqual(release["git_ref"], "main")
+        self.assertEqual(release["tag_prefix"], TAG_PREFIX)
         self.assertFalse(release_sync.sync_release(check=True))
 
         with tempfile.TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "plugin.json"
-            release_path = Path(tmp) / "client-release.json"
+            release_path = Path(tmp) / "plugin-release.json"
             manifest_path.write_text(
-                json.dumps({"version": TARGET}), encoding="utf-8"
+                json.dumps({"version": TARGET_RELEASE}), encoding="utf-8"
             )
             stale = dict(release)
             stale["version"] = "0.6.0-dev.1"
@@ -283,7 +369,7 @@ class PluginUpdateTest(unittest.TestCase):
             )
             synced = json.loads(release_path.read_text(encoding="utf-8"))
             self.assertEqual(synced["version"], TARGET_VERSION)
-            self.assertEqual(synced["release_id"], TARGET_RELEASE_ID)
+            self.assertEqual(synced["release_id"], "codex.20260806120000")
 
 
 if __name__ == "__main__":

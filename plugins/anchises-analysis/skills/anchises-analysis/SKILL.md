@@ -13,16 +13,19 @@ credentials, or local setup.
 
 Read [references/global-contract.md](references/global-contract.md),
 [references/plugin-update.md](references/plugin-update.md), and
-[references/service-access.md](references/service-access.md). Because this
-Skill has been selected, call `get_connection_status` exactly once for this
-user request using the schema-aware client-metadata rule. Retain both service
-access state and `client_update` state. Do not make a second status call for a
-business modifier.
+[references/service-access.md](references/service-access.md). For a
+substantive Anchises business request, run the bundled
+`scripts/check_plugin_update.py` exactly once and retain `plugin_update_check`,
+then call `get_connection_status` exactly once with `{}` and retain the
+service-access state. Plugin release discovery is independent of MCP service
+versioning. Do not repeat either check for a business modifier.
 
 If the message is an explicitly authorized Anchises Analysis installation or
 update, a decline of the offered update, or an acknowledgement after a
 completed update, use the `plugin_update` route and the only state machine in
-`plugin-update.md`. Keep it separate from business classification. A bare
+`plugin-update.md`. Do not call MCP for this operational route; the fixed
+updater performs its own fresh tag check only after explicit authorization.
+Keep it separate from business classification. A bare
 “yes”, “是”, “install”, or “安装” is not explicit update authorization.
 
 ## Classify once
@@ -67,8 +70,9 @@ Maintain the conceptual state defined in
 [references/global-contract.md](references/global-contract.md), including
 separate requested, contextual, and discovered entities.
 
-Reuse the one service check already made for this request. Never call
-`get_connection_status` again when a modifier adds another workflow.
+Reuse the one service check and one tag check already made for this request.
+Never call `get_connection_status` or the tag checker again when a modifier
+adds another workflow.
 
 Before a company brief, full report, comparison, or single-company market-data
 workflow, read

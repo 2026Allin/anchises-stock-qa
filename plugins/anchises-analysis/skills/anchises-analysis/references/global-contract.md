@@ -22,7 +22,8 @@ response_status
 suggestions_allowed
 recent_follow_up_families
 connection_status_checked
-client_update
+plugin_update_checked
+plugin_update_check
 update_notice_suppressed
 installed_release_in_task
 ```
@@ -77,10 +78,13 @@ identity, report section, discovery list, or incidental company mention.
 - Send MCP only the arguments required by the selected tool. Never send the
   full transcript, unrelated personal information, credentials, or copied web
   content.
-- When any of the five Anchises Skills is selected explicitly or implicitly,
-  call `get_connection_status` exactly once for that user request using
-  [service-access.md](service-access.md). Do not check on an unrelated request.
-- Never make a speculative new-schema call and retry with an old-schema call.
+- When any of the five Anchises Skills is selected explicitly or implicitly
+  for a substantive business request, call `get_connection_status` exactly
+  once with `{}` using [service-access.md](service-access.md), and run the
+  local Codex Tag checker exactly once using
+  [plugin-update.md](plugin-update.md). Do neither on an unrelated request.
+- Keep MCP service access and plugin Tag discovery independent. An MCP version
+  change never implies a plugin update.
 - Keep update checking separate from installation. No update command runs
   without the explicit authorization defined in
   [plugin-update.md](plugin-update.md).

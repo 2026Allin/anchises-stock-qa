@@ -47,7 +47,7 @@ class LiveHostedContractTest(unittest.TestCase):
                 "capabilities": {},
                 "clientInfo": {
                     "name": f"anchises-analysis-{label}",
-                    "version": "0.7.1",
+                    "version": "0.7.2",
                 },
             },
             1,
@@ -76,15 +76,15 @@ class LiveHostedContractTest(unittest.TestCase):
         ).validate(structured)
         return structured
 
-    def test_health_and_handshake_publish_0_7_1(self) -> None:
+    def test_health_and_handshake_publish_0_7_2(self) -> None:
         request = Request(
             HEALTH,
-            headers={"User-Agent": "anchises-analysis-live-health/0.7.1"},
+            headers={"User-Agent": "anchises-analysis-live-health/0.7.2"},
         )
         with urlopen(request, timeout=20) as response:
             health = json.loads(response.read().decode("utf-8"))
         self.assertTrue(health["ok"])
-        self.assertEqual(health["version"], "0.7.1")
+        self.assertEqual(health["version"], "0.7.2")
         self.assertEqual(health["status"], "ready")
         self.assertEqual(health["access_mode"], "public_noauth")
         self.assertEqual(health["authentication"], "not_required")
@@ -94,7 +94,7 @@ class LiveHostedContractTest(unittest.TestCase):
             initialized["serverInfo"],
             {
                 "name": "Anchises Analysis",
-                "version": "0.7.1",
+                "version": "0.7.2",
                 "websiteUrl": "https://anchisesdata.com/stock-qa",
             },
         )
@@ -264,7 +264,7 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertTrue(export["data"]["download_url"].startswith("https://"))
         download = Request(
             export["data"]["download_url"],
-            headers={"User-Agent": "anchises-analysis-live-csv/0.7.1"},
+            headers={"User-Agent": "anchises-analysis-live-csv/0.7.2"},
         )
         with urlopen(download, timeout=30) as response:
             body = response.read()

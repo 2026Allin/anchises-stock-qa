@@ -476,15 +476,15 @@ def _validate_stock_access_policy(
         return
     if contract_version in {"1.7.0-draft", "1.8.0-draft"}:
         _validate_dynamic_stock_access_policy(by_name)
-        _validate_client_update_contract(by_name, contract_version)
+        _validate_optional_client_metadata(by_name, contract_version)
         return
     raise ContractError(f"unsupported contract version: {contract_version}")
 
 
-def _validate_client_update_contract(
+def _validate_optional_client_metadata(
     by_name: Dict[str, Dict[str, Any]], contract_version: str
 ) -> None:
-    """Validate the optional MCP 0.7.2 client-release negotiation shape."""
+    """Validate the service schema without using it for plugin releases."""
 
     status = by_name.get("get_connection_status")
     if status is None:
@@ -501,7 +501,7 @@ def _validate_client_update_contract(
     if contract_version == "1.7.0-draft":
         if input_properties or "client_update" in output_properties:
             raise ContractError(
-                "contract 1.7 must not publish client update negotiation"
+                "contract 1.7 must not publish optional client metadata"
             )
         return
 
@@ -533,7 +533,7 @@ def _validate_client_update_contract(
             raise ContractError(f"client {field} must be bounded")
         if "const" in field_schema or "pattern" in field_schema:
             raise ContractError(
-                f"client {field} format must be evaluated as unknown at runtime"
+                f"client {field} format must be evaluated at runtime"
             )
 
     if "client_update" not in output_properties:

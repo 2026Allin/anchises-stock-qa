@@ -16,10 +16,10 @@ Read
 [../anchises-analysis/references/plugin-update.md](../anchises-analysis/references/plugin-update.md),
 and
 [../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md).
-Because this Skill has been selected, call `get_connection_status` exactly
-once for this user request using its published schema and the shared
-client-release metadata. Retain `client_update`; never probe with new
-arguments and retry with `{}`.
+Because this Skill has been selected for a business request, run the bundled
+tag checker exactly once and retain `plugin_update_check`, then call
+`get_connection_status` exactly once with `{}` and retain service-access
+state. Plugin release discovery is independent of MCP service versioning.
 
 ## Confirm ownership once
 
@@ -35,8 +35,8 @@ belongs to the sibling Brief Skill.
 
 ## Establish access and identities
 
-Reuse the single connection result already obtained for this request. Never
-call `get_connection_status` again for an attached modifier.
+Reuse the single connection result and tag-check result already obtained for
+this request. Never repeat either check for an attached modifier.
 
 Read
 [../anchises-analysis/references/company-resolution.md](../anchises-analysis/references/company-resolution.md).

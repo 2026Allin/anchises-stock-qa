@@ -13,12 +13,12 @@ analysis.
   `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.5`
+- Target semantic version: `0.6.0-dev.6`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- Hosted MCP version: `0.7.1`
+- Hosted MCP version: `0.7.2`
 - Data API version: `0.3.0`
-- Internal contract version: `1.7.0-draft`
+- Internal contract version: `1.8.0-draft`
 - Data policy: live `restricted` or `bulk_enabled` policy from MCP
 - Prompt pack: `5.1`
 
@@ -50,12 +50,12 @@ A clear specialist request may enter its matching Skill directly. Every
 specialist first reads the same canonical `primary_task` rules and must stop if
 it does not own the result; downstream Skills never reclassify.
 
-Whenever one of the five Skills is selected explicitly or implicitly, it calls
-`get_connection_status` once for that user request. If the published schema
-supports the optional `client` object, the call includes the bundled base
-version, `codex` release ID, and channel. With the current MCP `0.7.1` schema,
-the Skill sends `{}` directly and silently treats the update state as unknown;
-it never probes new arguments and retries.
+Whenever one of the five Skills is selected explicitly or implicitly for a
+business request, it runs the bundled Codex tag checker once and calls
+`get_connection_status({})` once. The tag checker considers only
+`anchises-analysis/codex/v*` in the allowlisted repository and accepts a newer
+release only when its tag points to the current remote `main` head. Plugin
+release discovery is independent of the MCP service version.
 
 An available update is shown only as a final operational footer after the
 business answer. Installation requires an explicit sentence naming Anchises
@@ -166,7 +166,7 @@ without creating an Anchises Analysis App ID:
 ```bash
 codex plugin marketplace add \
   https://github.com/2026Allin/anchises-stock-qa.git \
-  --ref qa-v2-auth \
+  --ref main \
   --sparse .agents/plugins \
   --sparse plugins/anchises-analysis
 
@@ -178,10 +178,9 @@ a separate `codex mcp add` is not required. Managed workspaces may require an
 administrator to allowlist the Git source and exact MCP URL. Start a new Codex
 task after installing or updating the plugin.
 
-`0.6.0-dev.5` is the bootstrap release and must be installed manually once.
-The runtime notification path becomes active only after MCP `0.7.2` publishes
-the optional client-update contract described in the
-[MCP handoff](../../docs/anchises-analysis-mcp-0.7.2-client-update-handoff.md).
+`0.6.0-dev.6` is the bootstrap release and must be installed manually once.
+Later Codex releases are detected from their explicit Git tags. MCP-only
+updates remain independent and do not trigger a plugin installation notice.
 
 ## Contract sync
 
@@ -192,15 +191,15 @@ credential-free, read-only JSON-RPC client:
 .venv/bin/python plugins/anchises-analysis/contracts/sync_hosted_contract.py --check
 ```
 
-The snapshot must contain exactly 12 strict descriptors, MCP `0.7.1`, the
+The snapshot must contain exactly 12 strict descriptors, MCP `0.7.2`, the
 company-identity resolver, a four-required-field prepare schema, noauth
 security, Prompt pack `5.1`, opaque cursor pagination, dynamic data/export
 policy metadata, and no legacy cached-report tools.
 
-The synchronizer accepts the current `1.7.0-draft` status schema and detects
-the future `client` plus `client_update` schema as `1.8.0-draft`. It rejects a
-partial upgrade. Do not change the production snapshot to `1.8.0-draft` until
-the MCP team has deployed and verified `0.7.2`.
+The synchronizer accepts the current `1.8.0-draft` status schema, including
+the service's optional `client` input and required `client_update` output.
+Skills still call `get_connection_status({})` and ignore that output for
+plugin releases; Git tags are the only plugin update signal.
 
 ## Validation
 
@@ -213,8 +212,8 @@ synchronize the client metadata:
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   plugins/anchises-analysis
-.venv/bin/python plugins/anchises-analysis/scripts/sync_client_release.py
-.venv/bin/python plugins/anchises-analysis/scripts/sync_client_release.py --check
+.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py
+.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py --check
 ```
 
 Then run:

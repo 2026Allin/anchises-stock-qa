@@ -90,7 +90,7 @@ class HostedContractTest(unittest.TestCase):
         cls.descriptors = tool_descriptors(cls.contract)
 
     def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.7.0-draft")
+        self.assertEqual(self.contract["contract_version"], "1.8.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
@@ -109,7 +109,7 @@ class HostedContractTest(unittest.TestCase):
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "public_noauth")
         self.assertEqual(source["server_name"], "Anchises Analysis")
-        self.assertEqual(source["server_version"], "0.7.1")
+        self.assertEqual(source["server_version"], "0.7.2")
         self.assertIn("limited to 200 rows per call", source["instructions"])
         self.assertIn("short-lived opaque cursor", source["instructions"])
         self.assertIn("User-authored SQL OFFSET remains forbidden", source["instructions"])

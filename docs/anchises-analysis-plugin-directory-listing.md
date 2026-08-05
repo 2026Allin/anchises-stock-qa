@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Current QA directory copy for `Anchises Analysis 0.6.0-dev.5`.
+Current Codex release copy for `Anchises Analysis 0.6.0-dev.6`.
 
 ## Identity
 
@@ -9,11 +9,11 @@ Current QA directory copy for `Anchises Analysis 0.6.0-dev.5`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.6.0-dev.5
+- Version: 0.6.0-dev.6
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- MCP version: 0.7.1
+- MCP version: 0.7.2
 - Data API version: 0.3.0
-- Contract version: `1.7.0-draft`
+- Contract version: `1.8.0-draft`
 - Data policy: dynamic `restricted` or `bulk_enabled`
 - Authentication: not required
 
@@ -76,10 +76,10 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - Public noauth access has no account-linked cross-session cumulative budget;
   shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.
-- Each selected Anchises Skill checks the published client update status once.
+- Each selected Anchises Skill checks the Codex Git tag namespace once.
   No-update, unknown, and failed checks are silent; installation requires an
   explicit named authorization and supports only the allowlisted Git
-  Marketplace source.
+  Marketplace source on `main`.
 - Reports and market analysis are analytical information, not investment advice
   or official company disclosure.
 
@@ -87,8 +87,8 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 
 | Surface | Expected result |
 |---|---|
-| `/health` | HTTP 200; version 0.7.1; ready; public access; authentication not required |
-| MCP initialize | Anchises Analysis 0.7.1 |
+| `/health` | HTTP 200; version 0.7.2; ready; public access; authentication not required |
+| MCP initialize | Anchises Analysis 0.7.2 |
 | `tools/list` | Exactly 12 noauth tools |
 | Identity resolver | resolved / ambiguous / not_found_in_supported_markets |
 | Report preparation | Four required inputs; Prompt pack 5.1; Host action |

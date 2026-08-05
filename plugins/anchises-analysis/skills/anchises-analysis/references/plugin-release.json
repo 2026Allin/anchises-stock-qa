@@ -1,12 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "anchises-analysis",
   "platform": "codex",
-  "version": "0.6.0-dev.5",
-  "release_id": "codex.20260805135302",
-  "channel": "qa-v2-auth",
+  "version": "0.6.0-dev.6",
+  "release_id": "codex.20260805184038",
   "plugin_id": "anchises-analysis@Anchises-Analysis",
   "marketplace": "Anchises-Analysis",
   "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
-  "git_ref": "qa-v2-auth"
+  "git_ref": "main",
+  "tag_prefix": "anchises-analysis/codex/v"
 }
