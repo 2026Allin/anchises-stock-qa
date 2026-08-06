@@ -173,7 +173,7 @@ def _parse_remote_refs(
     *,
     branch_ref: str,
     tag_prefix: str,
-) -> tuple[str, list[tuple[str, str, str]]]:
+) -> tuple[str, str | None, list[tuple[str, str, str]]]:
     direct: dict[str, str] = {}
     peeled: dict[str, str] = {}
     for raw_line in output.splitlines():
@@ -208,7 +208,30 @@ def _parse_remote_refs(
         version = match.group("version")
         _version_parts(version)
         tags.append((version, match.group("tag"), peeled.get(ref, object_id)))
-    return branch_commit, tags
+    return branch_commit, direct.get("HEAD"), tags
+
+
+def default_branch_matches_release(
+    remote_output: str,
+    *,
+    target_commit: str,
+    metadata_path: Path = METADATA_PATH,
+) -> bool:
+    """Confirm an unpinned Git source currently resolves to the release branch."""
+
+    if not OBJECT_ID_RE.fullmatch(target_commit):
+        return False
+    metadata = _load_metadata(metadata_path)
+    branch_ref = f"refs/heads/{metadata['git_ref']}"
+    try:
+        branch_commit, default_commit, _ = _parse_remote_refs(
+            remote_output,
+            branch_ref=branch_ref,
+            tag_prefix=metadata["tag_prefix"],
+        )
+    except ValueError:
+        return False
+    return default_commit == branch_commit == target_commit
 
 
 def _latest_tag(tags: Sequence[tuple[str, str, str]]) -> tuple[str, str, str] | None:
@@ -354,7 +377,7 @@ def check_remote_refs(
     else:
         branch_ref = f"refs/heads/{metadata['git_ref']}"
         try:
-            branch_commit, tags = _parse_remote_refs(
+            branch_commit, _, tags = _parse_remote_refs(
                 remote_output,
                 branch_ref=branch_ref,
                 tag_prefix=metadata["tag_prefix"],

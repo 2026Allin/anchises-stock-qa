@@ -159,10 +159,16 @@ codex plugin add anchises-analysis@Anchises-Analysis --json
 codex plugin list --json
 ```
 
-The supported source is exactly Marketplace `Anchises-Analysis`, repository
-`https://github.com/2026Allin/anchises-stock-qa.git`, and Git ref `main`. A
-local development Marketplace, wrong repository, wrong ref, missing source
-metadata, missing Tag, or a Tag that does not match `main` stops the update.
+The supported source is exactly Marketplace `Anchises-Analysis` and repository
+`https://github.com/2026Allin/anchises-stock-qa.git`. An explicit Git ref must
+be `main`. Codex may omit or return `null` for `marketplaceSource.refName` when
+the configured Git source follows its default branch; accept that representation
+only when the same fresh `git ls-remote` output proves that remote `HEAD`,
+`refs/heads/main`, and the selected release Tag all resolve to the same commit.
+This compatibility check uses the already captured refs and must not execute an
+additional command. A local development Marketplace, wrong repository,
+explicit non-`main` ref, missing Git source metadata, missing remote `HEAD`,
+missing Tag, or any commit mismatch stops the update.
 
 Each authorization permits one updater invocation only. On any failure, stop.
 Do not retry or attempt `git pull`, `git clone`, Tag creation, commit, push,

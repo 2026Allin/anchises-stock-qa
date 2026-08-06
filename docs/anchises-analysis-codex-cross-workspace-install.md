@@ -149,11 +149,16 @@ not authorize it, silence does nothing, and “not now” applies only to that
 acknowledgement turn.
 
 The automated flow supports only Marketplace `Anchises-Analysis` from
-`https://github.com/2026Allin/anchises-stock-qa.git` at `main`. It stops
-for local development sources, another repository/ref, missing source details,
-permission denial, or any failed step. It never retries with Git commands,
-uninstall-first, Marketplace removal/re-addition, config edits, force, or
-rollback. A successful update still requires a new Codex task.
+`https://github.com/2026Allin/anchises-stock-qa.git` at `main`. Continue to set
+the Git ref explicitly when installing. If Codex later omits or returns `null`
+for that default-branch metadata, the updater accepts it only when the same
+fresh remote lookup proves that `HEAD`, `refs/heads/main`, and the release Tag
+resolve to the same commit. It stops for local development sources, another
+repository, an explicit non-`main` ref, missing Git source metadata, a missing
+remote `HEAD`, permission denial, a commit mismatch, or any failed step. It
+never retries with Git commands, uninstall-first, Marketplace removal/re-addition,
+config edits, force, or rollback. A successful update still requires a new
+Codex task.
 
 Maintainers using a local Marketplace must continue the manual cachebuster and
 reinstall flow; the in-Skill updater deliberately rejects local sources.

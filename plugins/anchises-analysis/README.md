@@ -72,10 +72,12 @@ business answer. Installation requires an explicit sentence naming Anchises
 Analysis and the install/update intent. The fixed updater supports only the
 allowlisted Git Marketplace source, executes each preflight, upgrade, install,
 and verification command once, and stops on the first failure without
-fallback. Local development Marketplaces continue to use the maintainer's
-manual cachebuster and reinstall flow. A successful installation requires a
-new Codex task because the current task retains its startup Skill and MCP
-catalog.
+fallback. An explicit Marketplace ref must be `main`; a missing or `null` ref
+is accepted only when the already captured remote refs show that `HEAD`,
+`refs/heads/main`, and the release Tag resolve to the same commit. Local
+development Marketplaces continue to use the maintainer's manual cachebuster
+and reinstall flow. A successful installation requires a new Codex task
+because the current task retains its startup Skill and MCP catalog.
 
 ## Company briefs
 

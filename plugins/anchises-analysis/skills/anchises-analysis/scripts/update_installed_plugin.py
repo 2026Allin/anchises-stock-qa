@@ -235,11 +235,20 @@ def run_update(
         )
     marketplace = _marketplace(marketplace_payload, metadata["marketplace"])
     source = marketplace.get("marketplaceSource") if marketplace else None
-    if not isinstance(source, dict) or (
-        source.get("sourceType") != "git"
-        or source.get("source") != metadata["repository"]
-        or source.get("refName") != metadata["git_ref"]
-    ):
+    source_matches = (
+        isinstance(source, dict)
+        and source.get("sourceType") == "git"
+        and source.get("source") == metadata["repository"]
+    )
+    ref_name = source.get("refName") if isinstance(source, dict) else None
+    ref_matches = ref_name == metadata["git_ref"]
+    if source_matches and ref_name is None:
+        ref_matches = tag_checker.default_branch_matches_release(
+            remote_refs,
+            target_commit=target_commit,
+            metadata_path=metadata_path,
+        )
+    if not source_matches or not ref_matches:
         return _result(
             "unsupported_source",
             "source_validation",

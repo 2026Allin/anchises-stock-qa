@@ -11,6 +11,16 @@ Developer Mode App ID.
 Current Codex release target: `0.6.0-dev.8`. The submitted public-review
 release remains `0.4.0-beta.2`.
 
+## QA development changes (unreleased)
+
+- Git Marketplace metadata with an omitted or `null` `refName` is no longer
+  misclassified as a local or unsupported source. It is accepted only when the
+  already captured remote refs prove that `HEAD`, `refs/heads/main`, and the
+  selected Codex release Tag resolve to the same commit.
+- Explicit non-`main` refs, a missing remote `HEAD`, wrong repositories, local
+  Marketplaces, and commit mismatches still fail closed without an additional
+  command, retry, or configuration change.
+
 ## What changed in 0.6.0-dev.8
 
 - Codex release discovery now keeps Python network-free. A cache miss requests

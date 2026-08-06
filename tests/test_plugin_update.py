@@ -101,11 +101,16 @@ def _fail(message: str = "denied") -> Any:
 def _refs(
     *versions: str,
     main_commit: str = MAIN_COMMIT,
+    head_commit: str | None = None,
+    include_head: bool = True,
     tag_commit: str | None = None,
     annotated: bool = False,
     extra: Sequence[str] = (),
 ) -> str:
-    lines = [f"{main_commit}\trefs/heads/main"]
+    lines = []
+    if include_head:
+        lines.append(f"{head_commit or main_commit}\tHEAD")
+    lines.append(f"{main_commit}\trefs/heads/main")
     target_commit = tag_commit or main_commit
     for version in versions:
         ref = f"refs/tags/{TAG_PREFIX}{version}"
@@ -137,18 +142,21 @@ def _marketplace_list(
     *,
     source_type: str = "git",
     source: str = REPOSITORY,
-    git_ref: str = GIT_REF,
+    git_ref: str | None = GIT_REF,
+    include_ref: bool = True,
 ) -> str:
+    marketplace_source: dict[str, Any] = {
+        "sourceType": source_type,
+        "source": source,
+    }
+    if include_ref:
+        marketplace_source["refName"] = git_ref
     return json.dumps(
         {
             "marketplaces": [
                 {
                     "name": MARKETPLACE,
-                    "marketplaceSource": {
-                        "sourceType": source_type,
-                        "source": source,
-                        "refName": git_ref,
-                    },
+                    "marketplaceSource": marketplace_source,
                 }
             ]
         }
@@ -194,12 +202,15 @@ class PluginTagCheckTest(unittest.TestCase):
     def test_codex_ignores_claude_tags_and_uses_semver_order(self) -> None:
         claude = f"{MAIN_COMMIT}\trefs/tags/anchises-analysis/claude/v9.0.0"
         unrelated = (
-            f"{OTHER_COMMIT}\tHEAD",
             f"{OTHER_COMMIT}\trefs/heads/qa-v2-auth",
             f"{OTHER_COMMIT}\trefs/tags/unrelated/v99.0.0",
         )
         result = self._check(
-            _refs("0.6.0-dev.10", extra=(claude, *unrelated))
+            _refs(
+                "0.6.0-dev.10",
+                head_commit=OTHER_COMMIT,
+                extra=(claude, *unrelated),
+            )
         )
         self.assertEqual(result["target_version"], "0.6.0-dev.10")
         self.assertGreater(checker.compare_versions("0.6.0-dev.10", "0.6.0-dev.9"), 0)
@@ -396,6 +407,64 @@ class PluginUpdateTest(unittest.TestCase):
         result = self._run(runner)
         self.assertEqual(result["status"], "already_current")
         self.assertEqual(runner.commands, [LIST, MARKETPLACE_LIST])
+
+    def test_missing_or_null_ref_is_supported_only_when_default_head_matches_release(self) -> None:
+        for payload in (
+            _marketplace_list(include_ref=False),
+            _marketplace_list(git_ref=None),
+        ):
+            with self.subTest(payload=payload):
+                runner = FakeRunner(
+                    [
+                        _ok(_plugin_list(CURRENT_RELEASE)),
+                        _ok(payload),
+                        _ok(),
+                        _ok(),
+                        _ok(_plugin_list(TARGET_RELEASE)),
+                    ]
+                )
+                result = self._run(runner)
+                self.assertEqual(result["status"], "updated")
+                self.assertEqual(
+                    runner.commands,
+                    [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST],
+                )
+
+        for output in (
+            _refs(TARGET_VERSION, head_commit=OTHER_COMMIT),
+            _refs(TARGET_VERSION, include_head=False),
+        ):
+            with self.subTest(output=output):
+                runner = FakeRunner(
+                    [
+                        _ok(_plugin_list(CURRENT_RELEASE)),
+                        _ok(_marketplace_list(include_ref=False)),
+                    ]
+                )
+                result = self._run(runner, tag_output=output)
+                self.assertEqual(result["status"], "unsupported_source")
+                self.assertEqual(result["step"], "source_validation")
+                self.assertEqual(runner.commands, [LIST, MARKETPLACE_LIST])
+
+    def test_explicit_main_ref_does_not_depend_on_remote_default_head(self) -> None:
+        runner = FakeRunner(
+            [
+                _ok(_plugin_list(CURRENT_RELEASE)),
+                _ok(_marketplace_list()),
+                _ok(),
+                _ok(),
+                _ok(_plugin_list(TARGET_RELEASE)),
+            ]
+        )
+        result = self._run(
+            runner,
+            tag_output=_refs(TARGET_VERSION, head_commit=OTHER_COMMIT),
+        )
+        self.assertEqual(result["status"], "updated")
+        self.assertEqual(
+            runner.commands,
+            [LIST, MARKETPLACE_LIST, UPGRADE, INSTALL, LIST],
+        )
 
     def test_local_wrong_qa_and_incomplete_sources_are_unsupported(self) -> None:
         sources = (
