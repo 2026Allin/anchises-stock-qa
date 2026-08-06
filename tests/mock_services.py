@@ -47,7 +47,7 @@ def _base64url_sha256(value: str) -> str:
 
 
 class MockServiceHandler(BaseHTTPRequestHandler):
-    server_version = "AnchisesAnalysisMock/0.7.2"
+    server_version = "AnchisesAnalysisMock/0.8.0"
 
     @property
     def base_url(self) -> str:
@@ -440,21 +440,6 @@ class MockServiceHandler(BaseHTTPRequestHandler):
         }
 
     @staticmethod
-    def _ignored_client_update() -> Dict[str, Any]:
-        """Mirror MCP 0.7.2 while plugin releases remain Git-tag driven."""
-
-        return {
-            "status": "unknown",
-            "installed_version": None,
-            "installed_release_id": None,
-            "latest_version": None,
-            "latest_release_id": None,
-            "minimum_supported_version": None,
-            "channel": None,
-            "summary": None,
-        }
-
-    @staticmethod
     def _analysis(
         matched: int | None,
         displayed: int,
@@ -643,7 +628,6 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                         "csv": {"max_bytes": 50000000},
                     },
                     "data_policy": self._data_policy(),
-                    "client_update": self._ignored_client_update(),
                 }
                 return result
             status = "active" if token == ACTIVE_TOKEN else "pending"
@@ -670,7 +654,6 @@ class MockServiceHandler(BaseHTTPRequestHandler):
                     else None
                 ),
                 "data_policy": self._data_policy() if status == "active" else None,
-                "client_update": self._ignored_client_update(),
             }
             return result
         if name == "get_available_exchanges":

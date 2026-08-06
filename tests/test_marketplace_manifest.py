@@ -67,8 +67,11 @@ class MarketplaceManifestTest(unittest.TestCase):
             r"^0\.6\.0-dev\.6(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
-        self.assertEqual(contract["contract_version"], "1.8.0-draft")
-        self.assertEqual(contract["source"]["server_version"], "0.7.2")
+        self.assertEqual(contract["contract_version"], "1.9.0-draft")
+        self.assertRegex(
+            contract["source"]["server_version"],
+            r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+        )
         self.assertEqual(contract["source"]["access_mode"], "public_noauth")
 
     def test_cross_workspace_install_uses_git_and_bundled_mcp(self) -> None:

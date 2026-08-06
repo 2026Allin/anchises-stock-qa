@@ -49,9 +49,12 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
         self.assertIn("Version: 0.6.0-dev.6", self.listing)
-        self.assertIn("MCP version: 0.7.2", self.listing)
+        self.assertIn(
+            "MCP version: discovered dynamically at connection time",
+            self.listing,
+        )
         self.assertIn("Data API version: 0.3.0", self.listing)
-        self.assertIn("Contract version: `1.8.0-draft`", self.listing)
+        self.assertIn("Contract version: `1.9.0-draft`", self.listing)
         self.assertIn("dynamic `restricted` or `bulk_enabled`", self.listing)
 
     def test_listing_uses_the_exact_starter_prompts(self) -> None:

@@ -913,27 +913,13 @@ class MockHostedEndToEndTest(unittest.TestCase):
         )
         self.assertNotIn("rows", body["result"]["structuredContent"])
 
-    def test_status_schema_accepts_but_does_not_drive_plugin_release_metadata(self) -> None:
-        status, body, _ = self._mcp_call(
-            "get_connection_status",
-            {
-                "client": {
-                    "name": "anchises-analysis",
-                    "platform": "codex",
-                    "version": "0.6.0-dev.6",
-                    "release_id": "codex.20260805102442",
-                    "channel": "main",
-                }
-            },
-        )
+    def test_status_schema_is_service_only(self) -> None:
+        status, body, _ = self._mcp_call("get_connection_status", {})
         self.assertEqual(status, 200)
         self.assertFalse(body["result"]["isError"])
-        self.assertEqual(
-            body["result"]["structuredContent"]["client_update"]["status"],
-            "unknown",
-        )
+        self.assertNotIn("client_update", body["result"]["structuredContent"])
         descriptor = descriptor_by_name("get_connection_status", self.contract)
-        self.assertEqual(set(descriptor["inputSchema"]["properties"]), {"client"})
+        self.assertEqual(descriptor["inputSchema"]["properties"], {})
 
     def test_public_noauth_requires_no_token_and_publishes_noauth(self) -> None:
         with MockAnchisesAnalysisServices(access_mode="public_noauth") as services:

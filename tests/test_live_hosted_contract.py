@@ -27,6 +27,7 @@ from sync_hosted_contract import (  # noqa: E402
 RUN_LIVE = os.environ.get("RUN_LIVE_MCP_TESTS") == "1"
 ENDPOINT = "https://mcp.anchisesdata.com/mcp"
 HEALTH = "https://mcp.anchisesdata.com/health"
+TEST_CLIENT_VERSION = "1.0.0"
 
 
 @unittest.skipUnless(
@@ -47,7 +48,7 @@ class LiveHostedContractTest(unittest.TestCase):
                 "capabilities": {},
                 "clientInfo": {
                     "name": f"anchises-analysis-{label}",
-                    "version": "0.7.2",
+                    "version": TEST_CLIENT_VERSION,
                 },
             },
             1,
@@ -76,27 +77,30 @@ class LiveHostedContractTest(unittest.TestCase):
         ).validate(structured)
         return structured
 
-    def test_health_and_handshake_publish_0_7_2(self) -> None:
+    def test_health_and_handshake_publish_matching_semantic_versions(self) -> None:
         request = Request(
             HEALTH,
-            headers={"User-Agent": "anchises-analysis-live-health/0.7.2"},
+            headers={
+                "User-Agent": f"anchises-analysis-live-health/{TEST_CLIENT_VERSION}"
+            },
         )
         with urlopen(request, timeout=20) as response:
             health = json.loads(response.read().decode("utf-8"))
         self.assertTrue(health["ok"])
-        self.assertEqual(health["version"], "0.7.2")
+        self.assertRegex(
+            health["version"],
+            r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+        )
         self.assertEqual(health["status"], "ready")
         self.assertEqual(health["access_mode"], "public_noauth")
         self.assertEqual(health["authentication"], "not_required")
 
         _, initialized = self._client("handshake")
+        self.assertEqual(initialized["serverInfo"]["name"], "Anchises Analysis")
+        self.assertEqual(initialized["serverInfo"]["version"], health["version"])
         self.assertEqual(
-            initialized["serverInfo"],
-            {
-                "name": "Anchises Analysis",
-                "version": "0.7.2",
-                "websiteUrl": "https://anchisesdata.com/stock-qa",
-            },
+            initialized["serverInfo"]["websiteUrl"],
+            "https://anchisesdata.com/stock-qa",
         )
 
     def test_live_tools_match_checked_in_snapshot(self) -> None:
@@ -264,7 +268,9 @@ class LiveHostedContractTest(unittest.TestCase):
         self.assertTrue(export["data"]["download_url"].startswith("https://"))
         download = Request(
             export["data"]["download_url"],
-            headers={"User-Agent": "anchises-analysis-live-csv/0.7.2"},
+            headers={
+                "User-Agent": f"anchises-analysis-live-csv/{TEST_CLIENT_VERSION}"
+            },
         )
         with urlopen(download, timeout=30) as response:
             body = response.read()

@@ -264,6 +264,17 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertIn("with `{}`", skill, name)
             self.assertNotIn("client_update", skill, name)
 
+        service_access = (
+            SKILL_ROOT / "references" / "service-access.md"
+        ).read_text(encoding="utf-8")
+        normalized_access = " ".join(service_access.split())
+        self.assertIn("standard connection handshake", normalized_access)
+        self.assertIn("required tools and schemas", normalized_access)
+        self.assertIn(
+            "do not request, infer, or compare a fixed server version",
+            normalized_access.lower(),
+        )
+
         protocol = (
             SKILL_ROOT / "references" / "plugin-update.md"
         ).read_text(encoding="utf-8")
@@ -934,8 +945,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(len(names), 12)
         self.assertEqual(set(names), EXPECTED_TOOLS)
         self.assertEqual(contract["source"]["server_name"], "Anchises Analysis")
-        self.assertEqual(contract["contract_version"], "1.8.0-draft")
-        self.assertEqual(contract["source"]["server_version"], "0.7.2")
+        self.assertEqual(contract["contract_version"], "1.9.0-draft")
+        self.assertRegex(
+            contract["source"]["server_version"],
+            r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+        )
         self.assertEqual(contract["source"]["sync_state"], "live")
         self.assertRegex(contract["source"]["descriptor_sha256"], r"^[0-9a-f]{64}$")
 

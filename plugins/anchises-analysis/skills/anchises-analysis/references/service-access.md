@@ -17,6 +17,13 @@ and do not call MCP.
 5. On HTTP 503 or service unavailability, report the outage and do not retry in
    a loop.
 
+The Host discovers the MCP service version during its standard connection
+handshake. Do not request, infer, or compare a fixed server version through
+`get_connection_status`. Compatibility comes from the required tools and
+schemas already loaded for the current task. If a required tool or field is
+missing, stop that workflow and report an incompatible service capability;
+do not reinterpret the server semantic version or trigger a plugin update.
+
 Never ask the user to paste passwords, API keys, authorization codes, access
 tokens, refresh tokens, session cookies, or download capabilities into chat.
 If one is exposed, recommend revoking or rotating it and explain that Anchises

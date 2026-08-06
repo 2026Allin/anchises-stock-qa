@@ -24,6 +24,7 @@ from hosted_contract import (  # noqa: E402
     validate_contract,
 )
 from sync_hosted_contract import (  # noqa: E402
+    CONTRACT_SYNC_CLIENT_VERSION,
     EXPECTED_ERRORS,
     MAX_RESPONSE_BYTES,
     _jsonrpc_messages,
@@ -67,6 +68,9 @@ class ContractSyncTest(unittest.TestCase):
             with self.subTest(endpoint=invalid), self.assertRaises(RuntimeError):
                 _validated_endpoint(invalid)
 
+    def test_sync_client_version_is_owned_by_the_plugin(self) -> None:
+        self.assertEqual(CONTRACT_SYNC_CLIENT_VERSION, "1.0.0")
+
     def test_json_and_multiline_sse_responses_are_parsed(self) -> None:
         message = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
         self.assertEqual(_jsonrpc_messages(json.dumps(message)), [message])
@@ -90,12 +94,13 @@ class ContractSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "exceeds"):
             _read_limited(actual)
 
-    def test_contract_match_ignores_only_sync_timestamp(self) -> None:
-        refreshed = copy.deepcopy(self.contract)
-        refreshed["source"]["synced_at"] = "2099-01-01T00:00:00+00:00"
-        self.assertTrue(contracts_match(self.contract, refreshed))
-        refreshed["source"]["server_version"] = "9.9.9"
-        self.assertFalse(contracts_match(self.contract, refreshed))
+    def test_contract_match_ignores_runtime_version_and_sync_timestamp(self) -> None:
+        for server_version in ("0.8.0", "0.8.1", "0.9.0"):
+            with self.subTest(server_version=server_version):
+                refreshed = copy.deepcopy(self.contract)
+                refreshed["source"]["synced_at"] = "2099-01-01T00:00:00+00:00"
+                refreshed["source"]["server_version"] = server_version
+                self.assertTrue(contracts_match(self.contract, refreshed))
 
     def test_sync_owns_the_complete_export_policy_error_catalog(self) -> None:
         self.assertEqual(self.contract["errors"], EXPECTED_ERRORS)
@@ -140,21 +145,40 @@ class ContractSyncTest(unittest.TestCase):
             self.assertTrue(path.read_bytes().endswith(b"\n"))
             self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
 
-    def test_validator_accepts_complete_service_metadata_but_rejects_drift(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.8.0-draft")
+    def test_validator_requires_service_only_connection_status(self) -> None:
+        self.assertEqual(self.contract["contract_version"], "1.9.0-draft")
         validate_contract(self.contract)
         drifted = copy.deepcopy(self.contract)
         status = next(
             tool for tool in drifted["tools"] if tool["name"] == "get_connection_status"
         )
-        del status["outputSchema"]["properties"]["client_update"]
-        status["outputSchema"]["required"].remove("client_update")
+        status["outputSchema"]["properties"]["client_update"] = {"type": "null"}
         canonical = json.dumps(
             drifted["tools"], sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
         drifted["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
-        with self.assertRaisesRegex(ContractError, "client_update"):
+        with self.assertRaisesRegex(ContractError, "plugin release metadata"):
             validate_contract(drifted)
+
+    def test_validator_rejects_non_semantic_observed_server_version(self) -> None:
+        drifted = copy.deepcopy(self.contract)
+        drifted["source"]["server_version"] = "release-current"
+        with self.assertRaisesRegex(ContractError, "semantic version"):
+            validate_contract(drifted)
+
+    def test_version_independence_does_not_hide_missing_capabilities(self) -> None:
+        drifted = copy.deepcopy(self.contract)
+        screen = next(
+            tool for tool in drifted["tools"] if tool["name"] == "screen_stocks"
+        )
+        del screen["inputSchema"]["properties"]["cursor"]
+        canonical = json.dumps(
+            drifted["tools"], sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        drifted["source"]["descriptor_sha256"] = hashlib.sha256(canonical).hexdigest()
+        drifted["source"]["server_version"] = "0.9.0"
+        with self.assertRaisesRegex(ContractError, "capability contract"):
+            contracts_match(self.contract, drifted)
 
 
 if __name__ == "__main__":

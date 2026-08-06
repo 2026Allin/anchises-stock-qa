@@ -14,7 +14,7 @@ Portal Scan, or a separate `codex mcp add` command.
   `company-comparison`, and `market-analysis`
 - MCP server key: `anchises_analysis`
 - MCP URL: `https://mcp.anchisesdata.com/mcp`
-- MCP version: `0.7.2`
+- MCP version: discovered dynamically from `initialize.serverInfo.version`
 - Tools: 12
 - Authentication: none
 
@@ -68,7 +68,8 @@ loaded.
    expected version.
 2. In a new task, verify that all five Skills are available.
 3. Open `/mcp` and confirm the bundled `anchises_analysis` server is connected.
-4. Confirm MCP discovery returns exactly 12 tools and reports version `0.7.2`.
+4. Confirm MCP discovery returns exactly 12 tools, reports a semantic version,
+   and matches the version returned by `/health`.
 5. Run one Company Brief, Company Report, Company Comparison, and Market
    Analysis request.
 6. Verify a market result displays no more than 200 rows, cursor continuation

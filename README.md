@@ -30,9 +30,10 @@ release remains `0.4.0-beta.2`.
 - This first tag-aware release still requires one manual install. A future
   update is advertised only after the maintainer explicitly publishes its
   Codex tag.
-- The bundled service snapshot tracks MCP `0.7.2`. Its optional client
-  compatibility fields are accepted as service output but ignored for plugin
-  release decisions.
+- The bundled capability snapshot uses internal profile `1.9.0-draft`.
+  Runtime MCP version is discovered from `initialize.serverInfo.version` and
+  is observational only; compatibility is determined by the 12 required tool
+  schemas, security metadata, annotations, and service instructions.
 
 ## What changed in 0.6.0-dev.4
 

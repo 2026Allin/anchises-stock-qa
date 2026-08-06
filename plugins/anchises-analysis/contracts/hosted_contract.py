@@ -5,11 +5,21 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List
 
 
 CONTRACT_PATH = Path(__file__).with_name("hosted-mcp-v1.json")
+CONTRACT_PROFILE_VERSION = "1.9.0-draft"
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\."
+    r"(0|[1-9]\d*)\."
+    r"(0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 PROFILE_UNAVAILABLE = "unavailable"
 PROFILE_ANONYMOUS = "anonymous"
 PROFILE_AUTHENTICATED = "authenticated"
@@ -75,6 +85,13 @@ def _nonempty_string(value: Any, label: str) -> str:
     return value
 
 
+def _semantic_version(value: Any, label: str) -> str:
+    version = _nonempty_string(value, label)
+    if not SEMVER_PATTERN.fullmatch(version):
+        raise ContractError(f"{label} must be a semantic version")
+    return version
+
+
 def _string_list(value: Any, label: str, *, allow_empty: bool = True) -> List[str]:
     if not isinstance(value, list) or (not allow_empty and not value):
         suffix = "non-empty " if not allow_empty else ""
@@ -90,133 +107,10 @@ def _schema_properties(schema: Dict[str, Any], label: str) -> Dict[str, Any]:
     return _object(schema.get("properties"), f"{label}.properties")
 
 
-def _validate_legacy_stock_access_policy(
-    by_name: Dict[str, Dict[str, Any]],
-) -> None:
-    """Validate the frozen MCP 0.6 descriptor shape during contract upgrades."""
-
-    required_tools = {"screen_stocks", "run_readonly_sql", "create_csv_export"}
-    missing = required_tools - set(by_name)
-    if missing:
-        raise ContractError(
-            f"stock access policy tools are missing: {sorted(missing)}"
-        )
-
-    screen = by_name["screen_stocks"]
-    screen_input = _schema_properties(screen["inputSchema"], "screen_stocks.inputSchema")
-    expected_screen_inputs = {
-        "exchanges",
-        "as_of_date",
-        "start_date",
-        "end_date",
-        "fields",
-        "filters",
-        "sort",
-        "top_n",
-        "base_query_id",
-        "page_size",
-    }
-    if set(screen_input) != expected_screen_inputs:
-        raise ContractError(
-            "screen_stocks input properties do not match the 0.6 contract"
-        )
-    if set(screen["inputSchema"].get("required", [])) != {"filters"}:
-        raise ContractError("screen_stocks must require filters")
-    if screen_input["top_n"].get("maximum") != 200:
-        raise ContractError("screen_stocks top_n maximum must be 200")
-    if screen_input["page_size"].get("maximum") != 200:
-        raise ContractError("screen_stocks page_size maximum must be 200")
-
-    sql = by_name["run_readonly_sql"]
-    sql_input = _schema_properties(sql["inputSchema"], "run_readonly_sql.inputSchema")
-    if set(sql_input) != {"sql", "max_rows"}:
-        raise ContractError(
-            "run_readonly_sql must accept only sql and max_rows"
-        )
-    if sql_input["max_rows"].get("maximum") != 200:
-        raise ContractError("run_readonly_sql max_rows maximum must be 200")
-
-    expected_analysis = {
-        "matched_row_count",
-        "displayed_row_count",
-        "display_row_limit",
-        "result_is_preview",
-        "row_pagination_available",
-        "server_side_analysis_supported",
-        "query_classification",
-    }
-    expected_policy = {
-        "policy_version",
-        "eligible_by_query",
-        "classification",
-        "contains_complete_partition",
-        "reasons",
-        "source_tool_required",
-        "limits",
-    }
-    expected_limits = {
-        "max_rows": 1000,
-        "max_columns": 25,
-        "max_cells": 20000,
-        "max_top_n": 200,
-        "max_explicit_tickers": 50,
-        "complete_exchange_day_allowed": False,
-    }
-    for tool_name in ("screen_stocks", "run_readonly_sql"):
-        output = by_name[tool_name]["outputSchema"]
-        output_properties = _schema_properties(output, f"{tool_name}.outputSchema")
-        page = _object(output_properties.get("page"), f"{tool_name}.page")
-        page_properties = _schema_properties(page, f"{tool_name}.page")
-        if page_properties.get("next_cursor", {}).get("type") != "null":
-            raise ContractError(f"{tool_name} next_cursor must allow only null")
-
-        data = _object(output_properties.get("data"), f"{tool_name}.data")
-        data_properties = _schema_properties(data, f"{tool_name}.data")
-        analysis = _object(data_properties.get("analysis"), f"{tool_name}.analysis")
-        if set(_schema_properties(analysis, f"{tool_name}.analysis")) != expected_analysis:
-            raise ContractError(f"{tool_name} analysis schema is incomplete")
-
-        policy = _object(
-            data_properties.get("export_policy"),
-            f"{tool_name}.export_policy",
-        )
-        policy_properties = _schema_properties(
-            policy, f"{tool_name}.export_policy"
-        )
-        if set(policy_properties) != expected_policy or "eligible" in policy_properties:
-            raise ContractError(
-                f"{tool_name} must publish eligible_by_query and no legacy eligible field"
-            )
-        if policy_properties["source_tool_required"].get("const") != "screen_stocks":
-            raise ContractError(
-                f"{tool_name} export source must be screen_stocks"
-            )
-        limits = _schema_properties(
-            _object(policy_properties["limits"], f"{tool_name}.export_policy.limits"),
-            f"{tool_name}.export_policy.limits",
-        )
-        for key, expected in expected_limits.items():
-            if limits.get(key, {}).get("const") != expected:
-                raise ContractError(
-                    f"{tool_name} export policy limit {key} must be {expected!r}"
-                )
-
-    export = by_name["create_csv_export"]
-    export_input = _schema_properties(
-        export["inputSchema"], "create_csv_export.inputSchema"
-    )
-    if set(export_input) != {"query_id", "expires_in_seconds"}:
-        raise ContractError(
-            "create_csv_export must accept only query_id and expires_in_seconds"
-        )
-    if set(export["inputSchema"].get("required", [])) != {"query_id"}:
-        raise ContractError("create_csv_export must require query_id")
-
-
 def _validate_dynamic_stock_access_policy(
     by_name: Dict[str, Dict[str, Any]],
 ) -> None:
-    """Validate MCP 0.7 cursor pagination and dynamic export policy schemas."""
+    """Validate the current cursor pagination and dynamic export capabilities."""
 
     required_tools = {
         "get_connection_status",
@@ -290,10 +184,10 @@ def _validate_dynamic_stock_access_policy(
     }
     if set(screen_input) != expected_screen_inputs:
         raise ContractError(
-            "screen_stocks input properties do not match the 0.7 contract"
+            "screen_stocks input properties do not match the capability contract"
         )
     if screen["inputSchema"].get("required"):
-        raise ContractError("screen_stocks 0.7 inputs must not be globally required")
+        raise ContractError("screen_stocks inputs must not be globally required")
     if screen_input["top_n"].get("maximum") != 200_000:
         raise ContractError("screen_stocks top_n maximum must be 200000")
     if screen_input["page_size"].get("maximum") != 200:
@@ -464,27 +358,10 @@ def _validate_dynamic_stock_access_policy(
         raise ContractError("create_csv_export must require query_id")
 
 
-def _validate_stock_access_policy(
-    tools: List[Dict[str, Any]], contract_version: str
+def _validate_connection_status_schema(
+    by_name: Dict[str, Dict[str, Any]],
 ) -> None:
-    """Validate versioned stock access and export invariants."""
-
-    by_name = {tool["name"]: tool for tool in tools}
-    required_tools = {"screen_stocks", "run_readonly_sql", "create_csv_export"}
-    if contract_version == "1.6.0-draft":
-        _validate_legacy_stock_access_policy(by_name)
-        return
-    if contract_version in {"1.7.0-draft", "1.8.0-draft"}:
-        _validate_dynamic_stock_access_policy(by_name)
-        _validate_optional_client_metadata(by_name, contract_version)
-        return
-    raise ContractError(f"unsupported contract version: {contract_version}")
-
-
-def _validate_optional_client_metadata(
-    by_name: Dict[str, Dict[str, Any]], contract_version: str
-) -> None:
-    """Validate the service schema without using it for plugin releases."""
+    """Keep service access separate from plugin release discovery."""
 
     status = by_name.get("get_connection_status")
     if status is None:
@@ -498,85 +375,24 @@ def _validate_optional_client_metadata(
         status_output, "get_connection_status.outputSchema"
     )
 
-    if contract_version == "1.7.0-draft":
-        if input_properties or "client_update" in output_properties:
-            raise ContractError(
-                "contract 1.7 must not publish optional client metadata"
-            )
-        return
-
-    if set(input_properties) != {"client"}:
+    if input_properties or status_input.get("required"):
+        raise ContractError("get_connection_status must accept only empty arguments")
+    if "client_update" in output_properties:
         raise ContractError(
-            "get_connection_status 1.8 input must contain only optional client"
+            "get_connection_status must not publish plugin release metadata"
         )
-    if status_input.get("required"):
-        raise ContractError("get_connection_status client must be optional")
-    client = _object(
-        input_properties["client"], "get_connection_status.inputSchema.client"
-    )
-    if client.get("type") != "object" or client.get("additionalProperties") is not False:
-        raise ContractError("get_connection_status client must be a closed object")
-    client_properties = _schema_properties(
-        client, "get_connection_status.inputSchema.client"
-    )
-    expected_client = {"name", "platform", "version", "release_id", "channel"}
-    if (
-        set(client_properties) != expected_client
-        or set(client.get("required", [])) != expected_client
-    ):
-        raise ContractError("get_connection_status client schema is incomplete")
-    for field in expected_client:
-        field_schema = client_properties[field]
-        if field_schema.get("type") != "string":
-            raise ContractError(f"client {field} must be a string")
-        if field_schema.get("minLength") != 1 or field_schema.get("maxLength") != 128:
-            raise ContractError(f"client {field} must be bounded")
-        if "const" in field_schema or "pattern" in field_schema:
-            raise ContractError(
-                f"client {field} format must be evaluated at runtime"
-            )
 
-    if "client_update" not in output_properties:
-        raise ContractError("get_connection_status 1.8 must publish client_update")
-    if "client_update" not in set(status_output.get("required", [])):
-        raise ContractError("get_connection_status must require client_update")
-    client_update = _object(
-        output_properties["client_update"],
-        "get_connection_status.outputSchema.client_update",
-    )
-    if (
-        client_update.get("type") != "object"
-        or client_update.get("additionalProperties") is not False
-    ):
-        raise ContractError("client_update must be a closed object")
-    update_properties = _schema_properties(
-        client_update, "get_connection_status.outputSchema.client_update"
-    )
-    expected_update = {
-        "status",
-        "installed_version",
-        "installed_release_id",
-        "latest_version",
-        "latest_release_id",
-        "minimum_supported_version",
-        "channel",
-        "summary",
-    }
-    if (
-        set(update_properties) != expected_update
-        or set(client_update.get("required", [])) != expected_update
-    ):
-        raise ContractError("client_update schema is incomplete")
-    if update_properties["status"].get("enum") != [
-        "current",
-        "update_available",
-        "unsupported",
-        "unknown",
-    ]:
-        raise ContractError("client_update status enum is incomplete")
-    for field in expected_update - {"status"}:
-        if update_properties[field].get("type") != ["string", "null"]:
-            raise ContractError(f"client_update {field} must allow string or null")
+
+def _validate_stock_access_policy(
+    tools: List[Dict[str, Any]], contract_version: str
+) -> None:
+    """Validate the current capability profile without gating on MCP SemVer."""
+
+    if contract_version != CONTRACT_PROFILE_VERSION:
+        raise ContractError(f"unsupported contract version: {contract_version}")
+    by_name = {tool["name"]: tool for tool in tools}
+    _validate_dynamic_stock_access_policy(by_name)
+    _validate_connection_status_schema(by_name)
 
 
 def mode_profiles(contract: Dict[str, Any]) -> Dict[str, str]:
@@ -620,7 +436,11 @@ def validate_contract(contract: Dict[str, Any]) -> None:
     if missing:
         raise ContractError(f"contract is missing keys: {sorted(missing)}")
 
-    _nonempty_string(contract["contract_version"], "contract_version")
+    contract_version = _nonempty_string(
+        contract["contract_version"], "contract_version"
+    )
+    if contract_version != CONTRACT_PROFILE_VERSION:
+        raise ContractError(f"unsupported contract version: {contract_version}")
     runtime = _object(contract["runtime"], "runtime")
     source = _object(contract["source"], "source")
     _object(contract["production"], "production")
@@ -631,13 +451,13 @@ def validate_contract(contract: Dict[str, Any]) -> None:
         "access_mode",
         "protocol_version",
         "server_name",
-        "server_version",
         "instructions",
         "sync_state",
         "synced_at",
         "descriptor_sha256",
     ):
         _nonempty_string(source.get(key), f"source.{key}")
+    _semantic_version(source.get("server_version"), "source.server_version")
     if source["sync_state"] not in {"live", "target_pending_mcp_publish"}:
         raise ContractError("source.sync_state must be live or target_pending_mcp_publish")
     supported_modes = _string_list(

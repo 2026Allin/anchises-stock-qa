@@ -16,9 +16,9 @@ analysis.
 - Target semantic version: `0.6.0-dev.6`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- Hosted MCP version: `0.7.2`
+- Hosted MCP version: discovered dynamically from the MCP handshake
 - Data API version: `0.3.0`
-- Internal contract version: `1.8.0-draft`
+- Internal capability contract: `1.9.0-draft`
 - Data policy: live `restricted` or `bulk_enabled` policy from MCP
 - Prompt pack: `5.1`
 
@@ -191,22 +191,24 @@ credential-free, read-only JSON-RPC client:
 .venv/bin/python plugins/anchises-analysis/contracts/sync_hosted_contract.py --check
 ```
 
-The snapshot must contain exactly 12 strict descriptors, MCP `0.7.2`, the
-company-identity resolver, a four-required-field prepare schema, noauth
-security, Prompt pack `5.1`, opaque cursor pagination, dynamic data/export
-policy metadata, and no legacy cached-report tools.
+The snapshot must contain exactly 12 strict descriptors, a semantic version
+observed from `initialize.serverInfo.version`, the company-identity resolver,
+a four-required-field prepare schema, noauth security, Prompt pack `5.1`,
+opaque cursor pagination, dynamic data/export policy metadata, and no legacy
+cached-report tools.
 
-The synchronizer accepts the current `1.8.0-draft` status schema, including
-the service's optional `client` input and required `client_update` output.
-Skills still call `get_connection_status({})` and ignore that output for
-plugin releases; Git tags are the only plugin update signal.
+The synchronizer validates internal capability profile `1.9.0-draft` and a
+service-only `get_connection_status({})` schema with no plugin release fields.
+Contract comparison ignores only the observed MCP version and sync timestamp;
+tool schemas, security metadata, annotations, instructions, and descriptor
+hash remain strict. Git tags are the only plugin update signal.
 
 ## Validation
 
 From the repository root:
 
 Before final validation of a release, update the single cachebuster and
-synchronize the client metadata:
+synchronize the plugin release metadata:
 
 ```bash
 .venv/bin/python \

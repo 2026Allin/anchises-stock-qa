@@ -9,9 +9,9 @@
 - Publisher: Anchises Capital
 - Version: `0.6.0-dev.6`
 - Marketplace: `Anchises-Analysis`
-- Hosted MCP: `0.7.2`
+- Hosted MCP: version discovered dynamically from the MCP handshake
 - Data API: `0.3.0`
-- Internal contract: `1.8.0-draft`
+- Internal capability contract: `1.9.0-draft`
 - Data policy: dynamic `restricted` or `bulk_enabled`
 - Prompt pack: `5.1`
 - Tools: 12
@@ -64,8 +64,8 @@ MCP definition directly and no longer references a Developer Mode App ID.
 2. Confirm the plugin installs without an App ID, authentication credential,
    Portal Scan, or workspace share link.
 3. Start a new task and confirm all five Skills are available.
-4. Confirm `/mcp` shows the bundled `anchises_analysis` server and exactly 12
-   production tools from MCP `0.7.2`.
+4. Confirm `/mcp` shows the bundled `anchises_analysis` server, exactly 12
+   production tools, and a semantic server version matching `/health`.
 5. Run representative Company Brief, Company Report, Company Comparison, and
    Market Analysis requests, including one cursor continuation and one dynamic
    export-policy case.
@@ -85,15 +85,17 @@ five-Skill bundle and public metadata.
 
 ## Rollback boundary
 
-This release requires the MCP 0.7.2 / contract 1.8 surface. If production
-discovery no longer shows exactly 12 tools, cursor pagination, dynamic data
-and export policy fields, or four required report-preparation inputs, stop the
+This release requires capability profile `1.9.0-draft`, not a fixed MCP
+semantic version. If production discovery no longer shows exactly 12 tools,
+cursor pagination, dynamic data and export policy fields, service-only
+connection status, or four required report-preparation inputs, stop the
 release rather than publishing against a mismatched schema.
 
 Plugin release discovery is deliberately separate from MCP. The Hosted MCP
-snapshot records its optional compatibility metadata, but Skills call status
-with `{}` and ignore `client_update` for plugin releases. A service-only update
-does not require a plugin release when the tool contract remains compatible.
+snapshot records the observed handshake version for diagnostics, but contract
+comparison ignores that value and Skills call status with `{}` only for
+service access. A service-only update does not require a plugin release when
+the capability contract remains compatible.
 
 ## Branch and tag release boundary
 

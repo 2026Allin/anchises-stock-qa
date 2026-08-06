@@ -11,9 +11,9 @@ Current Codex release copy for `Anchises Analysis 0.6.0-dev.6`.
 - Primary listing locale: English (en)
 - Version: 0.6.0-dev.6
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
-- MCP version: 0.7.2
+- MCP version: discovered dynamically at connection time
 - Data API version: 0.3.0
-- Contract version: `1.8.0-draft`
+- Contract version: `1.9.0-draft`
 - Data policy: dynamic `restricted` or `bulk_enabled`
 - Authentication: not required
 
@@ -87,8 +87,8 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 
 | Surface | Expected result |
 |---|---|
-| `/health` | HTTP 200; version 0.7.2; ready; public access; authentication not required |
-| MCP initialize | Anchises Analysis 0.7.2 |
+| `/health` | HTTP 200; semantic version; ready; public access; authentication not required |
+| MCP initialize | Anchises Analysis; semantic version matches `/health` |
 | `tools/list` | Exactly 12 noauth tools |
 | Identity resolver | resolved / ambiguous / not_found_in_supported_markets |
 | Report preparation | Four required inputs; Prompt pack 5.1; Host action |

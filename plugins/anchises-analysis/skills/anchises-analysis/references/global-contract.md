@@ -85,6 +85,10 @@ identity, report section, discovery list, or incidental company mention.
   [plugin-update.md](plugin-update.md). Do neither on an unrelated request.
 - Keep MCP service access and plugin Tag discovery independent. An MCP version
   change never implies a plugin update.
+- Treat the MCP version exposed by the Host handshake as diagnostic metadata,
+  not a compatibility or release gate. Use the tool names and loaded schemas
+  in the current task as the service capability surface; never call a tool or
+  Git solely to compare MCP semantic versions.
 - Keep update checking separate from installation. No update command runs
   without the explicit authorization defined in
   [plugin-update.md](plugin-update.md).

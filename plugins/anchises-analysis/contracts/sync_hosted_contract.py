@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from hosted_contract import (
+    CONTRACT_PROFILE_VERSION,
     PROFILE_ANONYMOUS,
     PROFILE_AUTHENTICATED,
     PROFILE_UNAVAILABLE,
@@ -35,10 +36,9 @@ from hosted_contract import (
 DEFAULT_ENDPOINT = "https://mcp.anchisesdata.com/mcp"
 DEFAULT_OUTPUT = Path(__file__).with_name("hosted-mcp-v1.json")
 MCP_PROTOCOL_VERSION = "2025-06-18"
+CONTRACT_SYNC_CLIENT_VERSION = "1.0.0"
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
-LEGACY_CONTRACT_VERSION = "1.7.0-draft"
-CLIENT_METADATA_CONTRACT_VERSION = "1.8.0-draft"
 EXPECTED_TOOLS = [
     "get_connection_status",
     "get_available_exchanges",
@@ -205,7 +205,10 @@ class MCPHttpClient:
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "User-Agent": "anchises-analysis-contract-sync/1.8",
+            "User-Agent": (
+                "anchises-analysis-contract-sync/"
+                f"{CONTRACT_SYNC_CLIENT_VERSION}"
+            ),
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -320,7 +323,7 @@ def fetch_contract(
                 "capabilities": {},
                 "clientInfo": {
                     "name": "anchises-analysis-contract-sync",
-                    "version": "1.8.0",
+                    "version": CONTRACT_SYNC_CLIENT_VERSION,
                 },
             },
             1,
@@ -351,22 +354,8 @@ def fetch_contract(
     if not isinstance(instructions, str) or not instructions.strip():
         raise RuntimeError("MCP initialize result must publish non-empty instructions")
 
-    status = next(tool for tool in tools if tool["name"] == "get_connection_status")
-    status_inputs = status.get("inputSchema", {}).get("properties", {})
-    status_outputs = status.get("outputSchema", {}).get("properties", {})
-    publishes_client = "client" in status_inputs
-    publishes_update = "client_update" in status_outputs
-    if publishes_client != publishes_update:
-        raise RuntimeError(
-            "get_connection_status must publish client and client_update together"
-        )
-
     contract = base
-    contract["contract_version"] = (
-        CLIENT_METADATA_CONTRACT_VERSION
-        if publishes_client
-        else LEGACY_CONTRACT_VERSION
-    )
+    contract["contract_version"] = CONTRACT_PROFILE_VERSION
     contract["oauth"]["tool_scopes"] = copy.deepcopy(
         EXPECTED_OAUTH_TOOL_SCOPES
     )
@@ -390,18 +379,21 @@ def fetch_contract(
     return contract
 
 
-def _without_sync_time(contract: dict[str, Any]) -> dict[str, Any]:
+def _without_runtime_observations(contract: dict[str, Any]) -> dict[str, Any]:
     comparable = copy.deepcopy(contract)
     comparable["source"].pop("synced_at", None)
+    comparable["source"].pop("server_version", None)
     return comparable
 
 
 def contracts_match(checked_in: dict[str, Any], live: dict[str, Any]) -> bool:
-    """Return whether all stable contract fields match, ignoring only sync time."""
+    """Compare capabilities while ignoring observed time and MCP SemVer."""
 
     validate_contract(checked_in)
     validate_contract(live)
-    return _without_sync_time(checked_in) == _without_sync_time(live)
+    return _without_runtime_observations(
+        checked_in
+    ) == _without_runtime_observations(live)
 
 
 def write_contract(path: Path, contract: dict[str, Any]) -> None:

@@ -89,8 +89,8 @@ class HostedContractTest(unittest.TestCase):
         cls.contract = load_contract()
         cls.descriptors = tool_descriptors(cls.contract)
 
-    def test_live_snapshot_and_production_endpoints_are_frozen(self) -> None:
-        self.assertEqual(self.contract["contract_version"], "1.8.0-draft")
+    def test_live_snapshot_and_production_capability_profile_are_frozen(self) -> None:
+        self.assertEqual(self.contract["contract_version"], "1.9.0-draft")
         runtime = self.contract["runtime"]
         self.assertEqual(
             runtime["supported_modes"],
@@ -109,7 +109,10 @@ class HostedContractTest(unittest.TestCase):
         self.assertEqual(source["mcp_endpoint"], "https://mcp.anchisesdata.com/mcp")
         self.assertEqual(source["access_mode"], "public_noauth")
         self.assertEqual(source["server_name"], "Anchises Analysis")
-        self.assertEqual(source["server_version"], "0.7.2")
+        self.assertRegex(
+            source["server_version"],
+            r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)",
+        )
         self.assertIn("limited to 200 rows per call", source["instructions"])
         self.assertIn("short-lived opaque cursor", source["instructions"])
         self.assertIn("User-authored SQL OFFSET remains forbidden", source["instructions"])
@@ -117,6 +120,7 @@ class HostedContractTest(unittest.TestCase):
         self.assertIn("resolve a company name or ticker", source["instructions"])
         self.assertIn("Company-report requests always use", source["instructions"])
         self.assertIn("host must perform live web research", source["instructions"])
+        self.assertIn("Connection status reports only service access", source["instructions"])
         self.assertEqual(source["sync_state"], "live")
         self.assertRegex(source["descriptor_sha256"], r"^[0-9a-f]{64}$")
         production = self.contract["production"]
@@ -148,6 +152,12 @@ class HostedContractTest(unittest.TestCase):
             }
             | POLICY_ERROR_CODES,
         )
+
+    def test_connection_status_contains_no_plugin_release_protocol(self) -> None:
+        status = descriptor_by_name("get_connection_status", self.contract)
+        self.assertEqual(status["inputSchema"]["properties"], {})
+        self.assertNotIn("client_update", status["outputSchema"]["properties"])
+        self.assertNotIn("client_update", status["outputSchema"]["required"])
 
     def test_anonymous_descriptors_have_strict_schemas_metadata_and_annotations(self) -> None:
         for descriptor in self.descriptors:
@@ -238,7 +248,7 @@ class HostedContractTest(unittest.TestCase):
             self.assertEqual(next_cursor["type"], ["string", "null"])
             self.assertEqual(next_cursor["maxLength"], 4096)
 
-    def test_screen_0_7_inputs_analysis_and_export_policy_are_strict(self) -> None:
+    def test_screen_capability_inputs_analysis_and_export_policy_are_strict(self) -> None:
         descriptor = descriptor_by_name("screen_stocks")
         schema = descriptor["inputSchema"]
         properties = schema["properties"]

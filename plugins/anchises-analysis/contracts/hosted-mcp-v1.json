@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "contract_version": "1.8.0-draft",
+  "contract_version": "1.9.0-draft",
   "runtime": {
     "supported_modes": [
       "closed",
@@ -19,11 +19,11 @@
     "access_mode": "public_noauth",
     "protocol_version": "2025-06-18",
     "server_name": "Anchises Analysis",
-    "server_version": "0.7.2",
-    "instructions": "Anchises Analysis is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. Full market datasets may be used for server-side filtering and aggregate analysis. Row-level results shown to the host are limited to 200 rows per call and may continue only through the returned short-lived opaque cursor. Restricted mode allows at most 1,000 browsed rows per registered query; bulk mode allows continuation within its 200,000-row hard result limit. A Top-N value bounds the complete logical analysis and CSV result, not the display page. User-authored SQL OFFSET remains forbidden; SQL continuation requires an explicit stable ORDER BY. When next_cursor is present, tell the user which rows are shown and offer the next page; do not traverse many pages unless the user asks. CSV eligibility and file limits are controlled by the active server data policy and are returned in each rowset's export_policy. When restrictions are enabled, never reconstruct a dataset by splitting filters, dates, fields, or sort ranges. When bulk mode is enabled, complete structured screens and previously validated bounded or aggregate SQL results may be downloaded within the reported hard limits. If export is refused, continue with server-side analysis or suggest a compatible query. CSV download URLs are bearer capabilities and must not be shared. Before stock-data or company-report calls, resolve a company name or ticker to exchange, ticker, and company name; use chat context and primary web sources to disambiguate when needed. Company-report requests always use prepare_company_report_generation and live host-side research; the server does not read cached reports, PDFs, or expiry state. It only selects and returns one sector prompt. Anchises Analysis does not search the web or write, cache, upload, save, or publish the resulting report; a compatible host must perform live web research and reply in the current conversation. External, inactive, delisted, and unmatched companies use the Others prompt and require identity and listing-status verification. ETF and fund instruments are not eligible. Connection status may report client compatibility metadata, but the server never returns installation commands, repository references, or marketplace parameters. Never ask users to paste credentials or tokens into chat.",
+    "server_version": "0.8.0",
+    "instructions": "Anchises Analysis is a read-only stock screening and analysis service. In public access mode no login is required; all callers share global rate and concurrency limits. Full market datasets may be used for server-side filtering and aggregate analysis. Row-level results shown to the host are limited to 200 rows per call and may continue only through the returned short-lived opaque cursor. Restricted mode allows at most 1,000 browsed rows per registered query; bulk mode allows continuation within its 200,000-row hard result limit. A Top-N value bounds the complete logical analysis and CSV result, not the display page. User-authored SQL OFFSET remains forbidden; SQL continuation requires an explicit stable ORDER BY. When next_cursor is present, tell the user which rows are shown and offer the next page; do not traverse many pages unless the user asks. CSV eligibility and file limits are controlled by the active server data policy and are returned in each rowset's export_policy. When restrictions are enabled, never reconstruct a dataset by splitting filters, dates, fields, or sort ranges. When bulk mode is enabled, complete structured screens and previously validated bounded or aggregate SQL results may be downloaded within the reported hard limits. If export is refused, continue with server-side analysis or suggest a compatible query. CSV download URLs are bearer capabilities and must not be shared. Before stock-data or company-report calls, resolve a company name or ticker to exchange, ticker, and company name; use chat context and primary web sources to disambiguate when needed. Company-report requests always use prepare_company_report_generation and live host-side research; the server does not read cached reports, PDFs, or expiry state. It only selects and returns one sector prompt. Anchises Analysis does not search the web or write, cache, upload, save, or publish the resulting report; a compatible host must perform live web research and reply in the current conversation. External, inactive, delisted, and unmatched companies use the Others prompt and require identity and listing-status verification. ETF and fund instruments are not eligible. Connection status reports only service access, authentication state, published limits, and the active data policy. Never ask users to paste credentials or tokens into chat.",
     "sync_state": "live",
-    "synced_at": "2026-08-05T18:42:49+00:00",
-    "descriptor_sha256": "34eb48fb318f1f7f6df1f3bcedcffb3b829d6d009e631e901ff02cdfbf0aa266"
+    "synced_at": "2026-08-06T02:19:45+00:00",
+    "descriptor_sha256": "dc11bd5e6e5c3cf15a003fba8f05006584ee4b259253f4351f0b22bdd5eb73c9"
   },
   "production": {
     "mcp_endpoint": "https://mcp.anchisesdata.com/mcp",
@@ -178,57 +178,12 @@
     {
       "name": "get_connection_status",
       "title": "Get Anchises Analysis connection status",
-      "description": "Use this when you need to check whether Anchises Analysis public access is available, whether sign-in is required, the published service limits, or whether a self-reported client build is current and supported. It does not query stock data, and client metadata never changes access rights.",
+      "description": "Use this when you need to check whether Anchises Analysis public access is available, whether sign-in is required, the published service limits, or the active data policy. It does not query stock data.",
       "inputSchema": {
         "type": "object",
-        "properties": {
-          "client": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Client package name reported by the calling integration."
-              },
-              "platform": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Host platform reported by the calling integration."
-              },
-              "version": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Installed client base version reported by the integration."
-              },
-              "release_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Installed client build identifier reported by the integration."
-              },
-              "channel": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Installed client release channel reported by the integration."
-              }
-            },
-            "additionalProperties": false,
-            "description": "Optional self-reported client metadata used only to evaluate update compatibility; it never changes authentication, authorization, quota, or data access.",
-            "required": [
-              "name",
-              "platform",
-              "version",
-              "release_id",
-              "channel"
-            ]
-          }
-        },
+        "properties": {},
         "additionalProperties": false,
-        "description": "Call without arguments for connection status only, or include all five client fields to evaluate the installed client build."
+        "description": "No arguments. Returns the current connection status."
       },
       "outputSchema": {
         "type": "object",
@@ -461,80 +416,6 @@
                 "type": "null"
               }
             ]
-          },
-          "client_update": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "enum": [
-                  "current",
-                  "update_available",
-                  "unsupported",
-                  "unknown"
-                ]
-              },
-              "installed_version": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "installed_release_id": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "latest_version": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "latest_release_id": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "minimum_supported_version": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "channel": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 128
-              },
-              "summary": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              }
-            },
-            "additionalProperties": false,
-            "required": [
-              "status",
-              "installed_version",
-              "installed_release_id",
-              "latest_version",
-              "latest_release_id",
-              "minimum_supported_version",
-              "channel",
-              "summary"
-            ]
           }
         },
         "additionalProperties": false,
@@ -545,8 +426,7 @@
           "authentication",
           "coverage",
           "limits",
-          "data_policy",
-          "client_update"
+          "data_policy"
         ]
       },
       "annotations": {
