@@ -1,19 +1,23 @@
 # Anchises Analysis
 
-Anchises Analysis is one shared five-Skill plugin for Codex and Claude. It
-provides concise company briefs, deep live reports, cross-company comparison,
-and structured stock-market analysis.
+Anchises Analysis keeps one canonical five-Skill workflow bundle for Codex and
+Claude. Codex exposes all five Skills directly; Claude exposes one thin
+`Anchises Analysis` facade and loads the selected canonical workflow
+internally. Both provide concise company briefs, deep live reports,
+cross-company comparison, and structured stock-market analysis.
 
 ## Release identity
 
 - Plugin slug: `anchises-analysis`
-- Skill names: `anchises-analysis`, `company-brief`, `company-report`,
+- Canonical Skill names: `anchises-analysis`, `company-brief`, `company-report`,
   `company-comparison`, `market-analysis`
-- Explicit invocations: `$anchises-analysis`, `$company-brief`,
+- Codex explicit invocations: `$anchises-analysis`, `$company-brief`,
   `$company-report`, `$company-comparison`, `$market-analysis`
+- Claude visible Skill: `anchises-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.8`
+- Codex semantic version: `0.6.0-dev.8`
+- Claude semantic version: `0.6.0-dev.9`
 - Codex Marketplace: `Anchises-Analysis`
 - Claude Marketplace: `anchises-capital`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
@@ -26,16 +30,20 @@ and structured stock-market analysis.
 The package uses `.mcp.json` to connect the `anchises_analysis` server directly
 to the production Streamable HTTP endpoint. It does not depend on a Developer
 Mode App ID. Local and cross-workspace Repo Marketplace installations use the
-same endpoint, five Skills, and public metadata. A future public Plugin
-Directory submission must submit and scan the production MCP URL directly and
-use the same five-Skill bundle and public metadata.
+same endpoint, same five-Skill bundle, and public metadata. Claude discovers
+only its facade; the canonical five Skills remain internal workflow sources on
+that platform. A future public Plugin Directory submission must submit and scan
+the production MCP URL directly and use the same canonical bundle and public
+metadata.
 
 ## Skill architecture and entry
 
-The plugin package is the shared installation entry, `.mcp.json` is the single
-bundled remote MCP entry, `.codex-plugin/plugin.json` and
-`.claude-plugin/plugin.json` are thin host adapters, and the five Skill
-descriptions are peer request-routing entries:
+The canonical package holds `.mcp.json` and all business workflows.
+`.codex-plugin/plugin.json` exposes its five Skill descriptions as peer
+request-routing entries. The repository-root `.claude-plugin/plugin.json`
+instead exposes only `adapters/claude/skills/anchises-analysis`; that facade
+classifies once and reads the selected canonical workflow without copying its
+business prompt:
 
 - `anchises-analysis` is a thin coordinator for generic, mixed, and ambiguous
   requests. Its references provide the canonical classification, global
@@ -48,12 +56,14 @@ descriptions are peer request-routing entries:
 - `market-analysis` owns supported-market discovery, screens, rankings,
   historical data, bounded SQL, and focused CSV exports.
 
-A clear specialist request may enter its matching Skill directly. Every
-specialist first reads the same canonical `primary_task` rules and must stop if
-it does not own the result; downstream Skills never reclassify.
+A clear specialist request may enter its matching Skill directly in Codex. In
+Claude, every request enters the single facade and the matching specialist is
+loaded as an internal workflow document. Every specialist reads the same
+canonical `primary_task` rules and must stop if it does not own the result;
+downstream workflows never reclassify.
 
-Whenever one of the five Skills is selected explicitly or implicitly for a
-business request, it performs one cache-first platform Tag check and calls
+Whenever a Codex Skill or the Claude facade is selected for a business request,
+it performs one cache-first platform Tag check and calls
 `get_connection_status({})` once. On a cache miss, the host directly runs one
 read-only `git ls-remote --` against the allowlisted repository; the bundled
 network-free Python parser considers only the selected platform namespace and
@@ -212,7 +222,7 @@ Claude Code installs the same package from the root Claude Marketplace:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@main \
-  --sparse .claude-plugin plugins/anchises-analysis
+  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -220,8 +230,9 @@ claude plugin install anchises-analysis@anchises-capital
 Claude Chat, Desktop, and Cowork use **Customize → Plugins → Personal plugins
 → + → Add marketplace → Add from a repository** with
 `https://github.com/2026Allin/anchises-stock-qa`. All Claude surfaces load the
-same five Skills and public MCP definition. The complete install, verification,
-update, and release procedure is in
+same single visible facade, unchanged canonical workflows, and public MCP
+definition. The complete install, verification, update, and release procedure
+is in
 [the Claude guide](../../docs/anchises-analysis-claude-install.md).
 
 ## Contract sync
@@ -286,13 +297,17 @@ Then run:
   plugins/anchises-analysis/skills/market-analysis
 
 .venv/bin/python \
+  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  adapters/claude/skills/anchises-analysis
+
+.venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
   plugins/anchises-analysis
 
 claude plugin validate . --strict
-claude plugin validate ./plugins/anchises-analysis --strict
 ```
 
-The Claude validation commands require the Claude Code CLI. The unit suite
-still validates both checked-in manifests, release identities, Tag parsers,
-fixed updater sequences, shared prompt hashes, and the unchanged MCP contract.
+The Claude validation command requires the Claude Code CLI. The unit suite
+still validates both checked-in manifests, the single visible facade, canonical
+route targets, release identities, Tag parsers, fixed updater sequences, shared
+prompt hashes, and the unchanged MCP contract.

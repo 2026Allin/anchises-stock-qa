@@ -1,7 +1,7 @@
 {
   "name": "anchises-analysis",
   "displayName": "Anchises Analysis",
-  "version": "0.6.0-dev.8+claude.20260806090903",
+  "version": "0.6.0-dev.9+claude.20260806120645",
   "description": "Research public companies with live web sources and analyze stock-market data.",
   "author": {
     "name": "Anchises Capital",
@@ -19,6 +19,6 @@
     "company-reports",
     "csv-export"
   ],
-  "skills": "./skills/",
-  "mcpServers": "./.mcp.json"
+  "skills": "./adapters/claude/skills/",
+  "mcpServers": "./plugins/anchises-analysis/.mcp.json"
 }

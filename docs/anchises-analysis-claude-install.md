@@ -1,10 +1,11 @@
 # Anchises Analysis: Claude installation and updates
 
 Anchises Analysis uses one shared plugin bundle for Claude Chat, Claude
-Desktop, Cowork, and Claude Code. The bundle contains the same five Skills and
-the same public Hosted MCP definition used by the Codex package; only the
-platform manifest, release metadata, Tag namespace, and update mechanics are
-different.
+Desktop, Cowork, and Claude Code. Claude discovers exactly one visible
+`Anchises Analysis` Skill. That thin facade classifies once and loads one of
+the unchanged canonical workflows used by Codex, while both platforms share
+the same public Hosted MCP definition. Platform manifests, visible Skill
+layout, release metadata, Tag namespaces, and update mechanics remain separate.
 
 ## Package identity
 
@@ -16,8 +17,9 @@ different.
 - Claude Tags: `anchises-analysis/claude/v<semver>`
 - MCP server: `anchises_analysis`
 - MCP URL: `https://mcp.anchisesdata.com/mcp`
-- Skills: `anchises-analysis`, `company-brief`, `company-report`,
-  `company-comparison`, and `market-analysis`
+- Visible Claude Skill: `anchises-analysis`
+- Canonical internal workflows: coordinator, Company Brief, Company Report,
+  Company Comparison, and Market Analysis
 
 ## Install in Claude Code from GitHub
 
@@ -27,7 +29,7 @@ only the Claude catalog and plugin package:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@main \
-  --sparse .claude-plugin plugins/anchises-analysis
+  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -39,11 +41,36 @@ Start a new Claude conversation after installation.
 For local development without installing from the Marketplace:
 
 ```bash
-claude --plugin-dir ./plugins/anchises-analysis
+claude --plugin-dir .
 ```
 
 The local form is for testing only. The guarded in-Skill updater intentionally
 rejects local sources.
+
+## Test the QA branch before release
+
+Claude Code can pin the Marketplace to the QA branch while validating this
+adapter:
+
+```bash
+claude plugin marketplace add \
+  2026Allin/anchises-stock-qa@qa-v2-auth \
+  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
+
+claude plugin install anchises-analysis@anchises-capital
+```
+
+Remove the existing local `anchises-capital` Marketplace first if Claude Code
+reports a name collision, then add the QA-pinned source and reinstall. The
+guarded updater deliberately rejects a non-`main` Marketplace ref, so branch
+testing covers installation, Skill routing, prompts, and MCP behavior—not the
+production update command.
+
+Claude Chat, Desktop, and Cowork repository installation follows the
+repository's default branch and does not provide a branch selector. Validate
+those web/UI surfaces only after the tested QA commit is merged to `main`.
+Merging alone does not publish an update reminder; that still requires an
+explicit Claude release Tag.
 
 ## Install in Claude Chat, Desktop, or Cowork
 
@@ -78,19 +105,22 @@ Confirm that:
 
 1. `anchises-analysis@anchises-capital` is installed and enabled at the
    expected `+claude.<timestamp>` release.
-2. All five Skills are available under the plugin namespace.
+2. Exactly one visible Skill, `anchises-analysis`, is available under the
+   plugin namespace.
 3. The `anchises_analysis` MCP server connects to the public HTTP endpoint.
 4. MCP discovery exposes exactly 12 tools.
 5. Representative Company Brief, Company Report, Company Comparison, and
-   Market Analysis requests preserve the existing response behavior.
+   Market Analysis requests route into their canonical internal workflows and
+   preserve the existing response behavior.
 
-In Chat, Desktop, or Cowork, type `/` or use the `+` menu to confirm that all
-five Skills appear, then run the same representative requests.
+In Chat, Desktop, or Cowork, type `/` or use the `+` menu to confirm that only
+the one Anchises Analysis Skill appears, then run the same representative
+requests.
 
 ## Release checks and reminders
 
-Every substantive request handled by one of the five Skills performs the same
-cache-first policy:
+Every substantive request handled by the single Claude facade performs the
+same cache-first policy:
 
 - A successful check is reused for 1 hour.
 - An unknown, denied, malformed, or inconsistent check is reused for 10

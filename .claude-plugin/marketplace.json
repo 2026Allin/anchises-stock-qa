@@ -10,7 +10,7 @@
     {
       "name": "anchises-analysis",
       "displayName": "Anchises Analysis",
-      "source": "./plugins/anchises-analysis",
+      "source": "./",
       "description": "Research public companies with live web sources and analyze stock-market data.",
       "category": "productivity"
     }

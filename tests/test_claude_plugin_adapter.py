@@ -24,8 +24,14 @@ CHECKER_PATH = SCRIPT_ROOT / "check_plugin_update.py"
 UPDATER_PATH = SCRIPT_ROOT / "update_installed_plugin.py"
 SYNC_PATH = PLUGIN_ROOT / "scripts" / "sync_plugin_release.py"
 CLAUDE_RELEASE_PATH = SKILL_ROOT / "references" / "plugin-release-claude.json"
-CLAUDE_MANIFEST_PATH = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+CLAUDE_MANIFEST_PATH = ROOT / ".claude-plugin" / "plugin.json"
 CLAUDE_MARKETPLACE_PATH = ROOT / ".claude-plugin" / "marketplace.json"
+CLAUDE_SKILL_ROOT = (
+    ROOT / "adapters" / "claude" / "skills" / "anchises-analysis"
+)
+LEGACY_CLAUDE_MANIFEST_PATH = (
+    PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+)
 CLAUDE_INSTALL_GUIDE = ROOT / "docs" / "anchises-analysis-claude-install.md"
 
 
@@ -54,10 +60,10 @@ MARKETPLACE = "anchises-capital"
 REPOSITORY = "https://github.com/2026Allin/anchises-stock-qa.git"
 GITHUB_REPOSITORY = "2026Allin/anchises-stock-qa"
 TAG_PREFIX = "anchises-analysis/claude/v"
-CURRENT_VERSION = "0.6.0-dev.8"
-CURRENT_RELEASE = "0.6.0-dev.8+claude.20260806090903"
-TARGET_VERSION = "0.6.0-dev.9"
-TARGET_RELEASE = "0.6.0-dev.9+claude.20260808120000"
+CURRENT_VERSION = "0.6.0-dev.9"
+CURRENT_RELEASE = "0.6.0-dev.9+claude.20260806120645"
+TARGET_VERSION = "0.6.0-dev.10"
+TARGET_RELEASE = "0.6.0-dev.10+claude.20260808120000"
 MAIN_COMMIT = "4" * 40
 OTHER_COMMIT = "5" * 40
 
@@ -154,7 +160,7 @@ def _marketplace_list(
 
 
 class ClaudeManifestTest(unittest.TestCase):
-    def test_marketplace_and_plugin_manifests_share_the_existing_bundle(self) -> None:
+    def test_marketplace_exposes_one_claude_facade_over_the_canonical_bundle(self) -> None:
         marketplace = json.loads(CLAUDE_MARKETPLACE_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
             set(marketplace),
@@ -174,7 +180,7 @@ class ClaudeManifestTest(unittest.TestCase):
         )
         self.assertEqual(entry["name"], "anchises-analysis")
         self.assertEqual(entry["displayName"], "Anchises Analysis")
-        self.assertEqual(entry["source"], "./plugins/anchises-analysis")
+        self.assertEqual(entry["source"], "./")
         self.assertNotIn("version", entry)
 
         claude = json.loads(CLAUDE_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -203,7 +209,7 @@ class ClaudeManifestTest(unittest.TestCase):
         self.assertEqual(claude["displayName"], "Anchises Analysis")
         self.assertRegex(
             claude["version"],
-            r"^0\.6\.0-dev\.8\+claude\.\d{14}$",
+            r"^0\.6\.0-dev\.9\+claude\.\d{14}$",
         )
         for key in (
             "description",
@@ -212,19 +218,33 @@ class ClaudeManifestTest(unittest.TestCase):
             "repository",
             "license",
             "keywords",
-            "skills",
-            "mcpServers",
         ):
             self.assertEqual(claude[key], codex[key], key)
         self.assertNotIn("interface", claude)
-        self.assertEqual(claude["skills"], "./skills/")
-        self.assertEqual(claude["mcpServers"], "./.mcp.json")
+        self.assertEqual(claude["skills"], "./adapters/claude/skills/")
+        self.assertEqual(
+            claude["mcpServers"],
+            "./plugins/anchises-analysis/.mcp.json",
+        )
 
         plugin_root = ROOT / entry["source"]
-        self.assertEqual(plugin_root.resolve(), PLUGIN_ROOT.resolve())
-        self.assertTrue((plugin_root / ".mcp.json").is_file())
+        self.assertEqual(plugin_root.resolve(), ROOT.resolve())
         self.assertEqual(
-            sorted(path.name for path in (plugin_root / "skills").iterdir()),
+            CLAUDE_MANIFEST_PATH.parent.resolve(),
+            plugin_root.resolve() / ".claude-plugin",
+        )
+        self.assertFalse(LEGACY_CLAUDE_MANIFEST_PATH.exists())
+        self.assertTrue((plugin_root / claude["mcpServers"]).is_file())
+        self.assertEqual(
+            sorted(
+                path.name
+                for path in (plugin_root / claude["skills"]).iterdir()
+                if path.is_dir()
+            ),
+            ["anchises-analysis"],
+        )
+        self.assertEqual(
+            sorted(path.name for path in (PLUGIN_ROOT / "skills").iterdir()),
             [
                 "anchises-analysis",
                 "company-brief",
@@ -233,6 +253,39 @@ class ClaudeManifestTest(unittest.TestCase):
                 "market-analysis",
             ],
         )
+
+    def test_single_facade_routes_to_canonical_workflows_without_copying_them(self) -> None:
+        self.assertTrue((CLAUDE_SKILL_ROOT / "SKILL.md").is_file())
+        self.assertEqual(
+            [
+                path.name
+                for path in CLAUDE_SKILL_ROOT.parent.iterdir()
+                if path.is_dir()
+            ],
+            ["anchises-analysis"],
+        )
+        self.assertFalse((CLAUDE_SKILL_ROOT / "references").exists())
+        self.assertFalse((CLAUDE_SKILL_ROOT / "agents").exists())
+
+        facade = (CLAUDE_SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        normalized = " ".join(facade.split())
+        for relative in (
+            "../../../../plugins/anchises-analysis/skills/anchises-analysis/SKILL.md",
+            "../../../../plugins/anchises-analysis/skills/company-brief/SKILL.md",
+            "../../../../plugins/anchises-analysis/skills/company-report/SKILL.md",
+            "../../../../plugins/anchises-analysis/skills/company-comparison/SKILL.md",
+            "../../../../plugins/anchises-analysis/skills/market-analysis/SKILL.md",
+        ):
+            self.assertIn(relative, facade)
+            self.assertTrue((CLAUDE_SKILL_ROOT / relative).resolve().is_file())
+        for expected in (
+            "Classify the request exactly once",
+            "preserve the coordinator's shared state",
+            "Never repeat the cache probe, remote Tag lookup, or "
+            "`get_connection_status({})` call",
+            "update-footer placement",
+        ):
+            self.assertIn(expected, normalized)
 
     def test_shared_mcp_contract_remains_exactly_twelve_tools(self) -> None:
         mcp = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
@@ -279,8 +332,9 @@ class ClaudeManifestTest(unittest.TestCase):
         normalized = " ".join(guide.split())
         for expected in (
             "2026Allin/anchises-stock-qa@main",
-            "--sparse .claude-plugin plugins/anchises-analysis",
+            "--sparse .claude-plugin adapters/claude plugins/anchises-analysis",
             "claude plugin install anchises-analysis@anchises-capital",
+            "claude --plugin-dir .",
             "https://github.com/2026Allin/anchises-stock-qa",
             "Claude Chat",
             "Claude Desktop",
@@ -288,6 +342,7 @@ class ClaudeManifestTest(unittest.TestCase):
             "Claude Code",
             "Customize → Plugins → Anchises Analysis → Update",
             "anchises-analysis/claude/v<semver>",
+            "Exactly one visible Skill",
             "exactly 12 tools",
         ):
             self.assertIn(expected, normalized)

@@ -12,6 +12,7 @@ from typing import Any, Sequence
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = PLUGIN_ROOT.parents[1]
 REFERENCE_ROOT = PLUGIN_ROOT / "skills" / "anchises-analysis" / "references"
 PLATFORM_PATHS = {
     "codex": (
@@ -19,7 +20,7 @@ PLATFORM_PATHS = {
         REFERENCE_ROOT / "plugin-release.json",
     ),
     "claude": (
-        PLUGIN_ROOT / ".claude-plugin" / "plugin.json",
+        REPOSITORY_ROOT / ".claude-plugin" / "plugin.json",
         REFERENCE_ROOT / "plugin-release-claude.json",
     ),
 }
