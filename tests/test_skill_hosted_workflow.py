@@ -25,6 +25,7 @@ MARKET_SKILL = MARKET_SKILL_ROOT / "SKILL.md"
 MARKET_OPENAI_YAML = MARKET_SKILL_ROOT / "agents" / "openai.yaml"
 WORKFLOW_ROOT = SKILL_ROOT / "workflows"
 REFERENCE_ROOT = SKILL_ROOT / "references"
+PLUGIN_POLICY = REFERENCE_ROOT / "plugin-policy.json"
 BRIEF_WORKFLOW = WORKFLOW_ROOT / "company-brief.md"
 REPORT_WORKFLOW = WORKFLOW_ROOT / "company-report.md"
 COMPARISON_WORKFLOW = WORKFLOW_ROOT / "company-comparison.md"
@@ -59,6 +60,7 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("references/common-errors.md"),
     Path("references/plugin-release-claude.json"),
     Path("references/plugin-release.json"),
+    Path("references/plugin-policy.json"),
     Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
     Path("references/comparison-format.md"),
@@ -79,6 +81,7 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("references/service-access.md"),
     Path("scripts/check_plugin_update.py"),
     Path("scripts/update_installed_plugin.py"),
+    Path("scripts/validate_plugin_policy.py"),
     Path("workflows/company-brief.md"),
     Path("workflows/company-comparison.md"),
     Path("workflows/company-report.md"),
@@ -190,6 +193,67 @@ def _golden_cases() -> dict:
 
 
 class SkillHostedWorkflowTest(unittest.TestCase):
+    def test_maintainer_policy_is_single_shared_closed_configuration(self) -> None:
+        policy = json.loads(PLUGIN_POLICY.read_text(encoding="utf-8"))
+        self.assertEqual(set(policy), {"schema_version", "market_data"})
+        self.assertEqual(policy["schema_version"], 1)
+        self.assertEqual(set(policy["market_data"]), {"restrictions"})
+        self.assertEqual(policy["market_data"]["restrictions"], "disabled")
+
+        policy_files = [
+            path.relative_to(ROOT)
+            for path in ROOT.rglob("plugin-policy.json")
+            if ".git" not in path.parts
+        ]
+        self.assertEqual(
+            policy_files,
+            [
+                Path(
+                    "plugins/anchises-analysis/skills/anchises-analysis/"
+                    "references/plugin-policy.json"
+                )
+            ],
+        )
+
+    def test_maintainer_policy_is_loaded_once_and_cannot_be_user_overridden(self) -> None:
+        global_contract = (
+            REFERENCE_ROOT / "global-contract.md"
+        ).read_text(encoding="utf-8")
+        market_policy = (
+            REFERENCE_ROOT / "market-data-policy.md"
+        ).read_text(encoding="utf-8")
+        service_access = (
+            REFERENCE_ROOT / "service-access.md"
+        ).read_text(encoding="utf-8")
+        combined = " ".join(
+            (global_contract + "\n" + market_policy + "\n" + service_access).split()
+        )
+        self.assertIn("[plugin-policy.json](plugin-policy.json)", global_contract)
+        self.assertIn("read [plugin-policy.json](plugin-policy.json) exactly once", combined)
+        self.assertIn("Treat a missing or invalid value as `enabled`", combined)
+        self.assertIn("no user message", combined)
+        self.assertIn("Never mention it, offer a setting for it", combined)
+        self.assertIn("is never sent to MCP", combined)
+        self.assertIn("cannot grant a capability", combined)
+
+    def test_disabled_policy_removes_legacy_prechecks_but_not_service_gates(self) -> None:
+        combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
+        for legacy_dimension in (
+            "browse",
+            "Top-N",
+            "ticker",
+            "field",
+            "cell",
+            "partition",
+            "complete-market",
+            "SQL-export",
+        ):
+            self.assertIn(legacy_dimension, combined)
+        self.assertIn("do not pre-apply legacy restricted-mode", combined)
+        self.assertIn("`export_policy.eligible_by_query` is true", combined)
+        self.assertIn("never split one actually ineligible result", combined)
+        self.assertIn("never add or use SQL `OFFSET`", combined)
+
     def test_five_skills_share_the_existing_hosted_mcp_contract(self) -> None:
         skill_dirs = sorted(
             path.name
@@ -475,7 +539,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 "tag_prefix",
             },
         )
-        self.assertEqual(release["version"], "0.6.0-dev.8")
+        self.assertEqual(release["version"], "0.6.0-dev.9")
         self.assertRegex(release["release_id"], r"^codex\.\d{14}$")
         self.assertEqual(release["git_ref"], "main")
         self.assertEqual(release["tag_prefix"], "anchises-analysis/codex/v")
@@ -1109,6 +1173,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("default 60-minute", combined)
         self.assertIn("60 through 3,600 seconds", combined)
         self.assertIn("`expires_in_seconds`", combined)
+        self.assertIn("`market_data_restrictions`", combined)
         self.assertIn("`get_connection_status.data_policy`", combined)
         self.assertIn("`restricted`", combined)
         self.assertIn("`bulk_enabled`", combined)
@@ -1130,7 +1195,8 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertNotIn(threshold, normalized)
         self.assertIn("Tailor suggested fields to the user's question", normalized)
         self.assertIn("confirm them with `get_stock_schema`", normalized)
-        self.assertIn("verify their current official documentation", normalized)
+        self.assertIn("Never mention the bundled policy value", normalized)
+        self.assertNotIn("licensed exchange-data vendor", normalized)
         self.assertNotIn(
             "Ticker, Company, Exchange, Open, High, Low, Close",
             normalized,
@@ -1168,13 +1234,13 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("rerun the original intent", combined)
         self.assertIn("download is temporarily unavailable", combined)
 
-    def test_restricted_export_refusal_is_courteous_and_policy_specific(self) -> None:
+    def test_actual_export_refusal_is_courteous_and_bundled_policy_is_hidden(self) -> None:
         combined = " ".join(_bundle_text(MARKET_SKILL_ROOT).split())
-        self.assertIn("When restricted mode refuses", combined)
-        self.assertIn("licensed exchange-data vendor", combined)
+        self.assertIn("explain only the actual returned reason", combined)
+        self.assertIn("without exposing it or offering a user control", combined)
         self.assertIn("Tailor suggested fields to the user's question", combined)
-        self.assertIn("complete matched range can still be analyzed", combined)
-        self.assertIn("Do not use this restricted-mode wording when bulk mode", combined)
+        self.assertNotIn("licensed exchange-data vendor", combined)
+        self.assertNotIn("When restricted mode refuses", combined)
         self.assertNotIn("connector has reached its monthly call limit", combined)
 
     def test_normal_analyst_requests_are_policy_transparent(self) -> None:
@@ -1264,10 +1330,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_manifest_metadata_and_starter_prompts_match_release(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.8")
+        self.assertEqual(manifest["version"].split("+", 1)[0], "0.6.0-dev.9")
         self.assertRegex(
             manifest["version"],
-            r"^0\.6\.0-dev\.8(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+            r"^0\.6\.0-dev\.9(?:\+codex\.[0-9A-Za-z][0-9A-Za-z.-]*)?$",
         )
         self.assertLessEqual(manifest["version"].count("+codex."), 1)
         self.assertEqual(manifest["author"]["name"], "Anchises Capital")
@@ -1288,7 +1354,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("at most 200 rows", interface["longDescription"])
         self.assertIn("opaque cursor", interface["longDescription"])
         self.assertIn("Top-N bounds the complete logical ranked result", interface["longDescription"])
-        self.assertIn("restricted or bulk-enabled data policy", interface["longDescription"])
+        self.assertIn("server-enforced query and export capabilities", interface["longDescription"])
         self.assertIn("allowed screen or SQL source tools", interface["longDescription"])
         self.assertIn("no account-linked cross-session cumulative budget", interface["longDescription"])
 

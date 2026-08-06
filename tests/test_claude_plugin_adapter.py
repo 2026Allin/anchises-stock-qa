@@ -29,6 +29,7 @@ CLAUDE_RELEASE_PATH = SKILL_ROOT / "references" / "plugin-release-claude.json"
 CLAUDE_MANIFEST_PATH = ROOT / ".claude-plugin" / "plugin.json"
 CLAUDE_MARKETPLACE_PATH = ROOT / ".claude-plugin" / "marketplace.json"
 CLAUDE_SKILL_ROOT = SKILL_ROOT
+PLUGIN_POLICY_PATH = CLAUDE_SKILL_ROOT / "references" / "plugin-policy.json"
 LEGACY_CLAUDE_MANIFEST_PATH = (
     PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 )
@@ -60,10 +61,10 @@ MARKETPLACE = "anchises-capital"
 REPOSITORY = "https://github.com/2026Allin/anchises-stock-qa.git"
 GITHUB_REPOSITORY = "2026Allin/anchises-stock-qa"
 TAG_PREFIX = "anchises-analysis/claude/v"
-CURRENT_VERSION = "0.6.0-dev.9"
-CURRENT_RELEASE = "0.6.0-dev.9+claude.20260806163701"
-TARGET_VERSION = "0.6.0-dev.10"
-TARGET_RELEASE = "0.6.0-dev.10+claude.20260808120000"
+CURRENT_VERSION = "0.6.0-dev.10"
+CURRENT_RELEASE = "0.6.0-dev.10+claude.20260806170037"
+TARGET_VERSION = "0.6.0-dev.11"
+TARGET_RELEASE = "0.6.0-dev.11+claude.20260808120000"
 MAIN_COMMIT = "4" * 40
 OTHER_COMMIT = "5" * 40
 
@@ -160,6 +161,23 @@ def _marketplace_list(
 
 
 class ClaudeManifestTest(unittest.TestCase):
+    def test_claude_loads_the_same_maintainer_policy_as_codex(self) -> None:
+        self.assertTrue(PLUGIN_POLICY_PATH.is_file())
+        policy = json.loads(PLUGIN_POLICY_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(
+            policy,
+            {
+                "schema_version": 1,
+                "market_data": {"restrictions": "disabled"},
+            },
+        )
+        matches = [
+            path.resolve()
+            for path in ROOT.rglob("plugin-policy.json")
+            if ".git" not in path.parts
+        ]
+        self.assertEqual(matches, [PLUGIN_POLICY_PATH.resolve()])
+
     def test_marketplace_exposes_one_self_contained_claude_skill(self) -> None:
         marketplace = json.loads(CLAUDE_MARKETPLACE_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
@@ -209,7 +227,7 @@ class ClaudeManifestTest(unittest.TestCase):
         self.assertEqual(claude["displayName"], "Anchises Analysis")
         self.assertRegex(
             claude["version"],
-            r"^0\.6\.0-dev\.9\+claude\.\d{14}$",
+            r"^0\.6\.0-dev\.10\+claude\.\d{14}$",
         )
         for key in (
             "description",
@@ -622,15 +640,15 @@ class SharedBundleRegressionTest(unittest.TestCase):
         "workflows/company-brief.md": "e3e50389698a81f343630803372098b013b5013c7fd54f7c7e4ad358d420f411",
         "workflows/company-comparison.md": "f45a87afd3f3c7a0769fee7a421bb23ca69b0fa8168f352a60fc20afd44b4bd8",
         "workflows/company-report.md": "aa837d7a6adf029afd9f8966890dd640b9f726b8d77c299881c7ba9e63ae7efb",
-        "workflows/market-analysis.md": "6d45fec2ca851f9c063ce388bb727e186391cab0fca5a57553af157c1bedc847",
+        "workflows/market-analysis.md": "91486c08bb6191d93a0e8f45281401ad7406218dda809a12b08ff679249b667f",
         "references/comparison-format.md": "b7d999cda0c5611a5f03f98e8012ebe1e879170aa49ca8d964979fc475532fd2",
         "references/comparison-workflow.md": "bba176cdeeb40cacc042a1a50bd062beb7c82b461834963168656f0f5608819e",
         "references/mining-report-quality.md": "30c52bb042c4fd5015bd6d196c0948295786e5dd35cd069b80b8252553f6da18",
         "references/report-format.md": "8d867da983a34139972508b27714616244595fc898f19df8e0d3f27f4f8d0ad5",
         "references/report-workflow.md": "aeaf7c5f13dbe94d0ef291e98748b2e5ae2ef6e60b6c53f093f6c75149fc3d38",
-        "references/market-answer-format.md": "fea727da6b55886ae8a514c69a6cad683d84b9400a72d2c898a8c8f97521ba4f",
-        "references/market-data-policy.md": "2a06f03087aaf72429efc24c23868153501a30269b8967f11a21e22faedea1cf",
-        "references/market-workflow.md": "9f58fdd19d187e3d8d925362aa6efa0079a641fcfb8a7789c82ea6b6e4a83cdd",
+        "references/market-answer-format.md": "a2641109cae6f1b0e31d962cd55cb447e2d5fcd518401affcd6220a09ec7a070",
+        "references/market-data-policy.md": "7e6e1cf0e667565ea9f47508a5058bf7e1910e29b9f2e34079c62494fae53bcc",
+        "references/market-workflow.md": "e74c7543974e7389b73ceccaf2027f45fc68f9073dd2d7a3fcfb6e4a20a3b38e",
     }
 
     def test_mcp_contract_is_byte_for_byte_unchanged(self) -> None:

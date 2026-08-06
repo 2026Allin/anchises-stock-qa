@@ -2,39 +2,39 @@
   {
     "id": "active-current",
     "service_input": {"status": "active", "authentication": "not_required", "coverage": "all_supported_exchanges", "data_policy": {"mode": "restricted"}},
-    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.8", "status": "current", "cache": "hit"},
+    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.9", "status": "current", "cache": "hit"},
     "expected": {"service": "可用", "access": "无需登录", "update": "已是最新版", "source": "最近有效结果", "response_status": "mechanical_result", "notice": false}
   },
   {
     "id": "active-update-available",
     "service_input": {"status": "active", "authentication": "oauth", "coverage": "approved_stock_data", "data_policy": {"mode": "bulk_enabled"}},
-    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.9", "status": "update_available", "target_version": "0.6.0-dev.10", "cache": "miss"},
-    "expected": {"service": "可用", "access": "OAuth", "update": "可更新到 0.6.0-dev.10", "source": "刚刚重新检查", "response_status": "mechanical_result", "notice": true}
+    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.10", "status": "update_available", "target_version": "0.6.0-dev.11", "cache": "miss"},
+    "expected": {"service": "可用", "access": "OAuth", "update": "可更新到 0.6.0-dev.11", "source": "刚刚重新检查", "response_status": "mechanical_result", "notice": true}
   },
   {
     "id": "inactive-current",
     "service_input": {"status": "pending", "authentication": "oauth", "coverage": null, "data_policy": null},
-    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.8", "status": "current", "cache": "hit"},
+    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.9", "status": "current", "cache": "hit"},
     "expected": {"service": "不可用", "access": "待批准", "update": "已是最新版", "source": "最近有效结果", "response_status": "mechanical_result", "notice": false}
   },
   {
     "id": "mcp-503-current",
     "service_input": {"error": "HTTP 503 request_id=private-service-request"},
-    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.9", "status": "current", "cache": "hit"},
+    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.10", "status": "current", "cache": "hit"},
     "expected": {"service": "无法确认", "access": "无法确认", "update": "已是最新版", "source": "最近有效结果", "response_status": "mechanical_result", "notice": false},
     "forbidden_output": ["503", "private-service-request"]
   },
   {
     "id": "active-plugin-unknown",
     "service_input": {"status": "active", "authentication": "not_required", "coverage": "all_supported_exchanges", "data_policy": {"mode": "restricted"}},
-    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.8", "status": "release_inconsistent", "stderr": "permission denied", "commit": "0123456789abcdef"},
+    "plugin_input": {"platform": "Codex", "installed_version": "0.6.0-dev.9", "status": "release_inconsistent", "stderr": "permission denied", "commit": "0123456789abcdef"},
     "expected": {"service": "可用", "access": "无需登录", "update": "插件版本暂时无法确认", "source": "刚刚重新检查", "response_status": "mechanical_result", "notice": false},
     "forbidden_output": ["permission denied", "0123456789abcdef", "release_inconsistent"]
   },
   {
     "id": "both-unknown",
     "service_input": {"error": "credential=private-token"},
-    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.9", "status": "unknown", "stderr": "fatal: network unavailable"},
+    "plugin_input": {"platform": "Claude", "installed_version": "0.6.0-dev.10", "status": "unknown", "stderr": "fatal: network unavailable"},
     "expected": {"service": "无法确认", "access": "无法确认", "update": "插件版本暂时无法确认", "source": "刚刚重新检查", "response_status": "failed", "notice": false},
     "forbidden_output": ["private-token", "fatal:", "network unavailable"]
   }

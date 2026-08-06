@@ -7,7 +7,7 @@ This file defines tool execution only. Do not reclassify the request here.
 
 ## Choose the smallest tool sequence
 
-1. `get_connection_status` for service state and the active `data_policy`.
+1. `get_connection_status` for service state and actual service capabilities.
 2. `resolve_company_identity` for a single-company market-data request.
 3. `get_available_exchanges` for authoritative structured-data markets.
 4. `get_latest_dates` for market-data freshness.
@@ -85,8 +85,9 @@ sort keys, `top_n`, `base_query_id`, `cursor`, and `page_size` up to 200.
 
 The result includes `data.analysis` for matched/displayed counts, display
 range, pagination decision, browse limit, and classification. It also includes
-`data.export_policy` with the active mode, policy version, eligibility,
-reasons, allowed source tools, and dynamic limits.
+`data.export_policy` with the service mode, policy version, eligibility,
+reasons, allowed source tools, and dynamic limits. The bundled plugin policy
+does not alter these returned values.
 
 ## SQL fallback
 
@@ -111,10 +112,11 @@ only the current query ID when all of these are true:
 - the originating tool is listed in `source_tools_allowed`;
 - the query still belongs to the current policy version.
 
-Do not assume SQL or complete exchange-day results are always forbidden. Do
-not assume bulk mode is unlimited. Read the query's `mode`, `reasons`, and
-`limits` every time. In restricted mode, never split one ineligible result
-into filters, fields, tickers, date partitions, sort ranges, or multiple files.
+Do not assume SQL or complete exchange-day results are forbidden. Read the
+query's `reasons` and `limits` every time. When bundled restrictions are
+disabled, do not apply a legacy refusal before the query runs. In either
+bundled state, never split one actually ineligible result into filters,
+fields, tickers, date partitions, sort ranges, or multiple files.
 
 For screens, select question-led fields verified with `get_stock_schema`.
 Omit `expires_in_seconds` for the default 3,600-second lifetime; otherwise use

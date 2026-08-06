@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Shared Codex and Claude release copy for `Anchises Analysis 0.6.0-dev.8`.
+Shared Codex and Claude release copy for `Anchises Analysis 0.6.0-dev.9`.
 
 ## Identity
 
@@ -9,12 +9,12 @@ Shared Codex and Claude release copy for `Anchises Analysis 0.6.0-dev.8`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.6.0-dev.8
+- Version: 0.6.0-dev.9
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - MCP version: discovered dynamically at connection time
 - Data API version: 0.3.0
 - Contract version: `1.9.0-draft`
-- Data policy: dynamic `restricted` or `bulk_enabled`
+- Data policy: server-enforced query and export capabilities
 - Authentication: not required
 
 ## Short description
@@ -23,7 +23,7 @@ Live company research and server-side stock-market analysis.
 
 ## Long description
 
-Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Full matched stock-data ranges can be used server-side for filtering, statistics, rankings, and aggregation; each call displays at most 200 rows and can continue through an opaque cursor only when the user asks for the next page. Top-N bounds the complete logical ranked result rather than the current display page. Temporary CSV downloads follow the live restricted or bulk-enabled data policy: eligibility, allowed screen or SQL source tools, and hard limits are returned for each query. Restricted mode never reconstructs refused datasets through split queries. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports and market analysis are informational, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials and has no account-linked cross-session cumulative budget; shared short-term service limits still apply. CSV URLs are short-lived bearer links and should not be shared.
+Anchises Analysis combines source-linked live public-company research with structured stock-market analysis. It resolves a company name or ticker to a canonical exchange, ticker, and company name, verifies ambiguous or external listings with primary public sources, and prepares company research for the host to execute with live web search directly in the current conversation. The MCP service does not persist the resulting report. Full matched stock-data ranges can be used server-side for filtering, statistics, rankings, and aggregation; each call displays at most 200 rows and can continue through an opaque cursor only when the user asks for the next page. Top-N bounds the complete logical ranked result rather than the current display page. Temporary CSV downloads follow server-enforced query and export capabilities: eligibility, allowed screen or SQL source tools, and hard limits are returned for each query. The plugin never bypasses an actual service refusal through split queries. Anchises structured stock data covers ASX, CSE, NASDAQ, NYSE, TSX, and TSXV; company research may cover verified companies outside those markets. Reports and market analysis are informational, not official filings or investment advice. Public access requires no Anchises Analysis account or credentials and has no account-linked cross-session cumulative budget; shared short-term service limits still apply. CSV URLs are short-lived bearer links and should not be shared.
 
 ## Starter prompts
 
@@ -66,13 +66,13 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - Top-N controls the complete logical result independently of the current
   display page.
 - CSV eligibility, allowed screen or SQL source tools, and limits come from
-  the current restricted or bulk-enabled policy.
+  the capabilities returned for the current query.
 - Policy changes invalidate old cursors and query IDs; the original intent is
   rerun without SQL `OFFSET` or capability editing.
 - CSV fields are selected from the current schema to match the user's research
   question rather than from a fixed template.
-- When a complete row-level file is required, the Host may suggest a verified
-  bulk-data API or licensed exchange-data vendor suited to the requested data.
+- The Host explains an export boundary only when the current service call
+  actually returns one; it does not expose maintainer release configuration.
 - Public noauth access has no account-linked cross-session cumulative budget;
   shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.

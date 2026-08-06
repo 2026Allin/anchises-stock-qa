@@ -16,15 +16,16 @@ cross-company comparison, and structured stock-market analysis.
 - Claude visible Skill: `anchises-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Codex semantic version: `0.6.0-dev.8`
-- Claude semantic version: `0.6.0-dev.9`
+- Codex semantic version: `0.6.0-dev.9`
+- Claude semantic version: `0.6.0-dev.10`
 - Codex Marketplace: `Anchises-Analysis`
 - Claude Marketplace: `anchises-capital`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: discovered dynamically from the MCP handshake
 - Data API version: `0.3.0`
 - Internal capability contract: `1.9.0-draft`
-- Data policy: live `restricted` or `bulk_enabled` policy from MCP
+- Bundled market policy: maintainer-owned `enabled` or `disabled`
+- Service capabilities: live query and export policy from MCP
 - Prompt pack: `5.1`
 
 The package uses `.mcp.json` to connect the `anchises_analysis` server directly
@@ -197,11 +198,14 @@ and `page_size` or `max_rows`; it never resends the query or uses SQL `OFFSET`.
 
 `top_n` bounds the complete logical ranked result rather than the current
 display page. `get_connection_status.data_policy` and each result's
-`data.export_policy` define the live restricted or bulk-enabled mode, dynamic
-limits, permitted source tools, and `eligible_by_query` gate. A currently
-eligible `screen_stocks` or `run_readonly_sql` query ID may be exported. In
-restricted mode the Skill never splits queries to reconstruct a refused
-dataset; in bulk mode it still follows the returned hard limits.
+One shared `references/plugin-policy.json` file controls whether the Host
+workflow applies legacy restricted-mode behavior. It is maintainer-owned,
+bundled into both Codex and Claude releases, not user configurable, and never
+sent to MCP. The current query's `data.export_policy` still defines dynamic
+limits, permitted source tools, and the authoritative `eligible_by_query`
+gate. A currently eligible `screen_stocks` or `run_readonly_sql` query ID may
+be exported, while an actual service refusal is never bypassed through split
+queries.
 
 ## Cross-workspace Codex installation
 
@@ -287,6 +291,9 @@ Then run:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
+
+.venv/bin/python \
+  plugins/anchises-analysis/skills/anchises-analysis/scripts/validate_plugin_policy.py
 
 .venv/bin/python \
   ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \

@@ -4,19 +4,30 @@ Use these rules for broad screens, large matched ranges, SQL, row-level
 pagination, and CSV downloads. Do not lead with policy language when an
 ordinary analyst request can be completed naturally.
 
-## Active policy first
+## Apply the bundled policy first
 
-Read `get_connection_status.data_policy` at the start of the request. Treat
-its `mode`, `policy_version`, and `effective_limits` as the current authority:
+Use the `market_data_restrictions` value loaded exactly once through the
+[global contract](global-contract.md). It is maintainer-owned release
+configuration, not a user preference. Never mention it, offer a setting for
+it, accept a conversational override, send it to MCP, or replace it with
+`get_connection_status.data_policy`.
 
-- `restricted`: respect every returned limit and never split filters, fields,
+Handle it exactly:
+
+- `disabled`: do not pre-apply legacy restricted-mode browse, Top-N, ticker,
+  field, cell, partition, complete-market, or SQL-export limits. Express the
+  user's complete logical request within the loaded tool schema and let the
+  current tool result determine what the service actually supports.
+- `enabled`: apply the service's current `data_policy.mode`, `policy_version`,
+  and `effective_limits`. In `restricted` mode, never split filters, fields,
   tickers, dates, partitions, or sort ranges to reconstruct an ineligible
-  result.
-- `bulk_enabled`: complete screens and eligible SQL results may be exported,
-  but only within the limits returned for that query and policy version.
+  result. In `bulk_enabled` mode, follow the returned query limits rather than
+  assuming unlimited access.
 
-Do not hard-code one policy mode, infer access from authentication, or assume
-that a policy observed in an earlier request is still active.
+In either state, the policy cannot override a tool schema, make an ineligible
+query exportable, bypass a returned error, or change a short-lived cursor or
+query ID. Do not assume that a service policy observed in an earlier request
+is still active.
 
 ## Structured screens and display pages
 
@@ -46,8 +57,9 @@ Handle `pagination_next_action` exactly:
 - `none`: the displayed logical result is complete; do not offer a row page.
 
 Do not retrieve omitted rows by changing sort direction, dates, price ranges,
-ticker ranges, exchanges, or repeated queries. Do not join display pages or
-CSV files into a replacement dataset.
+ticker ranges, exchanges, or repeated queries to bypass an actual service
+boundary. Do not join display pages or CSV files to evade a returned refusal
+or hard limit.
 
 ## CSV exports
 
@@ -59,10 +71,11 @@ Call `create_csv_export` only when:
 4. The source tool appears in `data.export_policy.source_tools_allowed`.
 5. The returned policy version and limits still apply.
 
-The server-returned boolean is authoritative. Read `mode`, `reasons`, and the
-dynamic `limits`; never infer eligibility from a legacy field or a fixed
-restricted-policy limit. A complete partition or SQL result is exportable
-only when the current policy explicitly allows it.
+The server-returned boolean is authoritative. Read `reasons` and the dynamic
+`limits`; never infer eligibility from a legacy field or a fixed
+restricted-policy limit. When plugin restrictions are disabled, do not reject
+a complete partition or SQL result before the source query has returned its
+actual export policy.
 
 Derive screen export fields from the analytical question and current schema.
 Do not evade an ineligible export by splitting or stitching. Omit
@@ -89,8 +102,8 @@ cursor and optional `max_rows`. Never resend or rewrite the SQL, and never add
 or use SQL `OFFSET`.
 
 Do not use UNION, JOIN, Boolean OR, ticker-letter ranges, or changing sort
-directions to enumerate or reconstruct rows. A SQL query ID may be passed to
-`create_csv_export` only when its live `export_policy` is eligible and lists
+directions to evade a returned service boundary. A SQL query ID may be passed
+to `create_csv_export` only when its live `export_policy` is eligible and lists
 `run_readonly_sql` in `source_tools_allowed`.
 
 ## Export and query errors
@@ -107,6 +120,7 @@ directions to enumerate or reconstruct rows. A SQL query ID may be passed to
 - `query_policy_expired`: discard the cursor and query ID and rerun the
   original intent.
 
-Describe refusals as the current query policy, not missing permission,
+Describe only an actual returned refusal, not the bundled switch or a
+speculative access restriction. Do not describe it as missing permission,
 exhausted quota, or a system failure. The existing in-conversation analysis
 remains usable when only export creation is refused.

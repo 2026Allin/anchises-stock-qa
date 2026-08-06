@@ -11,8 +11,8 @@ directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current Codex target: `0.6.0-dev.8`. Current Claude target:
-`0.6.0-dev.9`. The submitted public-review release remains `0.4.0-beta.2`.
+Current Codex target: `0.6.0-dev.9`. Current Claude target:
+`0.6.0-dev.10`. The submitted public-review release remains `0.4.0-beta.2`.
 
 ## QA development changes (unreleased)
 
@@ -37,6 +37,20 @@ Current Codex target: `0.6.0-dev.8`. Current Claude target:
 - Explicit non-`main` refs, a missing remote `HEAD`, wrong repositories, local
   Marketplaces, and commit mismatches still fail closed without an additional
   command, retry, or configuration change.
+
+## What changed in 0.6.0-dev.9
+
+- One maintainer-owned `plugin-policy.json` now controls whether the shared
+  market workflow applies legacy restricted-mode behavior. The released value
+  is not a user setting, is never sent to MCP, and is shared by Codex and
+  Claude.
+- With bundled restrictions disabled, the Skills no longer pre-apply old
+  browse, Top-N, ticker, field, partition, or SQL-export restrictions. Actual
+  MCP schemas, query export eligibility, cursors, errors, and hard limits
+  remain authoritative.
+- User-facing answers and diagnostics do not expose or offer the bundled
+  switch. A plugin update plus a new task or conversation loads a changed
+  maintainer value.
 
 ## What changed in 0.6.0-dev.8
 
@@ -102,9 +116,9 @@ Current Codex target: `0.6.0-dev.8`. Current Claude target:
   advances to the next page.
 - `top_n` bounds the complete logical ranked result independently of the
   current `page_size` display page.
-- The service publishes a live restricted or bulk-enabled data policy.
-  Export eligibility, allowed source tools, and limits are read dynamically,
-  so an eligible screen or SQL query ID may be exported.
+- The service publishes query-specific export eligibility, allowed source
+  tools, and limits dynamically, so an eligible screen or SQL query ID may be
+  exported.
 - Policy changes invalidate old cursors and query IDs; the Skill reruns the
   original intent instead of editing capabilities or using SQL `OFFSET`.
 - Company reports keep the live Host-research workflow: resolve identity,
@@ -179,6 +193,9 @@ or the Data API.
 .venv/bin/python -m unittest discover -s tests -v
 
 .venv/bin/python \
+  plugins/anchises-analysis/skills/anchises-analysis/scripts/validate_plugin_policy.py
+
+.venv/bin/python \
   ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
   plugins/anchises-analysis/skills/anchises-analysis
 
@@ -244,9 +261,9 @@ and start a new Codex task so the new Skill and MCP schema are loaded.
   plugins/anchises-analysis/scripts/sync_plugin_release.py --platform all --check
 ```
 
-The cachebuster preserves the Codex `0.6.0-dev.8` base and creates one new
+The cachebuster preserves the Codex `0.6.0-dev.9` base and creates one new
 `+codex.<timestamp>` suffix. Claude uses its independent root manifest version,
-currently `0.6.0-dev.9+claude.<timestamp>`. The synchronizer copies both fixed
+currently `0.6.0-dev.10+claude.<timestamp>`. The synchronizer copies both fixed
 identities into the metadata used by their Tag checkers. None of these commands
 creates a Git Tag.
 

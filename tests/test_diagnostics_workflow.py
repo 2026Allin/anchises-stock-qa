@@ -183,7 +183,7 @@ class DiagnosticsResultContractTest(unittest.TestCase):
     def test_direct_remote_ingest_bypasses_a_cached_value_and_writes_new_cache(self) -> None:
         metadata = REFERENCE_ROOT / "plugin-release.json"
         main_commit = "a" * 40
-        target = "0.6.0-dev.9"
+        target = "0.6.0-dev.10"
         refs_with_update = "\n".join(
             (
                 f"{main_commit}\tHEAD",

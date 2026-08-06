@@ -9,14 +9,15 @@
 - Claude visible Skills: one self-contained `anchises-analysis` coordinator
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Codex version: `0.6.0-dev.8`
-- Claude version: `0.6.0-dev.9`
+- Codex version: `0.6.0-dev.9`
+- Claude version: `0.6.0-dev.10`
 - Codex Marketplace: `Anchises-Analysis`
 - Claude Marketplace: `anchises-capital`
 - Hosted MCP: version discovered dynamically from the MCP handshake
 - Data API: `0.3.0`
 - Internal capability contract: `1.9.0-draft`
-- Data policy: dynamic `restricted` or `bulk_enabled`
+- Bundled policy: shared maintainer-owned market-data switch
+- Service policy: dynamic query and export capabilities
 - Prompt pack: `5.1`
 - Tools: 12
 
@@ -47,8 +48,8 @@ App ID.
    `pagination_next_action` without speculative page traversal or SQL
    `OFFSET`.
 7. CSV eligibility, allowed screen or SQL source tools, and limits come only
-   from the current rowset's dynamic export policy. Restricted mode never
-   splits fields, dates, filters, or partitions to reconstruct a dataset.
+   from the current rowset's dynamic export policy. The shared bundled switch
+   never permits bypassing an actual service refusal through split queries.
 8. Policy changes invalidate old cursors and query IDs; tests rerun the
    original intent and inspect the new policy.
 9. CSV copy states a 60-minute default and a 60-3600 second explicit range.
@@ -70,6 +71,9 @@ App ID.
     all workflow/reference/script links remain inside that root, Codex keeps
     five entries, and `.mcp.json` plus the 12-tool Hosted MCP contract remain
     byte-for-byte unchanged.
+16. Exactly one `references/plugin-policy.json` exists, both platforms load it
+    through the shared global contract, ordinary users cannot override or see
+    it, and invalid values fail release validation.
 16. Diagnostic routing tests cover normal cache-first status, one-shot force
     refresh, check-only versus check-and-install, incidental health/status
     wording, independent service/plugin failures, and redaction of raw Git,

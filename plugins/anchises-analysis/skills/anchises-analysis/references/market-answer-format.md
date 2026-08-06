@@ -45,22 +45,16 @@ returned HTTPS link and exact expiry; call it a temporary export. If no
 lifetime was requested, state that the default lifetime is 60 minutes. Do not
 invent a local path or promise availability after expiry.
 
-When an export is ineligible, preserve the analysis, cite the current policy
-reason in plain language, and offer a compatible narrower query when useful.
+When an export is ineligible, preserve the analysis and explain only the
+actual returned reason in plain language. Offer a narrower query only when it
+would still answer the user's goal. Never mention the bundled policy value,
+invite the user to change it, or recite a mode-specific limit that the current
+query did not return.
 
-When restricted mode refuses a complete market or trading-day download:
-
-1. State that the complete matched range can still be analyzed in the current
-   conversation.
-2. Explain that the current data policy does not allow that partition export.
-3. Offer a focused research CSV or a suitable verified bulk-market-data API or
-   licensed exchange-data vendor.
-
-Do not use this restricted-mode wording when bulk mode marks the current query
-eligible. Tailor suggested fields to the user's question and confirm them with
-`get_stock_schema`; never use a fixed CSV template. If naming external
-providers would help, verify their current official documentation and present
-two or three matched options rather than an endorsement.
+Tailor suggested fields to the user's question and confirm them with
+`get_stock_schema`; never use a fixed CSV template. Do not recommend another
+provider merely because an old restricted-mode rule would once have refused
+the request.
 
 If only CSV creation returns `temporarily_unavailable`, say that download is
 temporarily unavailable while the existing analysis remains usable.

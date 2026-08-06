@@ -48,14 +48,14 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("https://anchisesdata.com/support", self.listing)
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
-        self.assertIn("Version: 0.6.0-dev.8", self.listing)
+        self.assertIn("Version: 0.6.0-dev.9", self.listing)
         self.assertIn(
             "MCP version: discovered dynamically at connection time",
             self.listing,
         )
         self.assertIn("Data API version: 0.3.0", self.listing)
         self.assertIn("Contract version: `1.9.0-draft`", self.listing)
-        self.assertIn("dynamic `restricted` or `bulk_enabled`", self.listing)
+        self.assertIn("server-enforced query and export capabilities", self.listing)
 
     def test_listing_uses_the_exact_starter_prompts(self) -> None:
         prompts = self.manifest["interface"]["defaultPrompt"]
@@ -81,7 +81,7 @@ class PublicListingTest(unittest.TestCase):
             "at most 200 rows",
             "opaque cursor",
             "Top-N bounds the complete logical ranked result",
-            "restricted or bulk-enabled data policy",
+            "server-enforced query and export capabilities",
             "allowed screen or SQL source tools",
             "no account-linked cross-session cumulative budget",
         ):

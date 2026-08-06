@@ -1,7 +1,7 @@
 {
   "name": "anchises-analysis",
   "displayName": "Anchises Analysis",
-  "version": "0.6.0-dev.9+claude.20260806163701",
+  "version": "0.6.0-dev.10+claude.20260806170037",
   "description": "Research public companies with live web sources and analyze stock-market data.",
   "author": {
     "name": "Anchises Capital",

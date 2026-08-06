@@ -468,14 +468,14 @@
       "category": "negative",
       "prompt": "Download the complete NASDAQ table for one trading day as CSV.",
       "expected_tools": ["screen_stocks"],
-      "expected_behavior": "Read the current mode, eligible_by_query, source_tools_allowed, and dynamic limits. Export the complete partition only when the live policy allows it; otherwise preserve in-session analysis without splitting the query and offer a compatible analytical refinement."
+      "expected_behavior": "Do not pre-apply legacy complete-partition restrictions when the bundled policy disables them. Export only when the actual rowset reports eligible_by_query=true and allows screen_stocks; otherwise preserve in-session analysis without bypassing the returned refusal."
     },
     {
       "id": "bulk-liquidity-provider-alternative",
       "category": "negative",
       "prompt": "Download every NYSE stock for one day for a liquidity study; if that is unavailable, suggest the fields and another API.",
       "expected_tools": ["get_stock_schema", "screen_stocks"],
-      "expected_behavior": "Preserve full-range liquidity analysis, use schema-confirmed liquidity fields, export directly when the current bulk policy marks the query eligible, and recommend verified provider alternatives only when the live policy refuses the complete file."
+      "expected_behavior": "Preserve full-range liquidity analysis, use schema-confirmed liquidity fields, and export directly when the actual rowset marks the query eligible. Explain only a refusal actually returned by the service and do not expose the bundled switch."
     },
     {
       "id": "sql-query-not-exportable",
