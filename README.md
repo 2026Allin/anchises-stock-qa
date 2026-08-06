@@ -8,10 +8,10 @@ bundles five Skills and connects directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current Codex release target: `0.6.0-dev.7`. The submitted public-review
+Current Codex release target: `0.6.0-dev.8`. The submitted public-review
 release remains `0.4.0-beta.2`.
 
-## QA development changes (unreleased)
+## What changed in 0.6.0-dev.8
 
 - Codex release discovery now keeps Python network-free. A cache miss requests
   one direct, read-only `git ls-remote --` against the fixed public repository,
@@ -205,7 +205,7 @@ and start a new Codex task so the new Skill and MCP schema are loaded.
   plugins/anchises-analysis/scripts/sync_plugin_release.py --check
 ```
 
-The first command preserves the `0.6.0-dev.7` base and creates one new
+The first command preserves the `0.6.0-dev.8` base and creates one new
 `+codex.<timestamp>` suffix. The second copies that release identity into the
 plugin-side metadata used by the tag checker. Neither command creates a Git
 tag.

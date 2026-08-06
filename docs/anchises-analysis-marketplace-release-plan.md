@@ -7,7 +7,7 @@
   Market Analysis
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
-- Version: `0.6.0-dev.7`
+- Version: `0.6.0-dev.8`
 - Marketplace: `Anchises-Analysis`
 - Hosted MCP: version discovered dynamically from the MCP handshake
 - Data API: `0.3.0`

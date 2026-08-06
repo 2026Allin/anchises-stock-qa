@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Current Codex release copy for `Anchises Analysis 0.6.0-dev.7`.
+Current Codex release copy for `Anchises Analysis 0.6.0-dev.8`.
 
 ## Identity
 
@@ -9,7 +9,7 @@ Current Codex release copy for `Anchises Analysis 0.6.0-dev.7`.
 - Publisher email: `tech@anchisesgroup.com`
 - Category: Productivity
 - Primary listing locale: English (en)
-- Version: 0.6.0-dev.7
+- Version: 0.6.0-dev.8
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - MCP version: discovered dynamically at connection time
 - Data API version: 0.3.0

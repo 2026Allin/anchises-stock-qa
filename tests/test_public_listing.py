@@ -48,7 +48,7 @@ class PublicListingTest(unittest.TestCase):
         self.assertIn("https://anchisesdata.com/support", self.listing)
         self.assertIn("Primary listing locale: English (en)", self.listing)
         self.assertIn("Category: Productivity", self.listing)
-        self.assertIn("Version: 0.6.0-dev.7", self.listing)
+        self.assertIn("Version: 0.6.0-dev.8", self.listing)
         self.assertIn(
             "MCP version: discovered dynamically at connection time",
             self.listing,
