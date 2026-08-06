@@ -8,8 +8,18 @@ bundles five Skills and connects directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current Codex release target: `0.6.0-dev.6`. The submitted public-review
+Current Codex release target: `0.6.0-dev.7`. The submitted public-review
 release remains `0.4.0-beta.2`.
+
+## What changed in 0.6.0-dev.7
+
+- MCP runtime version is discovered dynamically from the standard handshake
+  and is no longer a plugin compatibility or release gate.
+- Internal capability profile `1.9.0-draft` keeps the 12 tool schemas,
+  security metadata, annotations, instructions, and descriptor hash strict
+  while ignoring only the observed MCP version and sync timestamp.
+- `get_connection_status({})` is service-only again. Plugin releases continue
+  to use the independent Codex Git tag workflow introduced in `0.6.0-dev.6`.
 
 ## What changed in 0.6.0-dev.6
 
@@ -183,7 +193,7 @@ and start a new Codex task so the new Skill and MCP schema are loaded.
   plugins/anchises-analysis/scripts/sync_plugin_release.py --check
 ```
 
-The first command preserves the `0.6.0-dev.6` base and creates one new
+The first command preserves the `0.6.0-dev.7` base and creates one new
 `+codex.<timestamp>` suffix. The second copies that release identity into the
 plugin-side metadata used by the tag checker. Neither command creates a Git
 tag.

@@ -13,7 +13,7 @@ analysis.
   `$company-report`, `$company-comparison`, `$market-analysis`
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
-- Target semantic version: `0.6.0-dev.6`
+- Target semantic version: `0.6.0-dev.7`
 - Repo marketplace: `Anchises-Analysis`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: discovered dynamically from the MCP handshake

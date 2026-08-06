@@ -49,10 +49,10 @@ MARKETPLACE = "Anchises-Analysis"
 REPOSITORY = "https://github.com/2026Allin/anchises-stock-qa.git"
 GIT_REF = "main"
 TAG_PREFIX = "anchises-analysis/codex/v"
-CURRENT_VERSION = "0.6.0-dev.6"
-CURRENT_RELEASE = "0.6.0-dev.6+codex.20260805135302"
-TARGET_VERSION = "0.6.0-dev.7"
-TARGET_RELEASE = "0.6.0-dev.7+codex.20260806120000"
+CURRENT_VERSION = "0.6.0-dev.7"
+CURRENT_RELEASE = "0.6.0-dev.7+codex.20260806120000"
+TARGET_VERSION = "0.6.0-dev.8"
+TARGET_RELEASE = "0.6.0-dev.8+codex.20260807120000"
 MAIN_COMMIT = "1" * 40
 OTHER_COMMIT = "2" * 40
 TAG_OBJECT = "3" * 40
@@ -369,7 +369,7 @@ class PluginUpdateTest(unittest.TestCase):
             )
             synced = json.loads(release_path.read_text(encoding="utf-8"))
             self.assertEqual(synced["version"], TARGET_VERSION)
-            self.assertEqual(synced["release_id"], "codex.20260806120000")
+            self.assertEqual(synced["release_id"], "codex.20260807120000")
 
 
 if __name__ == "__main__":
