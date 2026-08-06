@@ -47,7 +47,7 @@ sources are easier to find.
 
 For requested prices, returns, indicators, liquidity, or historical measures,
 read
-[the Market Analysis workflow](../../market-analysis/references/market-workflow.md).
+[the Market Analysis workflow](market-workflow.md).
 Use the canonical supported-market listing for each company and align the date
 or range.
 

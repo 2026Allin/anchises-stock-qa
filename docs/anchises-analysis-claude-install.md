@@ -2,8 +2,8 @@
 
 Anchises Analysis uses one shared plugin bundle for Claude Chat, Claude
 Desktop, Cowork, and Claude Code. Claude discovers exactly one visible
-`Anchises Analysis` Skill. That thin facade classifies once and loads one of
-the unchanged canonical workflows used by Codex, while both platforms share
+`Anchises Analysis` Skill. That self-contained coordinator classifies once
+and loads one of four internal workflow documents also used by Codex, while both platforms share
 the same public Hosted MCP definition. Platform manifests, visible Skill
 layout, release metadata, Tag namespaces, and update mechanics remain separate.
 
@@ -29,7 +29,7 @@ only the Claude catalog and plugin package:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@main \
-  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
+  --sparse .claude-plugin plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -55,7 +55,7 @@ adapter:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@qa-v2-auth \
-  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
+  --sparse .claude-plugin plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -119,7 +119,7 @@ requests.
 
 ## Release checks and reminders
 
-Every substantive request handled by the single Claude facade performs the
+Every substantive request handled by the single Claude Skill performs the
 same cache-first policy:
 
 - A successful check is reused for 1 hour.
@@ -142,6 +142,24 @@ Only an explicit sentence naming Anchises Analysis and an install/update intent
 authorizes the next step. A bare “yes”, “install”, or “update” is insufficient.
 Declining cancels only the current attempt, so the next substantive request
 checks again.
+
+## Check health and updates explicitly
+
+Use the same visible entry; no second Skill or command is installed:
+
+```text
+/anchises-analysis 检查状态
+/anchises-analysis 检查更新，只检查不安装
+/anchises-analysis 强制刷新并检查状态
+```
+
+The diagnostic calls `get_connection_status({})` once and independently
+checks only `anchises-analysis/claude/v*`. A normal check reads the existing
+cache first; an explicit force refresh skips the cache read and performs one
+fixed repository lookup. It never calls HTTP `/health`, stock-data tools, or
+the updater. The receipt reports current releases explicitly; business
+requests remain silent when already current. “检查并安装 Anchises Analysis
+更新” stays on the existing update/UI-handoff path and does not call MCP.
 
 ## Update in Claude Code
 

@@ -37,6 +37,12 @@ The parser considers only `anchises-analysis/claude/v*`, ignores Codex Tags
 and unrelated refs, and requires the selected Claude Tag to resolve to remote
 `main`.
 
+For an ordinary Claude diagnostic, use this cache probe and remote-on-miss
+sequence exactly once. When `diagnostic_force_refresh=true`, skip
+`--cache-only` and run the fixed Git-plus-`--remote-refs-stdin` command exactly
+once. The parser writes that result to the normal cache. Do not use
+`--no-cache`, add another query, use a web or MCP fallback, or run the updater.
+
 ## Handle reusable-check requests on Claude
 
 Treat an explicit request to enable reusable release checking as

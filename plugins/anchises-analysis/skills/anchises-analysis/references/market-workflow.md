@@ -2,7 +2,7 @@
 
 The request's `primary_task`, modifiers, and ordered entities must already be
 set by
-[the canonical arbitration reference](../../anchises-analysis/references/query-interpretation.md).
+[the canonical arbitration reference](query-interpretation.md).
 This file defines tool execution only. Do not reclassify the request here.
 
 ## Choose the smallest tool sequence

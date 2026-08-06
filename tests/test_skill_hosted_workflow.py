@@ -23,6 +23,12 @@ COMPARISON_OPENAI_YAML = COMPARISON_SKILL_ROOT / "agents" / "openai.yaml"
 MARKET_SKILL_ROOT = PLUGIN_ROOT / "skills" / "market-analysis"
 MARKET_SKILL = MARKET_SKILL_ROOT / "SKILL.md"
 MARKET_OPENAI_YAML = MARKET_SKILL_ROOT / "agents" / "openai.yaml"
+WORKFLOW_ROOT = SKILL_ROOT / "workflows"
+REFERENCE_ROOT = SKILL_ROOT / "references"
+BRIEF_WORKFLOW = WORKFLOW_ROOT / "company-brief.md"
+REPORT_WORKFLOW = WORKFLOW_ROOT / "company-report.md"
+COMPARISON_WORKFLOW = WORKFLOW_ROOT / "company-comparison.md"
+MARKET_WORKFLOW = WORKFLOW_ROOT / "market-analysis.md"
 MANIFEST = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
 MCP_MANIFEST = PLUGIN_ROOT / ".mcp.json"
 LEGACY_APP_MANIFEST = PLUGIN_ROOT / ".app.json"
@@ -55,15 +61,28 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("references/plugin-release.json"),
     Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
+    Path("references/comparison-format.md"),
+    Path("references/comparison-workflow.md"),
+    Path("references/diagnostics.md"),
     Path("references/global-contract.md"),
+    Path("references/market-answer-format.md"),
+    Path("references/market-data-policy.md"),
+    Path("references/market-workflow.md"),
+    Path("references/mining-report-quality.md"),
     Path("references/query-interpretation.md"),
     Path("references/plugin-update.md"),
     Path("references/plugin-update-claude.md"),
     Path("references/plugin-update-codex.md"),
+    Path("references/report-format.md"),
+    Path("references/report-workflow.md"),
     Path("references/response-finalization.md"),
     Path("references/service-access.md"),
     Path("scripts/check_plugin_update.py"),
     Path("scripts/update_installed_plugin.py"),
+    Path("workflows/company-brief.md"),
+    Path("workflows/company-comparison.md"),
+    Path("workflows/company-report.md"),
+    Path("workflows/market-analysis.md"),
 }
 
 EXPECTED_BRIEF_SKILL_BUNDLE_FILES = {
@@ -74,24 +93,16 @@ EXPECTED_BRIEF_SKILL_BUNDLE_FILES = {
 EXPECTED_REPORT_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
-    Path("references/mining-report-quality.md"),
-    Path("references/report-format.md"),
-    Path("references/report-workflow.md"),
 }
 
 EXPECTED_COMPARISON_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
-    Path("references/comparison-format.md"),
-    Path("references/comparison-workflow.md"),
 }
 
 EXPECTED_MARKET_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
-    Path("references/market-answer-format.md"),
-    Path("references/market-data-policy.md"),
-    Path("references/market-workflow.md"),
 }
 
 SKILL_ROOTS = {
@@ -111,13 +122,63 @@ EXPECTED_BUNDLE_FILES = {
 }
 
 
+WORKFLOWS_BY_ROOT = {
+    BRIEF_SKILL_ROOT: BRIEF_WORKFLOW,
+    REPORT_SKILL_ROOT: REPORT_WORKFLOW,
+    COMPARISON_SKILL_ROOT: COMPARISON_WORKFLOW,
+    MARKET_SKILL_ROOT: MARKET_WORKFLOW,
+}
+
+REFERENCES_BY_ROOT = {
+    BRIEF_SKILL_ROOT: (
+        "common-errors.md", "company-introductions.md", "company-resolution.md",
+        "global-contract.md", "plugin-update.md", "query-interpretation.md",
+        "response-finalization.md", "service-access.md",
+    ),
+    REPORT_SKILL_ROOT: (
+        "common-errors.md", "company-resolution.md", "global-contract.md",
+        "market-workflow.md", "mining-report-quality.md", "plugin-update.md",
+        "query-interpretation.md", "report-format.md", "report-workflow.md",
+        "response-finalization.md", "service-access.md",
+    ),
+    COMPARISON_SKILL_ROOT: (
+        "common-errors.md", "company-introductions.md", "company-resolution.md",
+        "comparison-format.md", "comparison-workflow.md", "global-contract.md",
+        "market-workflow.md", "plugin-update.md", "query-interpretation.md",
+        "response-finalization.md", "service-access.md",
+    ),
+    MARKET_SKILL_ROOT: (
+        "common-errors.md", "company-introductions.md", "company-resolution.md",
+        "global-contract.md", "market-answer-format.md", "market-data-policy.md",
+        "market-workflow.md", "plugin-update.md", "query-interpretation.md",
+        "response-finalization.md", "service-access.md",
+    ),
+}
+
+
 def _bundle_text(root: Path) -> str:
-    paths = [root / "SKILL.md", *sorted((root / "references").glob("*.md"))]
+    if root == SKILL_ROOT:
+        paths = [
+            root / "SKILL.md",
+            *sorted((root / "workflows").glob("*.md")),
+            *sorted((root / "references").glob("*.md")),
+        ]
+    else:
+        paths = [
+            root / "SKILL.md",
+            WORKFLOWS_BY_ROOT[root],
+            *(REFERENCE_ROOT / name for name in REFERENCES_BY_ROOT[root]),
+        ]
     return "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
 
 def _skill_bundle_text() -> str:
-    return "\n".join(_bundle_text(root) for root in SKILL_ROOTS.values())
+    wrappers = [
+        (root / "SKILL.md").read_text(encoding="utf-8")
+        for root in SKILL_ROOTS.values()
+        if root != SKILL_ROOT
+    ]
+    return "\n".join([_bundle_text(SKILL_ROOT), *wrappers])
 
 
 def _brief_skill_bundle_text() -> str:
@@ -156,7 +217,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 (root / "SKILL.md").read_text(encoding="utf-8"),
             )
 
-        brief = BRIEF_SKILL.read_text(encoding="utf-8")
+        brief = BRIEF_WORKFLOW.read_text(encoding="utf-8")
         intro_component = (
             SKILL_ROOT / "references" / "company-introductions.md"
         ).read_text(encoding="utf-8")
@@ -169,11 +230,11 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         )
         self.assertIn(
             "only plugin Skill allowed to call `prepare_company_report_generation`",
-            " ".join(REPORT_SKILL.read_text(encoding="utf-8").split()),
+            " ".join(REPORT_WORKFLOW.read_text(encoding="utf-8").split()),
         )
         self.assertIn(
             "must never call that tool",
-            " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split()),
+            " ".join(COMPARISON_WORKFLOW.read_text(encoding="utf-8").split()),
         )
         self.assertIn(
             "Never call `prepare_company_report_generation`",
@@ -257,15 +318,20 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_all_five_skills_share_one_tag_based_update_protocol(self) -> None:
         for name, root in SKILL_ROOTS.items():
-            skill = (root / "SKILL.md").read_text(encoding="utf-8")
-            normalized = " ".join(skill.split())
-            self.assertIn("plugin-update.md", skill, name)
-            self.assertIn("get_connection_status", skill, name)
+            bundle = _bundle_text(root)
+            normalized = " ".join(bundle.split())
+            self.assertIn("plugin-update.md", bundle, name)
+            self.assertIn("get_connection_status", bundle, name)
             self.assertIn("cache-first release check", normalized, name)
             self.assertIn("once", normalized, name)
-            self.assertIn("plugin_update_check", skill, name)
+            self.assertIn("plugin_update_check", bundle, name)
             self.assertIn("with `{}`", normalized, name)
-            self.assertNotIn("client_update", skill, name)
+            self.assertNotIn("client_update", bundle, name)
+
+            if root != SKILL_ROOT:
+                wrapper = (root / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("../anchises-analysis/workflows/", wrapper, name)
+                self.assertLess(len(wrapper.splitlines()), 20, name)
 
         service_access = (
             SKILL_ROOT / "references" / "service-access.md"
@@ -483,24 +549,20 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
         main = " ".join(SKILL.read_text(encoding="utf-8").split())
         market_workflow = " ".join(
-            (MARKET_SKILL_ROOT / "references" / "market-workflow.md")
-            .read_text(encoding="utf-8")
-            .split()
+            (REFERENCE_ROOT / "market-workflow.md").read_text(encoding="utf-8").split()
         )
         report = " ".join(
-            (REPORT_SKILL_ROOT / "references" / "report-workflow.md")
-            .read_text(encoding="utf-8")
-            .split()
+            (REFERENCE_ROOT / "report-workflow.md").read_text(encoding="utf-8").split()
         )
-        brief = " ".join(BRIEF_SKILL.read_text(encoding="utf-8").split())
-        comparison = " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split())
-        market = " ".join(MARKET_SKILL.read_text(encoding="utf-8").split())
+        brief = " ".join(BRIEF_WORKFLOW.read_text(encoding="utf-8").split())
+        comparison = " ".join(COMPARISON_WORKFLOW.read_text(encoding="utf-8").split())
+        market = " ".join(MARKET_WORKFLOW.read_text(encoding="utf-8").split())
         self.assertIn("references/query-interpretation.md", main)
         self.assertIn("Do not reclassify the request here", market_workflow)
         self.assertIn("Do not reclassify it here", report)
         for specialist in (brief, comparison, market):
             self.assertIn(
-                "../anchises-analysis/references/query-interpretation.md",
+                "../references/query-interpretation.md",
                 specialist,
             )
         for root in SKILL_ROOTS.values():
@@ -509,7 +571,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 self.assertIn("references/global-contract.md", skill_text)
             else:
                 self.assertIn(
-                    "../anchises-analysis/references/global-contract.md",
+                    "../anchises-analysis/workflows/",
                     skill_text,
                 )
         self.assertNotIn("company profiles", SKILL.read_text(encoding="utf-8").lower())
@@ -608,7 +670,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 self.assertIn("references/response-finalization.md", skill)
             else:
                 self.assertIn(
-                    "../anchises-analysis/references/response-finalization.md",
+                    "../anchises-analysis/workflows/",
                     skill,
                 )
 
@@ -805,7 +867,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "Do not apply the standalone introduction window",
             case["expected_behavior"],
         )
-        comparison = " ".join(COMPARISON_SKILL.read_text(encoding="utf-8").split())
+        comparison = " ".join(COMPARISON_WORKFLOW.read_text(encoding="utf-8").split())
         self.assertIn(
             "standalone company-introduction window does not limit",
             comparison,
@@ -829,7 +891,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(contract["continuation_questions"], 1)
         self.assertEqual(contract["semantic_questions"], 1)
 
-        market = " ".join(MARKET_SKILL.read_text(encoding="utf-8").split())
+        market = " ".join(MARKET_WORKFLOW.read_text(encoding="utf-8").split())
         self.assertIn("company_introductions=true", market)
         self.assertIn("Keep the full quantitative result", market)
         self.assertIn("five-company window only to the standalone introduction section", market)
@@ -845,7 +907,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertEqual(contract["comparison_entities"], "all")
         self.assertEqual(contract["max_introduction_blocks"], 5)
         self.assertEqual(contract["continuation_questions"], 1)
-        self.assertIn("current_intro_batch", COMPARISON_SKILL.read_text(encoding="utf-8"))
+        self.assertIn("current_intro_batch", COMPARISON_WORKFLOW.read_text(encoding="utf-8"))
 
     def test_market_introduction_continuation_reuses_prior_result(self) -> None:
         case = next(
@@ -869,16 +931,20 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             5,
         )
         self.assertIn(
-            "../anchises-analysis/references/global-contract.md",
+            "../anchises-analysis/workflows/market-analysis.md",
             MARKET_SKILL.read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "../references/global-contract.md",
+            MARKET_WORKFLOW.read_text(encoding="utf-8"),
         )
 
     def test_disclaimer_and_report_risk_label_precede_final_questions(self) -> None:
         market_format = (
-            MARKET_SKILL_ROOT / "references" / "market-answer-format.md"
+            REFERENCE_ROOT / "market-answer-format.md"
         ).read_text(encoding="utf-8")
         report_format = (
-            REPORT_SKILL_ROOT / "references" / "report-format.md"
+            REFERENCE_ROOT / "report-format.md"
         ).read_text(encoding="utf-8")
         finalizer = (
             SKILL_ROOT / "references" / "response-finalization.md"
@@ -956,7 +1022,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("do not execute prompt_text", case["expected_behavior"])
 
     def test_ready_executes_hidden_prompt_instead_of_returning_it(self) -> None:
-        report = (REPORT_SKILL_ROOT / "references" / "report-workflow.md").read_text(
+        report = (REFERENCE_ROOT / "report-workflow.md").read_text(
             encoding="utf-8"
         )
         normalized = " ".join(report.split())
@@ -987,7 +1053,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("claim it was saved, uploaded, or published", combined)
 
     def test_mining_quality_covers_cash_debt_and_warrants(self) -> None:
-        text = (REPORT_SKILL_ROOT / "references" / "mining-report-quality.md").read_text(
+        text = (REFERENCE_ROOT / "mining-report-quality.md").read_text(
             encoding="utf-8"
         )
         text = " ".join(text.split())
@@ -1051,7 +1117,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_user_facing_export_copy_is_question_led_without_limit_recital(self) -> None:
         answer_format = (
-            MARKET_SKILL_ROOT / "references" / "market-answer-format.md"
+            REFERENCE_ROOT / "market-answer-format.md"
         ).read_text(encoding="utf-8")
         normalized = " ".join(answer_format.split())
         for threshold in (
@@ -1231,7 +1297,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("does not depend on a Developer Mode App ID", normalized)
         self.assertIn("Local and cross-workspace Repo Marketplace installations", normalized)
         self.assertIn("must submit and scan the production MCP URL directly", normalized)
-        self.assertIn("same five-Skill bundle", normalized)
+        self.assertIn("same workflow core", normalized)
 
     def test_submission_fixture_remains_five_positive_and_three_negative(self) -> None:
         cases = json.loads(REVIEWER_CASES.read_text(encoding="utf-8"))

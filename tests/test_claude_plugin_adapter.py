@@ -4,6 +4,8 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,9 +28,7 @@ SYNC_PATH = PLUGIN_ROOT / "scripts" / "sync_plugin_release.py"
 CLAUDE_RELEASE_PATH = SKILL_ROOT / "references" / "plugin-release-claude.json"
 CLAUDE_MANIFEST_PATH = ROOT / ".claude-plugin" / "plugin.json"
 CLAUDE_MARKETPLACE_PATH = ROOT / ".claude-plugin" / "marketplace.json"
-CLAUDE_SKILL_ROOT = (
-    ROOT / "adapters" / "claude" / "skills" / "anchises-analysis"
-)
+CLAUDE_SKILL_ROOT = SKILL_ROOT
 LEGACY_CLAUDE_MANIFEST_PATH = (
     PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 )
@@ -61,7 +61,7 @@ REPOSITORY = "https://github.com/2026Allin/anchises-stock-qa.git"
 GITHUB_REPOSITORY = "2026Allin/anchises-stock-qa"
 TAG_PREFIX = "anchises-analysis/claude/v"
 CURRENT_VERSION = "0.6.0-dev.9"
-CURRENT_RELEASE = "0.6.0-dev.9+claude.20260806120645"
+CURRENT_RELEASE = "0.6.0-dev.9+claude.20260806163701"
 TARGET_VERSION = "0.6.0-dev.10"
 TARGET_RELEASE = "0.6.0-dev.10+claude.20260808120000"
 MAIN_COMMIT = "4" * 40
@@ -160,7 +160,7 @@ def _marketplace_list(
 
 
 class ClaudeManifestTest(unittest.TestCase):
-    def test_marketplace_exposes_one_claude_facade_over_the_canonical_bundle(self) -> None:
+    def test_marketplace_exposes_one_self_contained_claude_skill(self) -> None:
         marketplace = json.loads(CLAUDE_MARKETPLACE_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
             set(marketplace),
@@ -221,7 +221,10 @@ class ClaudeManifestTest(unittest.TestCase):
         ):
             self.assertEqual(claude[key], codex[key], key)
         self.assertNotIn("interface", claude)
-        self.assertEqual(claude["skills"], "./adapters/claude/skills/")
+        self.assertEqual(
+            claude["skills"],
+            "./plugins/anchises-analysis/skills/anchises-analysis/",
+        )
         self.assertEqual(
             claude["mcpServers"],
             "./plugins/anchises-analysis/.mcp.json",
@@ -236,12 +239,8 @@ class ClaudeManifestTest(unittest.TestCase):
         self.assertFalse(LEGACY_CLAUDE_MANIFEST_PATH.exists())
         self.assertTrue((plugin_root / claude["mcpServers"]).is_file())
         self.assertEqual(
-            sorted(
-                path.name
-                for path in (plugin_root / claude["skills"]).iterdir()
-                if path.is_dir()
-            ),
-            ["anchises-analysis"],
+            (plugin_root / claude["skills"]).resolve(),
+            CLAUDE_SKILL_ROOT.resolve(),
         )
         self.assertEqual(
             sorted(path.name for path in (PLUGIN_ROOT / "skills").iterdir()),
@@ -254,38 +253,68 @@ class ClaudeManifestTest(unittest.TestCase):
             ],
         )
 
-    def test_single_facade_routes_to_canonical_workflows_without_copying_them(self) -> None:
+    def test_claude_skill_is_closed_and_contains_exactly_one_skill_file(self) -> None:
         self.assertTrue((CLAUDE_SKILL_ROOT / "SKILL.md").is_file())
         self.assertEqual(
-            [
-                path.name
-                for path in CLAUDE_SKILL_ROOT.parent.iterdir()
-                if path.is_dir()
-            ],
-            ["anchises-analysis"],
+            [path.relative_to(CLAUDE_SKILL_ROOT) for path in CLAUDE_SKILL_ROOT.rglob("SKILL.md")],
+            [Path("SKILL.md")],
         )
-        self.assertFalse((CLAUDE_SKILL_ROOT / "references").exists())
-        self.assertFalse((CLAUDE_SKILL_ROOT / "agents").exists())
+        for directory in ("agents", "references", "scripts", "workflows"):
+            self.assertTrue((CLAUDE_SKILL_ROOT / directory).is_dir(), directory)
 
-        facade = (CLAUDE_SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-        normalized = " ".join(facade.split())
-        for relative in (
-            "../../../../plugins/anchises-analysis/skills/anchises-analysis/SKILL.md",
-            "../../../../plugins/anchises-analysis/skills/company-brief/SKILL.md",
-            "../../../../plugins/anchises-analysis/skills/company-report/SKILL.md",
-            "../../../../plugins/anchises-analysis/skills/company-comparison/SKILL.md",
-            "../../../../plugins/anchises-analysis/skills/market-analysis/SKILL.md",
+        markdown_link = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+        for source in sorted(CLAUDE_SKILL_ROOT.rglob("*.md")):
+            for raw_target in markdown_link.findall(source.read_text(encoding="utf-8")):
+                target = raw_target.split("#", 1)[0]
+                if not target or "://" in target:
+                    continue
+                resolved = (source.parent / target).resolve()
+                self.assertTrue(
+                    resolved.is_relative_to(CLAUDE_SKILL_ROOT.resolve()),
+                    f"{source.relative_to(CLAUDE_SKILL_ROOT)} escapes to {target}",
+                )
+                self.assertTrue(
+                    resolved.is_file(),
+                    f"{source.relative_to(CLAUDE_SKILL_ROOT)} has missing {target}",
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            copied = Path(tmp) / "anchises-analysis"
+            shutil.copytree(CLAUDE_SKILL_ROOT, copied)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(copied / "scripts" / "check_plugin_update.py"),
+                    "--platform",
+                    "claude",
+                    "--remote-refs-stdin",
+                    "--no-cache",
+                ],
+                input=_refs(TARGET_VERSION),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                json.loads(completed.stdout)["status"],
+                "update_available",
+            )
+
+    def test_codex_keeps_five_thin_skill_entries(self) -> None:
+        skill_roots = sorted((PLUGIN_ROOT / "skills").glob("*/SKILL.md"))
+        self.assertEqual(len(skill_roots), 5)
+        for name in (
+            "company-brief",
+            "company-comparison",
+            "company-report",
+            "market-analysis",
         ):
-            self.assertIn(relative, facade)
-            self.assertTrue((CLAUDE_SKILL_ROOT / relative).resolve().is_file())
-        for expected in (
-            "Classify the request exactly once",
-            "preserve the coordinator's shared state",
-            "Never repeat the cache probe, remote Tag lookup, or "
-            "`get_connection_status({})` call",
-            "update-footer placement",
-        ):
-            self.assertIn(expected, normalized)
+            wrapper = PLUGIN_ROOT / "skills" / name / "SKILL.md"
+            text = wrapper.read_text(encoding="utf-8")
+            self.assertIn(f"name: {name}", text)
+            self.assertIn("../anchises-analysis/workflows/", text)
+            self.assertLess(len(text.splitlines()), 20)
 
     def test_shared_mcp_contract_remains_exactly_twelve_tools(self) -> None:
         mcp = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
@@ -332,7 +361,7 @@ class ClaudeManifestTest(unittest.TestCase):
         normalized = " ".join(guide.split())
         for expected in (
             "2026Allin/anchises-stock-qa@main",
-            "--sparse .claude-plugin adapters/claude plugins/anchises-analysis",
+            "--sparse .claude-plugin plugins/anchises-analysis",
             "claude plugin install anchises-analysis@anchises-capital",
             "claude --plugin-dir .",
             "https://github.com/2026Allin/anchises-stock-qa",
@@ -588,37 +617,61 @@ class SharedBundleRegressionTest(unittest.TestCase):
     EXPECTED_SHA256 = {
         "plugins/anchises-analysis/.mcp.json": "0206a879a0161f76f354fbf8f160129735c9eec64da2cc28e46a972e52756dc7",
         "plugins/anchises-analysis/contracts/hosted-mcp-v1.json": "f52ff5598cf12c13958cbb6c33bc3bffd0770788b8c9383c552714b0895699c6",
-        "plugins/anchises-analysis/skills/anchises-analysis/SKILL.md": "96c1a88606e96a1fe5be5a24a125484d9d1128829d7c624d47ab7088ef0063d8",
-        "plugins/anchises-analysis/skills/anchises-analysis/agents/openai.yaml": "a95aba50d90bf1518a48ac3b5e23bf844537ca5bb829cb2f0af2ab2ba4b4e671",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/common-errors.md": "e52a40cd3691de132f87731abe6d8b50e21e66ebe746bbba9334c31e0eb016b0",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/company-introductions.md": "d43b12d2d832888fa39fd3fb3d1e345b9e157ec2e0e2be62f719cb70b0a95e14",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/company-resolution.md": "2f1857393ef537d12203eb1efac1b8e1de471a2f7288ca9f7e21b5e5be4622cd",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/query-interpretation.md": "74256f44d04919145b9a85a6c8c048e56291aa4e0729122ba7920acb0b0fd3c4",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/response-finalization.md": "7eaad91ef87a521a5307a8a8419859d9c3c6e848263e1068668a61cef2a28cbb",
-        "plugins/anchises-analysis/skills/anchises-analysis/references/service-access.md": "4fd96f3ee697a2fc7e9716e412d9235baa8473cd3c2e53b93d2ab1ce035d7d16",
-        "plugins/anchises-analysis/skills/company-brief/SKILL.md": "26b8314c21362b1ed613689b1c9f84640ed3b9245ab65f094745997de9ad3011",
-        "plugins/anchises-analysis/skills/company-brief/agents/openai.yaml": "0944f9cea9a9a8e3d99198d7402af9ebb985a44ade24e74ea90b761d38c88f04",
-        "plugins/anchises-analysis/skills/company-comparison/SKILL.md": "0a52b620d172e853266dddb7ed08d4139841197f3542c6d3e3db78240e297d1d",
-        "plugins/anchises-analysis/skills/company-comparison/agents/openai.yaml": "3bc689ec72e0d5b0959d413e936aed00dc70e79daf69a56717e5473b79466f6c",
-        "plugins/anchises-analysis/skills/company-comparison/references/comparison-format.md": "b7d999cda0c5611a5f03f98e8012ebe1e879170aa49ca8d964979fc475532fd2",
-        "plugins/anchises-analysis/skills/company-comparison/references/comparison-workflow.md": "0cfb808244834ed626533c927603681acb0dff4754836326e505736fc08fbee0",
-        "plugins/anchises-analysis/skills/company-report/SKILL.md": "b7a2ed3bf445c7faaab4e6512a766f7b1fb0f4253b95d6d983451514309fcaa2",
-        "plugins/anchises-analysis/skills/company-report/agents/openai.yaml": "5dcf1e55e44b7f3c4c8df625babb77073d6dad0305027fd450201362b7eb7d1a",
-        "plugins/anchises-analysis/skills/company-report/references/mining-report-quality.md": "30c52bb042c4fd5015bd6d196c0948295786e5dd35cd069b80b8252553f6da18",
-        "plugins/anchises-analysis/skills/company-report/references/report-format.md": "8d867da983a34139972508b27714616244595fc898f19df8e0d3f27f4f8d0ad5",
-        "plugins/anchises-analysis/skills/company-report/references/report-workflow.md": "fb9481b2f9863624eb69950b6520213f0fa92001f5c8454d11fc6f712ad183cf",
-        "plugins/anchises-analysis/skills/market-analysis/SKILL.md": "73df29b19bc5af87d5f85657998b9b24739283ec9312d498905185fef2dc9c32",
-        "plugins/anchises-analysis/skills/market-analysis/agents/openai.yaml": "418913b3efc878ebe4309a0bdd68b10789246696eaf3b310a129c30a09d65a0f",
-        "plugins/anchises-analysis/skills/market-analysis/references/market-answer-format.md": "fea727da6b55886ae8a514c69a6cad683d84b9400a72d2c898a8c8f97521ba4f",
-        "plugins/anchises-analysis/skills/market-analysis/references/market-data-policy.md": "2a06f03087aaf72429efc24c23868153501a30269b8967f11a21e22faedea1cf",
-        "plugins/anchises-analysis/skills/market-analysis/references/market-workflow.md": "09863c1a8adad94652a785c89e676e19e2dfe35e3ff4193e1a9ab9fdc49caab0",
+    }
+    EXPECTED_NORMALIZED_PROMPT_SHA256 = {
+        "workflows/company-brief.md": "e3e50389698a81f343630803372098b013b5013c7fd54f7c7e4ad358d420f411",
+        "workflows/company-comparison.md": "f45a87afd3f3c7a0769fee7a421bb23ca69b0fa8168f352a60fc20afd44b4bd8",
+        "workflows/company-report.md": "aa837d7a6adf029afd9f8966890dd640b9f726b8d77c299881c7ba9e63ae7efb",
+        "workflows/market-analysis.md": "6d45fec2ca851f9c063ce388bb727e186391cab0fca5a57553af157c1bedc847",
+        "references/comparison-format.md": "b7d999cda0c5611a5f03f98e8012ebe1e879170aa49ca8d964979fc475532fd2",
+        "references/comparison-workflow.md": "bba176cdeeb40cacc042a1a50bd062beb7c82b461834963168656f0f5608819e",
+        "references/mining-report-quality.md": "30c52bb042c4fd5015bd6d196c0948295786e5dd35cd069b80b8252553f6da18",
+        "references/report-format.md": "8d867da983a34139972508b27714616244595fc898f19df8e0d3f27f4f8d0ad5",
+        "references/report-workflow.md": "aeaf7c5f13dbe94d0ef291e98748b2e5ae2ef6e60b6c53f093f6c75149fc3d38",
+        "references/market-answer-format.md": "fea727da6b55886ae8a514c69a6cad683d84b9400a72d2c898a8c8f97521ba4f",
+        "references/market-data-policy.md": "2a06f03087aaf72429efc24c23868153501a30269b8967f11a21e22faedea1cf",
+        "references/market-workflow.md": "9f58fdd19d187e3d8d925362aa6efa0079a641fcfb8a7789c82ea6b6e4a83cdd",
     }
 
-    def test_business_prompts_and_mcp_contract_are_byte_for_byte_unchanged(self) -> None:
-        for relative, expected in self.EXPECTED_SHA256.items():
+    def test_mcp_contract_is_byte_for_byte_unchanged(self) -> None:
+        for relative in (
+            "plugins/anchises-analysis/.mcp.json",
+            "plugins/anchises-analysis/contracts/hosted-mcp-v1.json",
+        ):
+            expected = self.EXPECTED_SHA256[relative]
             with self.subTest(path=relative):
                 digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
                 self.assertEqual(digest, expected)
+
+    def test_moved_business_prompts_change_only_internal_link_paths(self) -> None:
+        def normalize_links(text: str) -> str:
+            def replace(match: re.Match[str]) -> str:
+                label, target = match.groups()
+                normalized_label = Path(label).name if label.endswith(".md") else label
+                return f"[{normalized_label}]({Path(target).name})"
+
+            return re.sub(r"\[([^\]]+)\]\(([^)]+\.md)\)", replace, text)
+
+        for relative, expected in self.EXPECTED_NORMALIZED_PROMPT_SHA256.items():
+            with self.subTest(relative=relative):
+                text = (CLAUDE_SKILL_ROOT / relative).read_text(encoding="utf-8")
+                digest = hashlib.sha256(normalize_links(text).encode()).hexdigest()
+                self.assertEqual(digest, expected)
+
+    def test_business_workflows_are_present_in_the_self_contained_core(self) -> None:
+        expected_fingerprints = {
+            "company-brief.md": "exactly three or four prose sentences",
+            "company-comparison.md": "Never silently compare only the first five",
+            "company-report.md": "only plugin Skill allowed to call",
+            "market-analysis.md": "complete matched range for server-side filtering",
+        }
+        workflow_root = CLAUDE_SKILL_ROOT / "workflows"
+        for filename, expected in expected_fingerprints.items():
+            with self.subTest(filename=filename):
+                workflow = (workflow_root / filename).read_text(encoding="utf-8")
+                if filename == "company-brief.md":
+                    workflow += (CLAUDE_SKILL_ROOT / "references" / "company-introductions.md").read_text(encoding="utf-8")
+                self.assertIn(expected, " ".join(workflow.split()))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # Live company report workflow
 
 Use this workflow only after
-[the canonical arbitration reference](../../anchises-analysis/references/query-interpretation.md)
+[the canonical arbitration reference](query-interpretation.md)
 has classified the request as `primary_task=full_report`. Do not reclassify it
 here. The explicit report request authorizes immediate live research; do not
 ask whether to generate it.
@@ -12,7 +12,7 @@ Do not use this workflow for `company_brief`, `comparison`, `market_data`,
 ## 1. Establish the company identity
 
 Follow
-[the shared company-resolution rules](../../anchises-analysis/references/company-resolution.md)
+[the shared company-resolution rules](company-resolution.md)
 and establish all three fields:
 
 - canonical or primary `exchange`

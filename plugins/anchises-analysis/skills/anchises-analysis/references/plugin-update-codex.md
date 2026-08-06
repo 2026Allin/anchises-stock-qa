@@ -42,6 +42,12 @@ never request one for `python3`, either bundled script, a shell, or general
 network access. Consider only `anchises-analysis/codex/v*`; ignore Claude Tags
 and unrelated refs.
 
+For an ordinary Codex diagnostic, use this cache probe and remote-on-miss
+sequence exactly once. When `diagnostic_force_refresh=true`, skip
+`--cache-only` and run the fixed Git-plus-`--remote-refs-stdin` command exactly
+once. The parser writes that result to the normal cache. Do not use
+`--no-cache`, add another query, or run the updater.
+
 ## Set up reusable Codex release-check permission
 
 Treat “为 Anchises Analysis 启用永久版本检查” or an equally explicit request

@@ -24,6 +24,9 @@ recent_follow_up_families
 connection_status_checked
 plugin_update_checked
 plugin_update_check
+diagnostic_force_refresh
+diagnostic_service_check
+diagnostic_plugin_check
 update_notice_suppressed
 installed_release_in_task
 ```
@@ -31,6 +34,10 @@ installed_release_in_task
 Use exactly one `primary_task`. Treat language, freshness, length, news
 context, standalone company introductions, a simple comparison, attached
 market data, CSV output, and a request for no suggestions as modifiers.
+`diagnostic_force_refresh` applies only to `primary_task=diagnostics` and is
+true only for an explicit request to bypass cached status. Diagnostic service
+and plugin results remain separate because update availability does not imply
+a service-access failure.
 `update_notice_suppressed` applies only to the current acknowledgement.
 `installed_release_in_task` is the sole task-scoped exception: after a
 successful update it remembers that target release until the user starts the
@@ -85,6 +92,12 @@ identity, report section, discovery list, or incidental company mention.
   [plugin-update.md](plugin-update.md). A cache miss permits at most one direct,
   fixed-repository `git ls-remote`; Python must remain network-free. Do neither
   on an unrelated request.
+- For `primary_task=diagnostics`, bypass business query interpretation and
+  follow [diagnostics.md](diagnostics.md). Run one
+  `get_connection_status({})` call and one selected-platform plugin check as
+  independent operations. Do not call HTTP `/health`, stock tools, identity
+  resolution, report preparation, or an updater. A force refresh skips cache
+  reading and performs exactly one fixed Tag lookup.
 - Keep MCP service access and plugin Tag discovery independent. An MCP version
   change never implies a plugin update.
 - Treat the MCP version exposed by the Host handshake as diagnostic metadata,
@@ -102,7 +115,8 @@ identity, report section, discovery list, or incidental company mention.
 - Treat every result as analytical information, not investment advice or
   official disclosure.
 
-Read [plugin-update.md](plugin-update.md) and
+Read [diagnostics.md](diagnostics.md) for an explicit status request,
+[plugin-update.md](plugin-update.md) and
 [service-access.md](service-access.md) when this Skill is selected,
 [company-resolution.md](company-resolution.md) when identity
 resolution is required, and [common-errors.md](common-errors.md) for shared

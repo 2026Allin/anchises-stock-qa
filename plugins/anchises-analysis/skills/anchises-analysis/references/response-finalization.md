@@ -13,6 +13,12 @@ market screen, ranking, historical analysis, or quantitative interpretation as
 substantive. A connection-status receipt, export link, or similarly narrow
 operation may use `response_status=mechanical_result`.
 
+For `primary_task=diagnostics`, use the fixed mechanical receipt in
+[diagnostics.md](diagnostics.md). Do not add an analytical-information
+disclaimer, business suggestion, recovery advice, continuation question, or
+semantic question. Append the fixed update notice only for a validated
+`update_available` result.
+
 ## Apply the question matrix
 
 Use `suggestions_allowed=false` when the user asks for no suggestions,

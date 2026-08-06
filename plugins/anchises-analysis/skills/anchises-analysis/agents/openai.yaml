@@ -1,8 +1,8 @@
 interface:
   display_name: "Anchises Analysis"
-  short_description: "Live company research and server-side market analysis."
+  short_description: "Company research, market analysis, health, and update status."
   brand_color: "#334155"
-  default_prompt: "Use $anchises-analysis to decide whether my Apple request needs a Brief, full report, comparison, or market analysis."
+  default_prompt: "Use $anchises-analysis to check Anchises Analysis status or route my request to a Brief, full report, comparison, or market analysis."
 
 policy:
   allow_implicit_invocation: true

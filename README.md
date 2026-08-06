@@ -4,9 +4,10 @@
 
 This repository contains the Codex `Anchises-Analysis` Marketplace, the Claude
 `anchises-capital` Marketplace, and one shared `anchises-analysis` plugin
-package published by Anchises Capital. Codex exposes the five canonical Skills;
-Claude exposes one `Anchises Analysis` facade that loads those same canonical
-workflows internally. Both connect directly to the public Hosted MCP at
+package published by Anchises Capital. Codex exposes five Skill entries;
+Claude exposes the same self-contained `Anchises Analysis` coordinator as one
+visible Skill and loads its four internal workflow documents. Both connect
+directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
@@ -16,9 +17,15 @@ Current Codex target: `0.6.0-dev.8`. Current Claude target:
 ## QA development changes (unreleased)
 
 - Claude Chat, Desktop, Cowork, and Claude Code now expose exactly one visible
-  `Anchises Analysis` Skill. Its thin host adapter routes into the unchanged
-  five canonical workflows, `.mcp.json`, business prompts, and 12-tool
-  contract.
+  `Anchises Analysis` Skill. Its self-contained root contains the coordinator,
+  four unchanged business workflow bodies, shared references, update scripts,
+  and the unchanged 12-tool MCP contract. Codex keeps four thin specialist
+  entries pointing to those same workflow bodies.
+- The existing Anchises Analysis entry now accepts explicit health, status,
+  connection, and update-check requests as `diagnostics`. It independently
+  reports service access and the active host's plugin Tag status, uses the
+  existing one-hour/ten-minute cache policy, and supports one-shot force
+  refresh without installing anything.
 - Claude update discovery uses `anchises-analysis/claude/v*`, while Codex keeps
   `anchises-analysis/codex/v*`. Both retain the one-hour success cache,
   ten-minute failure cache, silent failure behavior, exact authorization, and
@@ -144,8 +151,6 @@ Current Codex target: `0.6.0-dev.8`. Current Claude target:
 .agents/plugins/marketplace.json
 .claude-plugin/marketplace.json
 .claude-plugin/plugin.json
-adapters/claude/skills/
-  anchises-analysis/
 plugins/anchises-analysis/
   .codex-plugin/plugin.json
   .mcp.json
@@ -153,6 +158,9 @@ plugins/anchises-analysis/
   contracts/
   skills/
     anchises-analysis/
+      workflows/
+      references/
+      scripts/
     company-brief/
     company-report/
     company-comparison/
@@ -191,10 +199,6 @@ or the Data API.
   plugins/anchises-analysis/skills/market-analysis
 
 .venv/bin/python \
-  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
-  adapters/claude/skills/anchises-analysis
-
-.venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
   plugins/anchises-analysis
 
@@ -203,7 +207,7 @@ claude plugin validate . --strict
 
 The Claude validation command requires a locally installed Claude Code CLI.
 The unit suite validates the checked-in Marketplace, root plugin manifest, one
-visible facade, canonical prompt hashes, and routed paths when that CLI is not
+visible self-contained Skill, closed internal paths, and routed workflows when that CLI is not
 available.
 
 Run credential-free production checks explicitly:
@@ -304,7 +308,7 @@ Claude Code can add the Marketplace directly from this GitHub repository:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@main \
-  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
+  --sparse .claude-plugin plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -312,8 +316,8 @@ claude plugin install anchises-analysis@anchises-capital
 In Claude Chat, Desktop, or Cowork, open **Customize → Plugins**, choose
 **Personal plugins → + → Add marketplace → Add from a repository**, and enter
 `https://github.com/2026Allin/anchises-stock-qa`. The same plugin package loads
-exactly one visible `Anchises Analysis` Skill, the unchanged canonical
-workflows behind it, and the shared Hosted MCP. Start a new Claude conversation
+exactly one visible self-contained `Anchises Analysis` Skill, its unchanged
+business workflows, and the shared Hosted MCP. Start a new Claude conversation
 after installation or update.
 
 Claude release checks consider only `anchises-analysis/claude/v*`. Claude Code

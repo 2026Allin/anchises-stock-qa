@@ -3,7 +3,7 @@
   "name": "anchises-analysis",
   "platform": "claude",
   "version": "0.6.0-dev.9",
-  "release_id": "claude.20260806120645",
+  "release_id": "claude.20260806163701",
   "plugin_id": "anchises-analysis@anchises-capital",
   "marketplace": "anchises-capital",
   "repository": "https://github.com/2026Allin/anchises-stock-qa.git",

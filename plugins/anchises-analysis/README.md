@@ -1,9 +1,9 @@
 # Anchises Analysis
 
-Anchises Analysis keeps one canonical five-Skill workflow bundle for Codex and
-Claude. Codex exposes all five Skills directly; Claude exposes one thin
-`Anchises Analysis` facade and loads the selected canonical workflow
-internally. Both provide concise company briefs, deep live reports,
+Anchises Analysis keeps one canonical self-contained workflow core for Codex
+and Claude. Codex exposes the coordinator plus four thin specialist Skill
+entries; Claude exposes only the self-contained `Anchises Analysis`
+coordinator and loads the selected internal workflow document. Both provide concise company briefs, deep live reports,
 cross-company comparison, and structured stock-market analysis.
 
 ## Release identity
@@ -30,8 +30,8 @@ cross-company comparison, and structured stock-market analysis.
 The package uses `.mcp.json` to connect the `anchises_analysis` server directly
 to the production Streamable HTTP endpoint. It does not depend on a Developer
 Mode App ID. Local and cross-workspace Repo Marketplace installations use the
-same endpoint, same five-Skill bundle, and public metadata. Claude discovers
-only its facade; the canonical five Skills remain internal workflow sources on
+same endpoint, same workflow core, and public metadata. Claude discovers only
+the coordinator; the four specialist bodies remain internal workflow sources on
 that platform. A future public Plugin Directory submission must submit and scan
 the production MCP URL directly and use the same canonical bundle and public
 metadata.
@@ -39,11 +39,12 @@ metadata.
 ## Skill architecture and entry
 
 The canonical package holds `.mcp.json` and all business workflows.
-`.codex-plugin/plugin.json` exposes its five Skill descriptions as peer
-request-routing entries. The repository-root `.claude-plugin/plugin.json`
-instead exposes only `adapters/claude/skills/anchises-analysis`; that facade
-classifies once and reads the selected canonical workflow without copying its
-business prompt:
+`.codex-plugin/plugin.json` exposes five Skill descriptions as peer routing
+entries. Four are thin wrappers that retain their original frontmatter and
+read workflow bodies from `anchises-analysis/workflows`. The repository-root
+`.claude-plugin/plugin.json` points directly to the self-contained
+`plugins/anchises-analysis/skills/anchises-analysis` root, so Claude sees one
+Skill without any copied business prompt:
 
 - `anchises-analysis` is a thin coordinator for generic, mixed, and ambiguous
   requests. Its references provide the canonical classification, global
@@ -57,12 +58,12 @@ business prompt:
   historical data, bounded SQL, and focused CSV exports.
 
 A clear specialist request may enter its matching Skill directly in Codex. In
-Claude, every request enters the single facade and the matching specialist is
-loaded as an internal workflow document. Every specialist reads the same
+Claude, every request enters the single coordinator and the matching workflow
+is loaded as an internal document. Every specialist reads the same
 canonical `primary_task` rules and must stop if it does not own the result;
 downstream workflows never reclassify.
 
-Whenever a Codex Skill or the Claude facade is selected for a business request,
+Whenever a Codex Skill or the Claude coordinator is selected for a business request,
 it performs one cache-first platform Tag check and calls
 `get_connection_status({})` once. On a cache miss, the host directly runs one
 read-only `git ls-remote --` against the allowlisted repository; the bundled
@@ -99,6 +100,17 @@ recheck. Claude Chat, Desktop, and Cowork perform the fresh recheck but hand the
 user to `Customize → Plugins → Anchises Analysis → Update`; they never claim
 the UI update completed. Every Claude installation or update requires a new
 conversation.
+
+The same coordinator also owns `primary_task=diagnostics`. Explicit health,
+status, connection, version, and update-only requests call
+`get_connection_status({})` once and independently check only the active
+host's Tag namespace once. Normal diagnostics use the existing one-hour or
+ten-minute cache; “重新检查”, “立即刷新”, and “强制刷新” skip cache reading and
+perform one fixed Tag lookup. Diagnostics never call HTTP `/health`, stock
+tools, report tools, or an installer. They explicitly report `current`, while
+automatic business checks keep that state silent. “检查并安装 Anchises Analysis
+更新” remains the existing fresh-recheck update or Claude UI-handoff route and
+does not call MCP.
 
 ## Company briefs
 
@@ -222,7 +234,7 @@ Claude Code installs the same package from the root Claude Marketplace:
 ```bash
 claude plugin marketplace add \
   2026Allin/anchises-stock-qa@main \
-  --sparse .claude-plugin adapters/claude plugins/anchises-analysis
+  --sparse .claude-plugin plugins/anchises-analysis
 
 claude plugin install anchises-analysis@anchises-capital
 ```
@@ -230,7 +242,7 @@ claude plugin install anchises-analysis@anchises-capital
 Claude Chat, Desktop, and Cowork use **Customize → Plugins → Personal plugins
 → + → Add marketplace → Add from a repository** with
 `https://github.com/2026Allin/anchises-stock-qa`. All Claude surfaces load the
-same single visible facade, unchanged canonical workflows, and public MCP
+same single visible self-contained Skill, unchanged business workflows, and public MCP
 definition. The complete install, verification, update, and release procedure
 is in
 [the Claude guide](../../docs/anchises-analysis-claude-install.md).
@@ -297,10 +309,6 @@ Then run:
   plugins/anchises-analysis/skills/market-analysis
 
 .venv/bin/python \
-  ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
-  adapters/claude/skills/anchises-analysis
-
-.venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
   plugins/anchises-analysis
 
@@ -308,6 +316,6 @@ claude plugin validate . --strict
 ```
 
 The Claude validation command requires the Claude Code CLI. The unit suite
-still validates both checked-in manifests, the single visible facade, canonical
-route targets, release identities, Tag parsers, fixed updater sequences, shared
-prompt hashes, and the unchanged MCP contract.
+still validates both checked-in manifests, the single visible self-contained
+Skill, closed route targets, release identities, Tag parsers, fixed updater
+sequences, shared workflow bodies, and the unchanged MCP contract.

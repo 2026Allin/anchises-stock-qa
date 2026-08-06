@@ -1,5 +1,9 @@
 # Query interpretation
 
+Operational `diagnostics`, `plugin_update`, and `plugin_update_permission`
+requests are routed by the coordinator before this file is read. This file
+arbitrates substantive business requests only.
+
 ## Classify exactly once
 
 Classify an in-scope request into exactly one `primary_task`:
@@ -123,16 +127,16 @@ generated report workflow.
 ## Hand off without reclassification
 
 - Hand `company_brief` to
-  [the Company Brief Skill](../../company-brief/SKILL.md). It must not call
+  [the Company Brief workflow](../workflows/company-brief.md). It must not call
   `prepare_company_report_generation`.
 - Hand `full_report` to
-  [the Company Report Skill](../../company-report/SKILL.md). The explicit
+  [the Company Report workflow](../workflows/company-report.md). The explicit
   report request authorizes immediate live research; do not ask whether to
   generate it.
 - Hand `comparison` to
-  [the Company Comparison Skill](../../company-comparison/SKILL.md).
+  [the Company Comparison workflow](../workflows/company-comparison.md).
 - Hand `market_data` and supported structured-market `discovery` to
-  [the Market Analysis Skill](../../market-analysis/SKILL.md).
+  [the Market Analysis workflow](../workflows/market-analysis.md).
 - Whenever `company_introductions=true`, keep the selected owning workflow and
   additionally apply
   [the shared company-introduction component](company-introductions.md). Do

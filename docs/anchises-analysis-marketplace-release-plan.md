@@ -6,7 +6,7 @@
 - Canonical workflows: coordinator, Company Brief, Company Report, Company
   Comparison, and Market Analysis
 - Codex visible Skills: all five canonical workflows
-- Claude visible Skills: one `anchises-analysis` facade
+- Claude visible Skills: one self-contained `anchises-analysis` coordinator
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
 - Codex version: `0.6.0-dev.8`
@@ -22,15 +22,15 @@
 
 The MCP URL, website, privacy, terms, support URL, MCP Python package name, and
 VPS service names remain unchanged. Codex and Claude reuse the same canonical
-five-Skill workflow bundle and remote MCP definition; Codex exposes five Skill
-entries while Claude exposes one facade. Neither references a Developer Mode
+workflow core and remote MCP definition; Codex exposes five Skill entries
+while Claude exposes one self-contained coordinator. Neither references a Developer Mode
 App ID.
 
 ## Automated release gates
 
 1. Plugin and Skill directories, names, and both platform manifests agree. The
    Codex manifest points to the canonical five-Skill directory. The root Claude
-   manifest points only to `adapters/claude/skills`, the Claude Marketplace
+   manifest points directly to the self-contained coordinator root, the Claude Marketplace
    source is the repository root, and both manifests resolve to the same
    `.mcp.json`. The package contains no `.app.json` or `plugin_asdk_app`
    identifier.
@@ -54,11 +54,11 @@ App ID.
 9. CSV copy states a 60-minute default and a 60-3600 second explicit range.
 10. Full unit/mock/live tests, Skill validation, and plugin validation pass.
 11. Cachebuster update and local reinstall succeed; Codex shows all five Skills,
-    Claude shows exactly one facade, and each loads one `anchises_analysis`
+    Claude shows exactly one Skill, and each loads one `anchises_analysis`
     bundled MCP server.
 12. Codex and Claude release metadata each match their manifest's base version
     and exactly one `+<platform>.<timestamp>` suffix.
-13. A selected Codex Skill or the Claude facade checks exactly one platform
+13. A selected Codex Skill or the Claude coordinator checks exactly one platform
     namespace and does so once. Each fixed CLI updater refuses local or wrong
     sources, uses exactly five commands on the success path, and never retries
     or falls back.
@@ -66,11 +66,14 @@ App ID.
     head. Codex and Claude Tags never cross-trigger. Tag creation is a separate
     explicit maintainer action and never an automatic side effect of commit,
     push, merge, install, or update.
-15. Hash guards prove that the five canonical business `SKILL.md` files,
-    non-update business references, Codex UI metadata, `.mcp.json`, and the
-    12-tool Hosted MCP contract remain byte-for-byte unchanged by the Claude
-    adapter. Separate structural tests prove Claude discovers only the facade
-    and every facade route resolves to one canonical file.
+15. Structural guards prove the Claude root contains exactly one `SKILL.md`,
+    all workflow/reference/script links remain inside that root, Codex keeps
+    five entries, and `.mcp.json` plus the 12-tool Hosted MCP contract remain
+    byte-for-byte unchanged.
+16. Diagnostic routing tests cover normal cache-first status, one-shot force
+    refresh, check-only versus check-and-install, incidental health/status
+    wording, independent service/plugin failures, and redaction of raw Git,
+    server, commit, and credential details.
 
 ## Cross-workspace Codex gates
 
@@ -80,8 +83,8 @@ App ID.
 2. Confirm the plugin installs without an App ID, authentication credential,
    Portal Scan, or workspace share link.
 3. Start a new task and confirm all five Skills are available.
-4. Confirm `/mcp` shows the bundled `anchises_analysis` server, exactly 12
-   production tools, and a semantic server version matching `/health`.
+4. Confirm `/mcp` shows the bundled `anchises_analysis` server and exactly 12
+   production tools. Do not use HTTP `/health` as a plugin compatibility gate.
 5. Run representative Company Brief, Company Report, Company Comparison, and
    Market Analysis requests, including one cursor continuation and one dynamic
    export-policy case.
@@ -95,12 +98,13 @@ App ID.
 ## Cross-surface Claude gates
 
 1. In Claude Code, first add `2026Allin/anchises-stock-qa@qa-v2-auth` using
-   sparse paths `.claude-plugin`, `adapters/claude`, and
-   `plugins/anchises-analysis`, then install
+   sparse paths `.claude-plugin` and `plugins/anchises-analysis`, then install
    `anchises-analysis@anchises-capital`.
 2. Confirm Claude Code exposes exactly one `anchises-analysis` Skill, loads one
    `anchises_analysis` MCP server, and routes representative Brief, Report,
    Comparison, and Market requests into the unchanged canonical workflows.
+   Confirm `/anchises-analysis 检查状态` loads every referenced file from the
+   mounted Skill root and returns the Claude version rather than a file error.
 3. After merging the tested commit to `main`, repeat installation from
    `2026Allin/anchises-stock-qa@main` and validate Claude Chat, Claude Desktop,
    and Cowork, whose repository UI uses the default branch rather than the QA
@@ -116,13 +120,17 @@ App ID.
    and does not claim installation completed.
 7. Start a new Claude conversation after every installation or update and
    verify the single visible Skill and exactly 12 MCP tools again.
+8. In Codex and Claude, verify the same status entry reports service and
+   plugin results independently, shows `current` explicitly, appends only the
+   existing notice for an available update, and never installs from a
+   check-only request.
 
 ## Future Plugin Directory gates
 
 This Git Marketplace release does not use Portal Scan. If a later public
 Plugin Directory release is requested, submit and scan the production MCP URL
 directly rather than submitting the old Developer Mode App, then use the same
-canonical workflow bundle, single Claude facade, and public metadata.
+canonical workflow core, single Claude Skill, and public metadata.
 
 ## Rollback boundary
 
@@ -140,9 +148,8 @@ the capability contract remains compatible.
 
 ## Branch and tag release boundary
 
-- Develop this adapter on `codex/claude-single-entry`, based on `main`, then
-  fast-forward or merge its validated result into `qa-v2-auth` for branch
-  testing.
+- Implement and validate the self-contained Skill and diagnostics workflow on
+  `qa-v2-auth`; do not publish a release Tag from the QA branch.
 - Merge the tested release to `main` and push `main` only for a release.
 - Publish Codex releases under `anchises-analysis/codex/v<semver>` and Claude
   releases under `anchises-analysis/claude/v<semver>`.

@@ -4,13 +4,51 @@
       "id": "status-direct",
       "category": "direct",
       "prompt": "Check whether Anchises Analysis is available before we start.",
+      "expected_primary_task": "diagnostics",
       "expected_skill": "anchises-analysis",
       "expected_tools": ["get_connection_status"],
       "expected_arguments": {"get_connection_status": {}},
+      "expected_release_check": {"mode": "cache_first", "platform": "active_host", "max_git_queries": 1},
+      "forbidden_tools": ["get_available_exchanges", "get_latest_dates", "resolve_company_identity", "prepare_company_report_generation", "screen_stocks"],
+      "forbidden_operations": ["http_health", "plugin_install"],
       "expected_output_contract": {
         "response_status": "mechanical_result",
         "semantic_questions": 0
       }
+    },
+    {
+      "id": "status-force-refresh",
+      "category": "direct",
+      "prompt": "$anchises-analysis 强制刷新并检查状态",
+      "expected_primary_task": "diagnostics",
+      "expected_skill": "anchises-analysis",
+      "expected_tools": ["get_connection_status"],
+      "expected_arguments": {"get_connection_status": {}},
+      "expected_release_check": {"mode": "fresh", "skip_cache_read": true, "platform": "active_host", "max_git_queries": 1},
+      "forbidden_operations": ["http_health", "plugin_install", "plugin_updater"],
+      "expected_behavior": "Run one service check and exactly one fixed-repository Tag lookup; write the fresh result to cache and do not retry."
+    },
+    {
+      "id": "status-check-update-only",
+      "category": "direct",
+      "prompt": "/anchises-analysis 检查更新，只检查不安装",
+      "expected_primary_task": "diagnostics",
+      "expected_skill": "anchises-analysis",
+      "expected_tools": ["get_connection_status"],
+      "expected_release_check": {"mode": "cache_first", "platform": "active_host", "max_git_queries": 1},
+      "forbidden_operations": ["plugin_install", "plugin_updater"],
+      "expected_behavior": "Return the combined mechanical status receipt and never install."
+    },
+    {
+      "id": "check-and-install-update",
+      "category": "direct",
+      "prompt": "检查并安装 Anchises Analysis 更新",
+      "expected_primary_task": "plugin_update",
+      "expected_skill": "anchises-analysis",
+      "expected_tools": [],
+      "forbidden_tools": ["get_connection_status"],
+      "expected_release_check": {"mode": "fresh", "platform": "active_host", "max_git_queries": 1},
+      "expected_behavior": "Use the existing guarded updater or Claude UI handoff after one fresh Tag check; do not call MCP health."
     },
     {
       "id": "market-discovery",
@@ -348,6 +386,16 @@
     }
   ],
   "negative": [
+    {
+      "id": "incidental-health-status-not-diagnostics",
+      "category": "negative",
+      "prompt": "Compare Apple and Microsoft by financial health and listing status.",
+      "expected_primary_task": "comparison",
+      "expected_skill": "company-comparison",
+      "expected_tools": ["resolve_company_identity"],
+      "forbidden_operations": ["diagnostics"],
+      "expected_behavior": "Treat health and status as comparison dimensions; do not route to Anchises Analysis diagnostics without product context or explicit invocation."
+    },
     {
       "id": "official-filing-not-generated-report",
       "category": "negative",
