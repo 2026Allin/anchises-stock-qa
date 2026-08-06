@@ -76,6 +76,29 @@ loaded.
    occurs only after an explicit next-page request, and exports follow the
    current dynamic policy.
 
+## Optional one-time release-check permission
+
+Release discovery needs read-only access to the public Git repository when its
+one-hour success cache has expired. To approve that exact lookup once for the
+same local user across Codex tasks and workspaces:
+
+1. Temporarily select **Ask for approval** in the Codex permissions control.
+2. In a new task, send: `为 Anchises Analysis 启用永久版本检查`.
+3. In the approval dialog, review the fixed prefix and choose **Always allow**:
+
+   ```text
+   git ls-remote -- https://github.com/2026Allin/anchises-stock-qa.git
+   ```
+
+4. Return to **Approve for me** if desired.
+
+**Approve for me** is Auto-review and can approve a current check, but it does
+not itself guarantee a persistent user rule. Codex may store an explicit
+**Always allow** choice in `~/.codex/rules/default.rules`. Anchises Analysis
+never writes that file and never asks for a reusable `python3`, shell, plugin
+installation, or general-network rule. Each colleague must make this local
+security choice once; it is not distributed by the plugin.
+
 No Anchises Analysis Developer Mode App should be required or enabled for this
 verification. If the old App remains available as a rollback resource, leave
 it disabled while testing the bundled MCP to avoid duplicate tool surfaces.
@@ -114,7 +137,9 @@ codex plugin add anchises-analysis@Anchises-Analysis
 ```
 
 Later Git Marketplace releases are checked once whenever an Anchises Skill is
-selected for business work. The checker considers only
+selected for business work. A cache miss executes the fixed, read-only
+`git ls-remote --` command directly under Codex's scoped approval, then passes
+the captured refs to a network-free Python parser. The parser considers only
 `anchises-analysis/codex/v*` and requires the newest Codex tag to point to the
 remote `main` head. No-update and unknown checks are silent. If a newer release
 exists, the answer ends with an update notice. The user must explicitly reply

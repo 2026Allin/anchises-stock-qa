@@ -258,10 +258,10 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             normalized = " ".join(skill.split())
             self.assertIn("plugin-update.md", skill, name)
             self.assertIn("get_connection_status", skill, name)
-            self.assertIn("tag checker", normalized, name)
-            self.assertIn("exactly once", normalized, name)
+            self.assertIn("cache-first release check", normalized, name)
+            self.assertIn("once", normalized, name)
             self.assertIn("plugin_update_check", skill, name)
-            self.assertIn("with `{}`", skill, name)
+            self.assertIn("with `{}`", normalized, name)
             self.assertNotIn("client_update", skill, name)
 
         service_access = (
@@ -299,6 +299,18 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         self.assertIn("Do not persist an ignored release", normalized)
         self.assertIn("anchises-analysis/codex/v*", protocol)
         self.assertIn("remote `main` head", protocol)
+        self.assertIn("--cache-only", protocol)
+        self.assertIn("--remote-refs-stdin", protocol)
+        self.assertIn('"cmd": "git ls-remote -- ', protocol)
+        self.assertIn('"sandbox_permissions": "require_escalated"', protocol)
+        self.assertIn('"git",\n    "ls-remote",\n    "--"', protocol)
+        self.assertIn("Approve for me", protocol)
+        self.assertIn("Ask for approval", protocol)
+        self.assertIn("Always allow", protocol)
+        self.assertIn("~/.codex/rules/default.rules", protocol)
+        self.assertIn("plugin_update_permission", protocol)
+        self.assertIn("为 Anchises Analysis 启用永久版本检查", protocol)
+        self.assertIn("must never create, edit, or delete", normalized)
         for command in (
             "codex plugin list --json",
             "codex plugin marketplace list --json",
@@ -320,6 +332,30 @@ class SkillHostedWorkflowTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("operational update footer", finalizer)
         self.assertIn("final sentence of the business answer", finalizer)
+        self.assertIn("`check_required`", finalizer)
+
+    def test_release_check_approval_contract_is_narrow_and_nonpersistent_by_default(self) -> None:
+        protocol = (
+            SKILL_ROOT / "references" / "plugin-update.md"
+        ).read_text(encoding="utf-8")
+        network_lines = [
+            line.strip()
+            for line in protocol.splitlines()
+            if line.strip().startswith("git ls-remote -- ")
+        ]
+        self.assertEqual(len(network_lines), 2)
+        for line in network_lines:
+            git_segment = line.split(" | ", 1)[0]
+            self.assertEqual(
+                git_segment,
+                "git ls-remote -- https://github.com/2026Allin/anchises-stock-qa.git",
+            )
+            self.assertNotIn("*", git_segment)
+            self.assertNotIn("$", git_segment)
+            self.assertNotIn(">", git_segment)
+        self.assertNotIn('"prefix_rule": [\n    "python3"', protocol)
+        self.assertNotIn('"prefix_rule": [\n    "bash"', protocol)
+        self.assertIn("does not by itself create a persistent", protocol)
 
     def test_plugin_release_metadata_is_closed_and_distribution_allowlisted(self) -> None:
         release = json.loads(

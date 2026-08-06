@@ -11,6 +11,18 @@ Developer Mode App ID.
 Current Codex release target: `0.6.0-dev.7`. The submitted public-review
 release remains `0.4.0-beta.2`.
 
+## QA development changes (unreleased)
+
+- Codex release discovery now keeps Python network-free. A cache miss requests
+  one direct, read-only `git ls-remote --` against the fixed public repository,
+  then pipes the captured refs to the bundled local parser.
+- The reusable approval prefix is limited to that repository. It never covers
+  `python3`, a shell, plugin installation, or general Git/network access.
+- `Approve for me` may approve a current lookup but does not itself persist a
+  rule. Users who want cross-task and cross-workspace reuse can temporarily use
+  `Ask for approval` and select `Always allow`; the plugin never edits
+  `~/.codex/rules/default.rules`.
+
 ## What changed in 0.6.0-dev.7
 
 - MCP runtime version is discovered dynamically from the standard handshake
@@ -231,10 +243,11 @@ the Git marketplace source and the bundled MCP URL. Start a new Codex task
 after installation.
 
 A Git Marketplace installation checks only Codex tags during Anchises
-requests. It installs only after the user explicitly authorizes the named
-Anchises Analysis update. Local Marketplaces remain manual. MCP upgrades do
-not create plugin update notices unless a newer Codex plugin tag is also
-published.
+requests. Cache misses use one fixed-repository, read-only Git command with a
+narrow reusable approval prefix; Python only validates the captured refs.
+It installs only after the user explicitly authorizes the named Anchises
+Analysis update. Local Marketplaces remain manual. MCP upgrades do not create
+plugin update notices unless a newer Codex plugin tag is also published.
 
 See the complete
 [cross-workspace installation guide](docs/anchises-analysis-codex-cross-workspace-install.md).

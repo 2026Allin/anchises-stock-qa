@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run the one supported Codex Tag-based Anchises plugin update sequence."""
+"""Run the supported update sequence from fresh, externally captured Git refs.
+
+The owning Skill performs the fixed read-only network lookup. This helper
+validates stdin locally and never executes Git.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ import json
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -21,7 +26,15 @@ FULL_RELEASE_RE = re.compile(
     r"\+codex\.\d{14}$"
 )
 COMMAND_TIMEOUT_SECONDS = 180
-CommandResult = tag_checker.CommandResult
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
 Runner = Callable[[Sequence[str]], CommandResult]
 
 
@@ -105,17 +118,16 @@ def _result(
 
 def run_update(
     *,
+    remote_refs: str,
     runner: Runner = _default_runner,
-    tag_runner: tag_checker.Runner = tag_checker._default_runner,
     metadata_path: Path = METADATA_PATH,
 ) -> dict[str, Any]:
-    """Recheck the published Codex Tag, then execute the fixed CLI sequence."""
+    """Validate fresh captured refs, then execute the fixed CLI sequence."""
 
     metadata = tag_checker._load_metadata(metadata_path)
-    release_check = tag_checker.check_for_update(
+    release_check = tag_checker.check_remote_refs(
+        remote_refs,
         metadata_path=metadata_path,
-        runner=tag_runner,
-        refresh=True,
         use_cache=False,
     )
     check_status = release_check["status"]
@@ -310,21 +322,27 @@ def run_update(
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    return argparse.ArgumentParser(description=__doc__).parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--remote-refs-stdin", action="store_true")
+    return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parse_args(argv)
+    args = parse_args(argv)
     try:
-        result = run_update()
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        if not args.remote_refs_stdin:
+            raise ValueError("fresh remote refs are required")
+        raw = sys.stdin.buffer.read(tag_checker.MAX_REMOTE_OUTPUT_BYTES + 1)
+        if len(raw) > tag_checker.MAX_REMOTE_OUTPUT_BYTES:
+            raise ValueError("remote refs are too large")
+        result = run_update(remote_refs=raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
         result = {
             "status": "preflight_failed",
             "step": "release_validation",
             "target_version": None,
             "target_tag": None,
             "target_commit": None,
-            "error": str(exc),
         }
     print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     return 0 if result["status"] in {"already_current", "updated"} else 1

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Check the fixed Git repository for a newer published Codex plugin tag."""
+"""Parse fixed Git refs and cache the Anchises Codex plugin release state.
+
+This helper is deliberately network-free. The owning Skill must execute the
+allowlisted ``git ls-remote`` command directly, then pipe its stdout to this
+script with ``--remote-refs-stdin``.
+"""
 
 from __future__ import annotations
 
@@ -7,13 +12,11 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Sequence
 
 
 METADATA_PATH = Path(__file__).resolve().parents[1] / "references" / "plugin-release.json"
@@ -25,16 +28,26 @@ VERSION_PATTERN = (
 VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$")
 RELEASE_RE = re.compile(r"^codex\.\d{14}$")
 OBJECT_ID_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
-CHECK_TIMEOUT_SECONDS = 8
+MAX_REMOTE_OUTPUT_BYTES = 1024 * 1024
 SUCCESS_CACHE_SECONDS = 3600
 FAILURE_CACHE_SECONDS = 600
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
+CHECK_REQUIRED = "check_required"
 KNOWN_STATUSES = {
+    CHECK_REQUIRED,
     "current",
     "update_available",
     "release_inconsistent",
     "unsupported_source",
     "unknown",
+}
+KNOWN_REASONS = {
+    None,
+    "cache_miss",
+    "empty_remote_refs",
+    "invalid_remote_refs",
+    "remote_refs_too_large",
+    "release_validation",
 }
 ALLOWED_IDENTITY = {
     "schema_version": 2,
@@ -49,35 +62,15 @@ ALLOWED_IDENTITY = {
 METADATA_KEYS = {*ALLOWED_IDENTITY, "version", "release_id"}
 RESULT_KEYS = {
     "status",
+    "reason",
     "installed_version",
     "target_version",
     "target_tag",
     "target_commit",
 }
-
-
-@dataclass(frozen=True)
-class CommandResult:
-    returncode: int
-    stdout: str
-    stderr: str
-
-
-Runner = Callable[[Sequence[str]], CommandResult]
-
-
-def _default_runner(command: Sequence[str]) -> CommandResult:
-    try:
-        completed = subprocess.run(
-            list(command),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=CHECK_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return CommandResult(126, "", str(exc))
-    return CommandResult(completed.returncode, completed.stdout, completed.stderr)
+RELEASE_CHECK_JUSTIFICATION = (
+    "允许只读检查 Anchises Analysis 的已发布版本吗？"
+)
 
 
 def _load_metadata(path: Path = METADATA_PATH) -> dict[str, Any]:
@@ -92,6 +85,23 @@ def _load_metadata(path: Path = METADATA_PATH) -> dict[str, Any]:
     if not isinstance(release_id, str) or not RELEASE_RE.fullmatch(release_id):
         raise ValueError("plugin release metadata has an invalid release_id")
     return value
+
+
+def release_check_command(
+    metadata_path: Path = METADATA_PATH,
+) -> tuple[str, ...]:
+    """Return the only network command the Skill may use for Tag discovery."""
+
+    metadata = _load_metadata(metadata_path)
+    return ("git", "ls-remote", "--", metadata["repository"])
+
+
+def release_check_prefix_rule(
+    metadata_path: Path = METADATA_PATH,
+) -> tuple[str, ...]:
+    """Return the narrow reusable approval prefix for release discovery."""
+
+    return release_check_command(metadata_path)
 
 
 def _version_parts(version: Any) -> tuple[tuple[int, int, int], list[str] | None]:
@@ -137,16 +147,20 @@ def compare_versions(left: str, right: str) -> int:
 
 def _result(
     status: str,
-    installed_version: str,
+    installed_version: str | None,
     *,
+    reason: str | None = None,
     target_version: str | None = None,
     target_tag: str | None = None,
     target_commit: str | None = None,
 ) -> dict[str, Any]:
     if status not in KNOWN_STATUSES:
         raise ValueError("unknown plugin update status")
+    if reason not in KNOWN_REASONS:
+        raise ValueError("unknown plugin update reason")
     return {
         "status": status,
+        "reason": reason,
         "installed_version": installed_version,
         "target_version": target_version,
         "target_tag": target_tag,
@@ -213,7 +227,9 @@ def _default_cache_path() -> Path:
 def _valid_cached_result(value: Any, installed_version: str) -> bool:
     if not isinstance(value, dict) or set(value) != RESULT_KEYS:
         return False
-    if value.get("status") not in KNOWN_STATUSES:
+    if value.get("status") not in KNOWN_STATUSES - {CHECK_REQUIRED}:
+        return False
+    if value.get("reason") not in KNOWN_REASONS:
         return False
     if value.get("installed_version") != installed_version:
         return False
@@ -252,6 +268,12 @@ def _read_cache(
 
 
 def _write_cache(path: Path, *, result: dict[str, Any], now: float) -> None:
+    installed_version = result.get("installed_version")
+    if not isinstance(installed_version, str) or not _valid_cached_result(
+        result,
+        installed_version,
+    ):
+        raise ValueError("refusing to cache an invalid release result")
     payload = {
         "schema_version": CACHE_SCHEMA_VERSION,
         "checked_at": now,
@@ -273,47 +295,67 @@ def _write_cache(path: Path, *, result: dict[str, Any], now: float) -> None:
             pass
 
 
-def check_for_update(
+def check_cached_result(
     *,
     metadata_path: Path = METADATA_PATH,
-    runner: Runner = _default_runner,
     cache_path: Path | None = None,
-    refresh: bool = False,
     use_cache: bool = True,
     now: float | None = None,
 ) -> dict[str, Any]:
-    """Return a structured, fail-closed comparison with published Codex tags."""
+    """Return a valid cached result or request one direct remote lookup."""
 
     metadata = _load_metadata(metadata_path)
     installed_version = metadata["version"]
     current_time = time.time() if now is None else now
-    selected_cache = cache_path or _default_cache_path()
-    if use_cache and not refresh:
+    if use_cache:
         cached = _read_cache(
-            selected_cache,
+            cache_path or _default_cache_path(),
             installed_version=installed_version,
             now=current_time,
         )
         if cached is not None:
             cached["cache"] = "hit"
             return cached
-
-    branch_ref = f"refs/heads/{metadata['git_ref']}"
-    tag_pattern = f"refs/tags/{metadata['tag_prefix']}*"
-    command = (
-        "git",
-        "ls-remote",
-        metadata["repository"],
-        branch_ref,
-        tag_pattern,
+    result = _result(
+        CHECK_REQUIRED,
+        installed_version,
+        reason="cache_miss",
     )
-    command_result = runner(command)
-    if command_result.returncode != 0:
-        result = _result("unknown", installed_version)
+    result["cache"] = "miss"
+    return result
+
+
+def check_remote_refs(
+    remote_output: str,
+    *,
+    metadata_path: Path = METADATA_PATH,
+    cache_path: Path | None = None,
+    use_cache: bool = True,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Validate captured ``git ls-remote`` output without opening the network."""
+
+    metadata = _load_metadata(metadata_path)
+    installed_version = metadata["version"]
+    current_time = time.time() if now is None else now
+    encoded_size = len(remote_output.encode("utf-8"))
+    if encoded_size > MAX_REMOTE_OUTPUT_BYTES:
+        result = _result(
+            "unknown",
+            installed_version,
+            reason="remote_refs_too_large",
+        )
+    elif not remote_output.strip():
+        result = _result(
+            "unknown",
+            installed_version,
+            reason="empty_remote_refs",
+        )
     else:
+        branch_ref = f"refs/heads/{metadata['git_ref']}"
         try:
             branch_commit, tags = _parse_remote_refs(
-                command_result.stdout,
+                remote_output,
                 branch_ref=branch_ref,
                 tag_prefix=metadata["tag_prefix"],
             )
@@ -337,11 +379,19 @@ def check_for_update(
                     target_commit=latest[2],
                 )
         except ValueError:
-            result = _result("unknown", installed_version)
+            result = _result(
+                "unknown",
+                installed_version,
+                reason="invalid_remote_refs",
+            )
 
     if use_cache:
         try:
-            _write_cache(selected_cache, result=result, now=current_time)
+            _write_cache(
+                cache_path or _default_cache_path(),
+                result=result,
+                now=current_time,
+            )
         except OSError:
             pass
     result = dict(result)
@@ -351,7 +401,9 @@ def check_for_update(
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--refresh", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--cache-only", action="store_true")
+    mode.add_argument("--remote-refs-stdin", action="store_true")
     parser.add_argument("--no-cache", action="store_true")
     return parser.parse_args(argv)
 
@@ -359,19 +411,25 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        result = check_for_update(
-            refresh=args.refresh,
-            use_cache=not args.no_cache,
+        if args.remote_refs_stdin:
+            raw = sys.stdin.buffer.read(MAX_REMOTE_OUTPUT_BYTES + 1)
+            if len(raw) > MAX_REMOTE_OUTPUT_BYTES:
+                remote_output = "x" * (MAX_REMOTE_OUTPUT_BYTES + 1)
+            else:
+                remote_output = raw.decode("utf-8")
+            result = check_remote_refs(
+                remote_output,
+                use_cache=not args.no_cache,
+            )
+        else:
+            result = check_cached_result(use_cache=not args.no_cache)
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        result = _result(
+            "unknown",
+            None,
+            reason="release_validation",
         )
-    except (OSError, ValueError, json.JSONDecodeError):
-        result = {
-            "status": "unknown",
-            "installed_version": None,
-            "target_version": None,
-            "target_tag": None,
-            "target_commit": None,
-            "cache": "miss",
-        }
+        result["cache"] = "miss"
     print(json.dumps(result, separators=(",", ":"), sort_keys=True))
     return 0
 

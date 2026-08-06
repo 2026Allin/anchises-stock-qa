@@ -15,10 +15,11 @@ Read
 [../anchises-analysis/references/plugin-update.md](../anchises-analysis/references/plugin-update.md),
 and
 [../anchises-analysis/references/service-access.md](../anchises-analysis/references/service-access.md).
-Because this Skill has been selected for a business request, run the bundled
-tag checker exactly once and retain `plugin_update_check`, then call
-`get_connection_status` exactly once with `{}` and retain service-access
-state. Plugin release discovery is independent of MCP service versioning.
+Because this Skill has been selected for a business request, perform the
+cache-first release check in `plugin-update.md` once and retain
+`plugin_update_check`, then call `get_connection_status` exactly once with
+`{}` and retain service-access state. Plugin release discovery is independent
+of MCP service versioning.
 
 ## Classify once
 
@@ -34,8 +35,8 @@ presence alone is not sufficient. Set `company_introductions=true`.
 
 ## Apply public service access
 
-Reuse the single connection result and tag-check result already obtained for
-this request. Apply the shared public-access, credential, privacy, outage,
+Reuse the single connection result and release-check result already obtained
+for this request. Apply the shared public-access, credential, privacy, outage,
 retry, and update-footer rules. Never repeat either check for a modifier.
 
 ## Execute the shared introduction component

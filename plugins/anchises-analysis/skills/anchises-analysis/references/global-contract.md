@@ -80,9 +80,10 @@ identity, report section, discovery list, or incidental company mention.
   content.
 - When any of the five Anchises Skills is selected explicitly or implicitly
   for a substantive business request, call `get_connection_status` exactly
-  once with `{}` using [service-access.md](service-access.md), and run the
-  local Codex Tag checker exactly once using
-  [plugin-update.md](plugin-update.md). Do neither on an unrelated request.
+  once with `{}` using [service-access.md](service-access.md), and perform one
+  cache-first Codex Tag check using [plugin-update.md](plugin-update.md). A
+  cache miss permits at most one direct, fixed-repository `git ls-remote`;
+  Python must remain network-free. Do neither on an unrelated request.
 - Keep MCP service access and plugin Tag discovery independent. An MCP version
   change never implies a plugin update.
 - Treat the MCP version exposed by the Host handshake as diagnostic metadata,
@@ -92,6 +93,9 @@ identity, report section, discovery list, or incidental company mention.
 - Keep update checking separate from installation. No update command runs
   without the explicit authorization defined in
   [plugin-update.md](plugin-update.md).
+- Treat persistent release-check permission as a separate operational route.
+  Never create or edit the user's Codex rules; only the Codex approval UI may
+  persist the exact allowlisted Git prefix after the user chooses to do so.
 - Only `company-report` may call `prepare_company_report_generation`.
 - Treat every result as analytical information, not investment advice or
   official disclosure.

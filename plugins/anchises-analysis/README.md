@@ -51,11 +51,21 @@ specialist first reads the same canonical `primary_task` rules and must stop if
 it does not own the result; downstream Skills never reclassify.
 
 Whenever one of the five Skills is selected explicitly or implicitly for a
-business request, it runs the bundled Codex tag checker once and calls
-`get_connection_status({})` once. The tag checker considers only
-`anchises-analysis/codex/v*` in the allowlisted repository and accepts a newer
-release only when its tag points to the current remote `main` head. Plugin
-release discovery is independent of the MCP service version.
+business request, it performs one cache-first Codex tag check and calls
+`get_connection_status({})` once. On a cache miss, Codex directly runs one
+read-only `git ls-remote --` against the allowlisted repository with a narrow
+reusable approval prefix; the bundled network-free Python parser then
+considers only `anchises-analysis/codex/v*` and accepts a newer release only
+when its tag points to the current remote `main` head. Plugin release discovery
+is independent of the MCP service version.
+
+`Approve for me` can Auto-review the current Git lookup but does not itself
+create a persistent rule. For one-time setup across the same local user's
+tasks and workspaces, temporarily select `Ask for approval`, request
+“为 Anchises Analysis 启用永久版本检查”, and choose `Always allow` for the exact
+fixed-repository Git prefix. The plugin never creates or edits
+`~/.codex/rules/default.rules`, and no reusable permission covers Python or
+the installation flow.
 
 An available update is shown only as a final operational footer after the
 business answer. Installation requires an explicit sentence naming Anchises

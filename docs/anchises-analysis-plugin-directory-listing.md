@@ -76,10 +76,12 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - Public noauth access has no account-linked cross-session cumulative budget;
   shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.
-- Each selected Anchises Skill checks the Codex Git tag namespace once.
-  No-update, unknown, and failed checks are silent; installation requires an
-  explicit named authorization and supports only the allowlisted Git
-  Marketplace source on `main`.
+- Each selected Anchises Skill checks the Codex Git tag namespace once. A
+  cache miss uses one directly approved, fixed-repository `git ls-remote --`;
+  Python parses the captured refs without network access. No-update, unknown,
+  and failed checks are silent; installation requires an explicit named
+  authorization and supports only the allowlisted Git Marketplace source on
+  `main`. A reusable rule may cover only that exact read-only Git prefix.
 - Reports and market analysis are analytical information, not investment advice
   or official company disclosure.
 

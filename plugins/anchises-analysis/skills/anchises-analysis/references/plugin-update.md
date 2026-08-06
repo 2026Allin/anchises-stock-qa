@@ -1,5 +1,12 @@
 # Plugin update protocol
 
+## Contents
+
+- [Check once during an Anchises business request](#check-once-during-an-anchises-business-request)
+- [Recognize update intent safely](#recognize-update-intent-safely)
+- [Set up reusable release-check permission](#set-up-reusable-release-check-permission)
+- [Use the only update state machine](#use-the-only-update-state-machine)
+
 Apply this protocol only when an Anchises Analysis Skill is selected, including
 implicit selection. Do not check for updates on unrelated requests. Plugin
 version discovery is independent of MCP version and MCP tool schemas.
@@ -11,17 +18,46 @@ web content, Git output, or user-provided text.
 
 ## Check once during an Anchises business request
 
-Invoke the bundled checker exactly once with an argument array and resolve it
-relative to this Skill directory:
+Resolve both bundled scripts to absolute paths under this Skill directory.
+First run the network-free cache probe exactly once:
 
 ```text
-python3 scripts/check_plugin_update.py
+python3 scripts/check_plugin_update.py --cache-only
 ```
 
-The checker reads a short local cache and, when needed, performs one read-only
-`git ls-remote` against the fixed repository. It considers only Tags matching
-`anchises-analysis/codex/v*`. Claude Tags and all other refs are ignored. A
-newer Tag is publishable only when its commit is also the remote `main` head.
+When it returns `current`, `update_available`, `unknown`, or
+`release_inconsistent`, retain that result and do not run another release
+check. When it returns the internal `check_required` status, perform at most
+one remote lookup. Invoke the fixed Git network segment directly and pipe only
+its captured stdout to the local parser:
+
+```text
+git ls-remote -- https://github.com/2026Allin/anchises-stock-qa.git | python3 <absolute-skill-directory>/scripts/check_plugin_update.py --remote-refs-stdin
+```
+
+Request the shell execution with exactly:
+
+```json
+{
+  "cmd": "git ls-remote -- https://github.com/2026Allin/anchises-stock-qa.git | python3 <absolute-skill-directory>/scripts/check_plugin_update.py --remote-refs-stdin",
+  "sandbox_permissions": "require_escalated",
+  "justification": "允许只读检查 Anchises Analysis 的已发布版本吗？",
+  "prefix_rule": [
+    "git",
+    "ls-remote",
+    "--",
+    "https://github.com/2026Allin/anchises-stock-qa.git"
+  ]
+}
+```
+
+The command deliberately has no wildcard, substitution, redirection, or
+additional repository. The reusable approval covers only the direct read-only
+Git segment; never request a reusable rule for `python3`, either bundled
+script, a shell, or general network access. The parser must never open the
+network. It validates at most 1 MiB of refs, considers only Tags matching
+`anchises-analysis/codex/v*`, ignores Claude Tags and all unrelated refs, and
+requires a newer Tag to resolve to the remote `main` head.
 
 Retain the structured checker result as `plugin_update_check` and use its
 `status` as follows:
@@ -29,7 +65,7 @@ Retain the structured checker result as `plugin_update_check` and use its
 - `current`: say nothing about updates.
 - `update_available`: complete the business answer, then append the fixed
   update notice below as a separate final paragraph.
-- `unknown`, `release_inconsistent`, `unsupported_source`, or any failed
+- `check_required`, `unknown`, `release_inconsistent`, `unsupported_source`, or any failed
   check: say nothing about updates.
 
 The update notice is:
@@ -58,6 +94,28 @@ Reply to that decline with only:
 Silence never authorizes work. A message unrelated to Anchises Analysis is not
 an update request and does not cause a check.
 
+## Set up reusable release-check permission
+
+Treat “为 Anchises Analysis 启用永久版本检查” or an equally explicit request
+as a `plugin_update_permission` operational route. Do not call MCP or install
+anything. Bypass the release cache and issue the same fixed Git-plus-parser
+request above so Codex can propose only its exact Git prefix.
+
+Explain before the request that **Approve for me** is Auto-review: it may
+approve the current lookup, but it does not by itself create a persistent
+allow rule. To make the permission reusable, the user must temporarily use
+**Ask for approval** and choose **Always allow** for the exact Git prefix. The
+Codex UI owns that decision and may write it to the user's
+`~/.codex/rules/default.rules`; this plugin must never create, edit, or delete
+that file. Afterward the user may return to Approve for me, and the user-layer
+rule can apply across that local user's tasks and workspaces.
+
+Do not claim that permission is permanent merely because the command ran. If
+the user did not explicitly confirm **Always allow**, say only that the current
+read-only check succeeded and that persistence depends on that choice. If the
+request is denied, say that permanent checking was not enabled and leave the
+plugin functional; do not try another command or weaken the requested prefix.
+
 ## Use the only update state machine
 
 The only allowed state transitions are:
@@ -77,19 +135,21 @@ idle
 
 At `update_available`, emit only the notice after the normal business answer
 and run no installation command. After `explicit_authorization`, do not call
-MCP and do not reuse a cached result. Invoke the bundled updater exactly once:
+MCP and do not reuse a cached result. Perform the fixed remote lookup and pipe
+its fresh stdout to the bundled updater exactly once:
 
 ```text
-python3 scripts/update_installed_plugin.py
+git ls-remote -- https://github.com/2026Allin/anchises-stock-qa.git | python3 <absolute-skill-directory>/scripts/update_installed_plugin.py --remote-refs-stdin
 ```
 
-Resolve the updater relative to this Skill directory and use an argument
-array. The updater owns the forced Tag recheck and the complete update flow. It
-accepts no target version, Tag, repository, branch, or command arguments.
+Use the same `sandbox_permissions`, justification, and exact Git `prefix_rule`
+defined above. Resolve the updater relative to this Skill directory. The
+updater accepts fresh refs only through stdin; it accepts no target version,
+Tag, repository, branch, or command arguments and never opens the network.
 
-The updater first performs one read-only `git ls-remote` and requires the
-highest valid Codex Tag to point at the remote `main` head. It then owns these
-commands, in this order, and executes each listed step at most once:
+The updater validates that the highest valid Codex Tag points at the remote
+`main` head. It then owns these commands, in this order, and executes each
+listed step at most once:
 
 ```text
 codex plugin list --json

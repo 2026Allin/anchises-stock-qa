@@ -1,6 +1,6 @@
 ---
 name: anchises-analysis
-description: Coordinate Anchises Analysis requests when the user asks generally to use the product, requests an Anchises Analysis install or update, declines an offered update, combines a primary workflow with secondary deliverables, or leaves the desired deliverable ambiguous. Classify exactly one primary task, preserve shared request state, and route to plugin update, Company Brief, Company Report, Company Comparison, or Market Analysis under one global response contract. Do not replace a clearly matching specialized Skill, treat incidental company mentions as research requests, retrieve official filings, or answer news-only requests.
+description: Coordinate Anchises Analysis requests when the user asks generally to use the product, requests an Anchises Analysis install, update, or persistent release-check permission, declines an offered update, combines a primary workflow with secondary deliverables, or leaves the desired deliverable ambiguous. Classify exactly one primary task, preserve shared request state, and route to plugin operations, Company Brief, Company Report, Company Comparison, or Market Analysis under one global response contract. Do not replace a clearly matching specialized Skill, treat incidental company mentions as research requests, retrieve official filings, or answer news-only requests.
 ---
 
 # Anchises Analysis
@@ -14,18 +14,18 @@ credentials, or local setup.
 Read [references/global-contract.md](references/global-contract.md),
 [references/plugin-update.md](references/plugin-update.md), and
 [references/service-access.md](references/service-access.md). For a
-substantive Anchises business request, run the bundled
-`scripts/check_plugin_update.py` exactly once and retain `plugin_update_check`,
-then call `get_connection_status` exactly once with `{}` and retain the
-service-access state. Plugin release discovery is independent of MCP service
-versioning. Do not repeat either check for a business modifier.
+substantive Anchises business request, perform the cache-first release check
+defined in `plugin-update.md` once and retain `plugin_update_check`, then call
+`get_connection_status` exactly once with `{}` and retain the service-access
+state. Plugin release discovery is independent of MCP service versioning. Do
+not repeat either check for a business modifier.
 
 If the message is an explicitly authorized Anchises Analysis installation or
-update, a decline of the offered update, or an acknowledgement after a
-completed update, use the `plugin_update` route and the only state machine in
-`plugin-update.md`. Do not call MCP for this operational route; the fixed
-updater performs its own fresh tag check only after explicit authorization.
-Keep it separate from business classification. A bare
+update, a persistent release-check permission request, a decline of the
+offered update, or an acknowledgement after a completed update, use the
+applicable operational route in `plugin-update.md`. Do not call MCP for these
+routes; an authorized update receives fresh refs through the fixed Git
+network segment. Keep them separate from business classification. A bare
 “yes”, “是”, “install”, or “安装” is not explicit update authorization.
 
 ## Classify once
@@ -42,6 +42,7 @@ Use this workflow map:
 | `primary_task` | Owning workflow |
 |---|---|
 | `plugin_update` | This Skill; follow `references/plugin-update.md` only |
+| `plugin_update_permission` | This Skill; follow the permission setup in `references/plugin-update.md` only |
 | `company_brief` | Sibling `company-brief` Skill |
 | `full_report` | Sibling `company-report` Skill |
 | `comparison` | Sibling `company-comparison` Skill |
@@ -70,9 +71,9 @@ Maintain the conceptual state defined in
 [references/global-contract.md](references/global-contract.md), including
 separate requested, contextual, and discovered entities.
 
-Reuse the one service check and one tag check already made for this request.
-Never call `get_connection_status` or the tag checker again when a modifier
-adds another workflow.
+Reuse the one service check and one release check already made for this
+request. Never call `get_connection_status` or repeat the cache probe or
+remote Tag lookup when a modifier adds another workflow.
 
 Before a company brief, full report, comparison, or single-company market-data
 workflow, read
