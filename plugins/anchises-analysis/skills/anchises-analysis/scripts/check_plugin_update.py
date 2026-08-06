@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse fixed Git refs and cache the Anchises Codex plugin release state.
+"""Parse fixed Git refs and cache an Anchises plugin release state.
 
 This helper is deliberately network-free. The owning Skill must execute the
 allowlisted ``git ls-remote`` command directly, then pipe its stdout to this
@@ -19,14 +19,23 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-METADATA_PATH = Path(__file__).resolve().parents[1] / "references" / "plugin-release.json"
+REFERENCE_ROOT = Path(__file__).resolve().parents[1] / "references"
+METADATA_PATHS = {
+    "codex": REFERENCE_ROOT / "plugin-release.json",
+    "claude": REFERENCE_ROOT / "plugin-release-claude.json",
+}
+METADATA_PATH = METADATA_PATHS["codex"]
 VERSION_PATTERN = (
     r"(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\."
     r"(?P<patch>0|[1-9]\d*)"
     r"(?:-(?P<pre>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
 )
 VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$")
-RELEASE_RE = re.compile(r"^codex\.\d{14}$")
+RELEASE_RES = {
+    platform: re.compile(rf"^{platform}\.\d{{14}}$")
+    for platform in METADATA_PATHS
+}
+RELEASE_RE = RELEASE_RES["codex"]
 OBJECT_ID_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 MAX_REMOTE_OUTPUT_BYTES = 1024 * 1024
 SUCCESS_CACHE_SECONDS = 3600
@@ -49,16 +58,29 @@ KNOWN_REASONS = {
     "remote_refs_too_large",
     "release_validation",
 }
-ALLOWED_IDENTITY = {
-    "schema_version": 2,
-    "name": "anchises-analysis",
-    "platform": "codex",
-    "plugin_id": "anchises-analysis@Anchises-Analysis",
-    "marketplace": "Anchises-Analysis",
-    "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
-    "git_ref": "main",
-    "tag_prefix": "anchises-analysis/codex/v",
+ALLOWED_IDENTITIES = {
+    "codex": {
+        "schema_version": 2,
+        "name": "anchises-analysis",
+        "platform": "codex",
+        "plugin_id": "anchises-analysis@Anchises-Analysis",
+        "marketplace": "Anchises-Analysis",
+        "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
+        "git_ref": "main",
+        "tag_prefix": "anchises-analysis/codex/v",
+    },
+    "claude": {
+        "schema_version": 2,
+        "name": "anchises-analysis",
+        "platform": "claude",
+        "plugin_id": "anchises-analysis@anchises-capital",
+        "marketplace": "anchises-capital",
+        "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
+        "git_ref": "main",
+        "tag_prefix": "anchises-analysis/claude/v",
+    },
 }
+ALLOWED_IDENTITY = ALLOWED_IDENTITIES["codex"]
 METADATA_KEYS = {*ALLOWED_IDENTITY, "version", "release_id"}
 RESULT_KEYS = {
     "status",
@@ -77,14 +99,30 @@ def _load_metadata(path: Path = METADATA_PATH) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict) or set(value) != METADATA_KEYS:
         raise ValueError("plugin release metadata has an unexpected shape")
-    for key, expected in ALLOWED_IDENTITY.items():
+    platform = value.get("platform")
+    if not isinstance(platform, str):
+        raise ValueError("plugin release metadata has unsupported platform")
+    identity = ALLOWED_IDENTITIES.get(platform)
+    if identity is None:
+        raise ValueError("plugin release metadata has unsupported platform")
+    for key, expected in identity.items():
         if value.get(key) != expected:
             raise ValueError(f"plugin release metadata has unsupported {key}")
     _version_parts(value.get("version"))
     release_id = value.get("release_id")
-    if not isinstance(release_id, str) or not RELEASE_RE.fullmatch(release_id):
+    release_re = RELEASE_RES[platform]
+    if not isinstance(release_id, str) or not release_re.fullmatch(release_id):
         raise ValueError("plugin release metadata has an invalid release_id")
     return value
+
+
+def metadata_path_for_platform(platform: str) -> Path:
+    """Return one bundled metadata path from the closed platform allowlist."""
+
+    try:
+        return METADATA_PATHS[platform]
+    except KeyError as exc:
+        raise ValueError("unsupported plugin platform") from exc
 
 
 def release_check_command(
@@ -242,9 +280,24 @@ def _latest_tag(tags: Sequence[tuple[str, str, str]]) -> tuple[str, str, str] | 
     return latest
 
 
-def _default_cache_path() -> Path:
+def _default_cache_path(platform: str = "codex") -> Path:
+    if platform not in ALLOWED_IDENTITIES:
+        raise ValueError("unsupported plugin platform")
+    if platform == "claude":
+        plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
+        if plugin_data:
+            plugin_data_path = Path(plugin_data)
+            filesystem_root = Path(plugin_data_path.anchor)
+            if (
+                plugin_data_path.is_absolute()
+                and plugin_data_path != filesystem_root
+            ):
+                return plugin_data_path / "release-check-cache.json"
     uid = str(os.getuid()) if hasattr(os, "getuid") else "user"
-    return Path(tempfile.gettempdir()) / f"anchises-analysis-codex-tags-{uid}.json"
+    return (
+        Path(tempfile.gettempdir())
+        / f"anchises-analysis-{platform}-tags-{uid}.json"
+    )
 
 
 def _valid_cached_result(value: Any, installed_version: str) -> bool:
@@ -332,7 +385,7 @@ def check_cached_result(
     current_time = time.time() if now is None else now
     if use_cache:
         cached = _read_cache(
-            cache_path or _default_cache_path(),
+            cache_path or _default_cache_path(metadata["platform"]),
             installed_version=installed_version,
             now=current_time,
         )
@@ -411,7 +464,7 @@ def check_remote_refs(
     if use_cache:
         try:
             _write_cache(
-                cache_path or _default_cache_path(),
+                cache_path or _default_cache_path(metadata["platform"]),
                 result=result,
                 now=current_time,
             )
@@ -427,6 +480,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--cache-only", action="store_true")
     mode.add_argument("--remote-refs-stdin", action="store_true")
+    parser.add_argument(
+        "--platform",
+        choices=tuple(METADATA_PATHS),
+        default="codex",
+    )
     parser.add_argument("--no-cache", action="store_true")
     return parser.parse_args(argv)
 
@@ -434,6 +492,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        metadata_path = metadata_path_for_platform(args.platform)
         if args.remote_refs_stdin:
             raw = sys.stdin.buffer.read(MAX_REMOTE_OUTPUT_BYTES + 1)
             if len(raw) > MAX_REMOTE_OUTPUT_BYTES:
@@ -442,10 +501,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 remote_output = raw.decode("utf-8")
             result = check_remote_refs(
                 remote_output,
+                metadata_path=metadata_path,
                 use_cache=not args.no_cache,
             )
         else:
-            result = check_cached_result(use_cache=not args.no_cache)
+            result = check_cached_result(
+                metadata_path=metadata_path,
+                use_cache=not args.no_cache,
+            )
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
         result = _result(
             "unknown",

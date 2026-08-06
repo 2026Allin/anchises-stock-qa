@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "name": "anchises-analysis",
+  "platform": "claude",
+  "version": "0.6.0-dev.8",
+  "release_id": "claude.20260806090903",
+  "plugin_id": "anchises-analysis@anchises-capital",
+  "marketplace": "anchises-capital",
+  "repository": "https://github.com/2026Allin/anchises-stock-qa.git",
+  "git_ref": "main",
+  "tag_prefix": "anchises-analysis/claude/v"
+}

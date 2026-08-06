@@ -1,8 +1,8 @@
 # Anchises Analysis
 
-Anchises Analysis is a five-Skill Codex plugin for concise company briefs,
-deep live reports, cross-company comparison, and structured stock-market
-analysis.
+Anchises Analysis is one shared five-Skill plugin for Codex and Claude. It
+provides concise company briefs, deep live reports, cross-company comparison,
+and structured stock-market analysis.
 
 ## Release identity
 
@@ -14,7 +14,8 @@ analysis.
 - Display name: `Anchises Analysis`
 - Publisher: `Anchises Capital`
 - Target semantic version: `0.6.0-dev.8`
-- Repo marketplace: `Anchises-Analysis`
+- Codex Marketplace: `Anchises-Analysis`
+- Claude Marketplace: `anchises-capital`
 - Hosted MCP: `https://mcp.anchisesdata.com/mcp`
 - Hosted MCP version: discovered dynamically from the MCP handshake
 - Data API version: `0.3.0`
@@ -31,9 +32,10 @@ use the same five-Skill bundle and public metadata.
 
 ## Skill architecture and entry
 
-The plugin package is the installation entry, `.mcp.json` is the single bundled
-remote MCP entry, and the five Skill descriptions are peer request-routing
-entries:
+The plugin package is the shared installation entry, `.mcp.json` is the single
+bundled remote MCP entry, `.codex-plugin/plugin.json` and
+`.claude-plugin/plugin.json` are thin host adapters, and the five Skill
+descriptions are peer request-routing entries:
 
 - `anchises-analysis` is a thin coordinator for generic, mixed, and ambiguous
   requests. Its references provide the canonical classification, global
@@ -51,13 +53,14 @@ specialist first reads the same canonical `primary_task` rules and must stop if
 it does not own the result; downstream Skills never reclassify.
 
 Whenever one of the five Skills is selected explicitly or implicitly for a
-business request, it performs one cache-first Codex tag check and calls
-`get_connection_status({})` once. On a cache miss, Codex directly runs one
-read-only `git ls-remote --` against the allowlisted repository with a narrow
-reusable approval prefix; the bundled network-free Python parser then
-considers only `anchises-analysis/codex/v*` and accepts a newer release only
-when its tag points to the current remote `main` head. Plugin release discovery
-is independent of the MCP service version.
+business request, it performs one cache-first platform Tag check and calls
+`get_connection_status({})` once. On a cache miss, the host directly runs one
+read-only `git ls-remote --` against the allowlisted repository; the bundled
+network-free Python parser considers only the selected platform namespace and
+accepts a newer release only when its Tag points to the current remote `main`
+head. Codex uses `anchises-analysis/codex/v*`; Claude uses
+`anchises-analysis/claude/v*`. Plugin discovery remains independent of the MCP
+service version.
 
 `Approve for me` can Auto-review the current Git lookup but does not itself
 create a persistent rule. For one-time setup across the same local user's
@@ -78,6 +81,14 @@ is accepted only when the already captured remote refs show that `HEAD`,
 development Marketplaces continue to use the maintainer's manual cachebuster
 and reinstall flow. A successful installation requires a new Codex task
 because the current task retains its startup Skill and MCP catalog.
+
+Claude preserves the same cache TTLs, silent failure behavior, exact named
+authorization, decline semantics, and final-footer placement. Claude Code uses
+the fixed Marketplace refresh and plugin update sequence after a fresh Tag
+recheck. Claude Chat, Desktop, and Cowork perform the fresh recheck but hand the
+user to `Customize → Plugins → Anchises Analysis → Update`; they never claim
+the UI update completed. Every Claude installation or update requires a new
+conversation.
 
 ## Company briefs
 
@@ -194,6 +205,25 @@ task after installing or updating the plugin.
 Later Codex releases are detected from their explicit Git tags. MCP-only
 updates remain independent and do not trigger a plugin installation notice.
 
+## Claude installation from GitHub
+
+Claude Code installs the same package from the root Claude Marketplace:
+
+```bash
+claude plugin marketplace add \
+  2026Allin/anchises-stock-qa@main \
+  --sparse .claude-plugin plugins/anchises-analysis
+
+claude plugin install anchises-analysis@anchises-capital
+```
+
+Claude Chat, Desktop, and Cowork use **Customize → Plugins → Personal plugins
+→ + → Add marketplace → Add from a repository** with
+`https://github.com/2026Allin/anchises-stock-qa`. All Claude surfaces load the
+same five Skills and public MCP definition. The complete install, verification,
+update, and release procedure is in
+[the Claude guide](../../docs/anchises-analysis-claude-install.md).
+
 ## Contract sync
 
 The checked-in descriptor snapshot is generated from the public service with a
@@ -219,15 +249,15 @@ hash remain strict. Git tags are the only plugin update signal.
 
 From the repository root:
 
-Before final validation of a release, update the single cachebuster and
-synchronize the plugin release metadata:
+Before final validation, update the Codex cachebuster, set the Claude manifest
+release suffix when publishing Claude, and synchronize both metadata files:
 
 ```bash
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   plugins/anchises-analysis
-.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py
-.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py --check
+.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py --platform all
+.venv/bin/python plugins/anchises-analysis/scripts/sync_plugin_release.py --platform all --check
 ```
 
 Then run:
@@ -258,4 +288,11 @@ Then run:
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
   plugins/anchises-analysis
+
+claude plugin validate . --strict
+claude plugin validate ./plugins/anchises-analysis --strict
 ```
+
+The Claude validation commands require the Claude Code CLI. The unit suite
+still validates both checked-in manifests, release identities, Tag parsers,
+fixed updater sequences, shared prompt hashes, and the unchanged MCP contract.

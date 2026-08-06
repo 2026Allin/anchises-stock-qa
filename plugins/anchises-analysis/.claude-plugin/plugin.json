@@ -1,0 +1,24 @@
+{
+  "name": "anchises-analysis",
+  "displayName": "Anchises Analysis",
+  "version": "0.6.0-dev.8+claude.20260806090903",
+  "description": "Research public companies with live web sources and analyze stock-market data.",
+  "author": {
+    "name": "Anchises Capital",
+    "email": "tech@anchisesgroup.com",
+    "url": "https://anchisesdata.com"
+  },
+  "homepage": "https://anchisesdata.com/stock-qa",
+  "repository": "https://github.com/2026Allin/anchises-stock-qa",
+  "license": "MIT",
+  "keywords": [
+    "stocks",
+    "company-research",
+    "screening",
+    "market-data",
+    "company-reports",
+    "csv-export"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

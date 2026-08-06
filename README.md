@@ -2,17 +2,25 @@
 
 <img src="plugins/anchises-analysis/assets/logo.png" alt="Anchises Analysis logo" width="96">
 
-This repository contains the `Anchises-Analysis` development marketplace and
-the `anchises-analysis` plugin package published by Anchises Capital. The plugin
-bundles five Skills and connects directly to the public Hosted MCP at
+This repository contains the Codex `Anchises-Analysis` Marketplace, the Claude
+`anchises-capital` Marketplace, and one shared `anchises-analysis` plugin
+package published by Anchises Capital. The plugin bundles five Skills and
+connects directly to the public Hosted MCP at
 `https://mcp.anchisesdata.com/mcp`. It does not depend on a workspace-specific
 Developer Mode App ID.
 
-Current Codex release target: `0.6.0-dev.8`. The submitted public-review
-release remains `0.4.0-beta.2`.
+Current Codex and Claude release target: `0.6.0-dev.8`. The submitted
+public-review release remains `0.4.0-beta.2`.
 
 ## QA development changes (unreleased)
 
+- Claude Chat, Desktop, Cowork, and Claude Code now reuse the same five Skills,
+  `.mcp.json`, business prompts, and 12-tool contract through a dedicated
+  `.claude-plugin` manifest and GitHub Marketplace.
+- Claude update discovery uses `anchises-analysis/claude/v*`, while Codex keeps
+  `anchises-analysis/codex/v*`. Both retain the one-hour success cache,
+  ten-minute failure cache, silent failure behavior, exact authorization, and
+  final-footer reminder policy.
 - Git Marketplace metadata with an omitted or `null` `refName` is no longer
   misclassified as a local or unsupported source. It is accepted only when the
   already captured remote refs prove that `HEAD`, `refs/heads/main`, and the
@@ -132,8 +140,10 @@ release remains `0.4.0-beta.2`.
 
 ```text
 .agents/plugins/marketplace.json
+.claude-plugin/marketplace.json
 plugins/anchises-analysis/
   .codex-plugin/plugin.json
+  .claude-plugin/plugin.json
   .mcp.json
   assets/
   contracts/
@@ -179,7 +189,14 @@ or the Data API.
 .venv/bin/python \
   ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
   plugins/anchises-analysis
+
+claude plugin validate . --strict
+claude plugin validate ./plugins/anchises-analysis --strict
 ```
+
+The two Claude validation commands require a locally installed Claude Code
+CLI. The unit suite validates the same checked-in manifests when that CLI is
+not available.
 
 Run credential-free production checks explicitly:
 
@@ -188,7 +205,7 @@ RUN_LIVE_MCP_TESTS=1 \
   .venv/bin/python -m unittest tests.test_live_hosted_contract -v
 ```
 
-## Local development install
+## Local Codex development install
 
 The repo marketplace name is read from `.agents/plugins/marketplace.json`:
 
@@ -209,20 +226,30 @@ and start a new Codex task so the new Skill and MCP schema are loaded.
   plugins/anchises-analysis
 
 .venv/bin/python \
-  plugins/anchises-analysis/scripts/sync_plugin_release.py
+  plugins/anchises-analysis/scripts/sync_plugin_release.py --platform all
 
 .venv/bin/python \
-  plugins/anchises-analysis/scripts/sync_plugin_release.py --check
+  plugins/anchises-analysis/scripts/sync_plugin_release.py --platform all --check
 ```
 
-The first command preserves the `0.6.0-dev.8` base and creates one new
-`+codex.<timestamp>` suffix. The second copies that release identity into the
-plugin-side metadata used by the tag checker. Neither command creates a Git
-tag.
+The cachebuster preserves the `0.6.0-dev.8` base and creates one new
+`+codex.<timestamp>` suffix. Set the Claude manifest to the corresponding
+`+claude.<timestamp>` release when publishing Claude; the synchronizer copies
+both fixed identities into the metadata used by their Tag checkers. None of
+these commands creates a Git Tag.
 
 The automated in-Skill updater intentionally rejects this local development
 Marketplace. Maintainers continue to use the manual cachebuster and reinstall
 flow above.
+
+For a local Claude development session without installing the Marketplace:
+
+```bash
+claude --plugin-dir ./plugins/anchises-analysis
+```
+
+Use the GitHub Marketplace path below for release installation and update
+testing; the guarded updater rejects local plugin sources.
 
 ## Cross-workspace Codex install
 
@@ -261,6 +288,33 @@ plugin update notices unless a newer Codex plugin tag is also published.
 
 See the complete
 [cross-workspace installation guide](docs/anchises-analysis-codex-cross-workspace-install.md).
+
+## Claude install from GitHub
+
+Claude Code can add the Marketplace directly from this GitHub repository:
+
+```bash
+claude plugin marketplace add \
+  2026Allin/anchises-stock-qa@main \
+  --sparse .claude-plugin plugins/anchises-analysis
+
+claude plugin install anchises-analysis@anchises-capital
+```
+
+In Claude Chat, Desktop, or Cowork, open **Customize → Plugins**, choose
+**Personal plugins → + → Add marketplace → Add from a repository**, and enter
+`https://github.com/2026Allin/anchises-stock-qa`. The same plugin package loads
+all five Skills and the shared Hosted MCP. Start a new Claude conversation
+after installation or update.
+
+Claude release checks consider only `anchises-analysis/claude/v*`. Claude Code
+can run the guarded fixed CLI update after exact authorization; Chat, Desktop,
+and Cowork instead hand off to
+`Customize → Plugins → Anchises Analysis → Update` and never claim the UI
+operation completed.
+
+See the complete
+[Claude installation and update guide](docs/anchises-analysis-claude-install.md).
 
 See [release notes](docs/anchises-analysis-0.4.0-beta.2-release-notes.md),
 [Directory listing](docs/anchises-analysis-plugin-directory-listing.md), and

@@ -8,7 +8,8 @@
 - Display name: Anchises Analysis
 - Publisher: Anchises Capital
 - Version: `0.6.0-dev.8`
-- Marketplace: `Anchises-Analysis`
+- Codex Marketplace: `Anchises-Analysis`
+- Claude Marketplace: `anchises-capital`
 - Hosted MCP: version discovered dynamically from the MCP handshake
 - Data API: `0.3.0`
 - Internal capability contract: `1.9.0-draft`
@@ -17,14 +18,15 @@
 - Tools: 12
 
 The MCP URL, website, privacy, terms, support URL, MCP Python package name, and
-VPS service names remain unchanged. The Codex package now bundles the remote
-MCP definition directly and no longer references a Developer Mode App ID.
+VPS service names remain unchanged. Codex and Claude install the same five-Skill
+package and remote MCP definition; neither references a Developer Mode App ID.
 
 ## Automated release gates
 
-1. Plugin and Skill directories, names, and manifests agree. The package
-   contains `.mcp.json`, declares `mcpServers`, contains no `.app.json`, and
-   contains no `plugin_asdk_app` identifier.
+1. Plugin and Skill directories, names, and both platform manifests agree. The
+   package contains `.mcp.json`, both manifests declare `mcpServers`, the Claude
+   Marketplace points to the same plugin directory, and the package contains
+   no `.app.json` or `plugin_asdk_app` identifier.
 2. `agents/openai.yaml` explicitly invokes `$anchises-analysis`.
 3. The checked-in live snapshot contains exactly 12 tools, including
    `resolve_company_identity`; both row tools accept opaque cursor
@@ -46,15 +48,18 @@ MCP definition directly and no longer references a Developer Mode App ID.
 10. Full unit/mock/live tests, Skill validation, and plugin validation pass.
 11. Cachebuster update and local reinstall succeed; the installed plugin shows
     all five Skills and one `anchises_analysis` bundled MCP server.
-12. Plugin release metadata matches the manifest's base version and single
-    `+codex.<timestamp>` suffix.
-13. Five-Skill update checks use the Codex Git tag namespace and are
-    single-call. The fixed
-    updater refuses local or wrong sources, uses exactly five CLI calls on the
-    success path, and never retries or falls back.
-14. The newest valid Codex tag, when one exists, points to the remote `main`
-    head. Tag creation is a separate explicit maintainer action and never an
-    automatic side effect of commit, push, merge, install, or update.
+12. Codex and Claude release metadata each match their manifest's base version
+    and exactly one `+<platform>.<timestamp>` suffix.
+13. Five-Skill update checks select exactly one platform namespace and are
+    single-call. Each fixed CLI updater refuses local or wrong sources, uses
+    exactly five commands on the success path, and never retries or falls back.
+14. The newest valid platform Tag, when one exists, points to the remote `main`
+    head. Codex and Claude Tags never cross-trigger. Tag creation is a separate
+    explicit maintainer action and never an automatic side effect of commit,
+    push, merge, install, or update.
+15. Hash guards prove that the five business `SKILL.md` files, non-update
+    business references, Codex UI metadata, `.mcp.json`, and the 12-tool Hosted
+    MCP contract remain byte-for-byte unchanged by the Claude adapter.
 
 ## Cross-workspace Codex gates
 
@@ -75,6 +80,26 @@ MCP definition directly and no longer references a Developer Mode App ID.
 7. Install `0.6.0-dev.6` manually as the bootstrap release. Validate one silent
    current tag check, one update reminder, one explicitly authorized update,
    and the required new-task message.
+
+## Cross-surface Claude gates
+
+1. Add `2026Allin/anchises-stock-qa@main` as a Claude Marketplace using sparse
+   paths `.claude-plugin` and `plugins/anchises-analysis`, then install
+   `anchises-analysis@anchises-capital`.
+2. Confirm the same five Skills and one `anchises_analysis` MCP server load in
+   Claude Code, Claude Chat, Claude Desktop, and Cowork where custom
+   Marketplaces are allowed.
+3. Confirm a new Claude conversation performs at most one direct GitHub Tag
+   lookup on its first substantive request when no persistent cache exists.
+4. Validate the one-hour success TTL, ten-minute failure TTL, silent non-update
+   states, final-footer placement, exact named authorization, and turn-local
+   decline behavior.
+5. In Claude Code, validate the fixed five-command CLI update and fail-closed
+   source checks. In Chat, Desktop, and Cowork, confirm the plugin gives only
+   the `Customize → Plugins → Anchises Analysis → Update` handoff and does not
+   claim installation completed.
+6. Start a new Claude conversation after every installation or update and
+   verify all five Skills and exactly 12 MCP tools again.
 
 ## Future Plugin Directory gates
 
@@ -99,10 +124,12 @@ the capability contract remains compatible.
 
 ## Branch and tag release boundary
 
-- Develop and validate on `qa-v2-auth`.
+- Develop this adapter on `codex/claude-client-adapter`, based on
+  `qa-v2-auth`, then merge its validated result back to `qa-v2-auth`.
 - Merge the tested release to `main` and push `main` only for a release.
-- Publish Codex releases under `anchises-analysis/codex/v<semver>`; reserve a
-  separate `anchises-analysis/claude/v<semver>` namespace for Claude.
-- A Codex tag must identify the same commit as remote `main`.
+- Publish Codex releases under `anchises-analysis/codex/v<semver>` and Claude
+  releases under `anchises-analysis/claude/v<semver>`.
+- Each platform Tag must identify the same commit as remote `main`; publishing
+  one platform's Tag does not require publishing the other.
 - Never create or push a tag unless the maintainer explicitly requests that
   release action.

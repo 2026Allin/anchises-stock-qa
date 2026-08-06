@@ -51,12 +51,15 @@ EXPECTED_SKILL_BUNDLE_FILES = {
     Path("SKILL.md"),
     Path("agents/openai.yaml"),
     Path("references/common-errors.md"),
+    Path("references/plugin-release-claude.json"),
     Path("references/plugin-release.json"),
     Path("references/company-introductions.md"),
     Path("references/company-resolution.md"),
     Path("references/global-contract.md"),
     Path("references/query-interpretation.md"),
     Path("references/plugin-update.md"),
+    Path("references/plugin-update-claude.md"),
+    Path("references/plugin-update-codex.md"),
     Path("references/response-finalization.md"),
     Path("references/service-access.md"),
     Path("scripts/check_plugin_update.py"),
@@ -231,7 +234,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
                 *sorted(
                     path
                     for path in (SKILL_ROOT / "references").glob("*.md")
-                    if path.name != "plugin-update.md"
+                    if not path.name.startswith("plugin-update")
                 ),
             ]
         ).lower()
@@ -275,54 +278,77 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             normalized_access.lower(),
         )
 
-        protocol = (
+        shared_protocol = (
             SKILL_ROOT / "references" / "plugin-update.md"
         ).read_text(encoding="utf-8")
-        normalized = " ".join(protocol.split())
+        codex_protocol = (
+            SKILL_ROOT / "references" / "plugin-update-codex.md"
+        ).read_text(encoding="utf-8")
+        claude_protocol = (
+            SKILL_ROOT / "references" / "plugin-update-claude.md"
+        ).read_text(encoding="utf-8")
+        protocol = "\n".join((shared_protocol, codex_protocol, claude_protocol))
+        normalized = " ".join(shared_protocol.split())
+        normalized_codex = " ".join(codex_protocol.split())
         for transition in (
             "idle",
+            "platform_select",
             "tag_check",
             "update_available",
             "explicit_authorization",
             "tag_recheck",
-            "preflight",
+            "preflight_or_surface_handoff",
             "marketplace_upgrade",
             "plugin_install",
             "verification",
             "new_task_required",
         ):
-            self.assertIn(transition, protocol)
-        self.assertIn("请为我安装 Anchises Analysis 更新。", protocol)
+            self.assertIn(transition, shared_protocol)
+        self.assertIn("请为我安装 Anchises Analysis 更新。", shared_protocol)
         self.assertIn("A bare “是”", normalized)
         self.assertIn("Silence never authorizes work", normalized)
-        self.assertIn("A message unrelated to Anchises Analysis", normalized)
         self.assertIn("Do not persist an ignored release", normalized)
+        self.assertIn("valid successful result is fresh for 1 hour", normalized)
+        self.assertIn("fresh for 10 minutes", normalized)
         self.assertIn("anchises-analysis/codex/v*", protocol)
+        self.assertIn("anchises-analysis/claude/v*", protocol)
         self.assertIn("remote `main` head", protocol)
         self.assertIn("`marketplaceSource.refName`", protocol)
         self.assertIn("remote `HEAD`", protocol)
         self.assertIn("`refs/heads/main`", protocol)
-        self.assertIn("must not execute an additional command", normalized)
-        self.assertIn("explicit non-`main` ref", normalized)
+        self.assertIn("must not execute an additional command", normalized_codex)
+        self.assertIn("explicit non-`main` ref", normalized_codex)
         self.assertIn("--cache-only", protocol)
         self.assertIn("--remote-refs-stdin", protocol)
-        self.assertIn('"cmd": "git ls-remote -- ', protocol)
-        self.assertIn('"sandbox_permissions": "require_escalated"', protocol)
-        self.assertIn('"git",\n    "ls-remote",\n    "--"', protocol)
-        self.assertIn("Approve for me", protocol)
-        self.assertIn("Ask for approval", protocol)
-        self.assertIn("Always allow", protocol)
-        self.assertIn("~/.codex/rules/default.rules", protocol)
-        self.assertIn("plugin_update_permission", protocol)
-        self.assertIn("为 Anchises Analysis 启用永久版本检查", protocol)
-        self.assertIn("must never create, edit, or delete", normalized)
+        self.assertIn('"cmd": "git ls-remote -- ', codex_protocol)
+        self.assertIn(
+            '"sandbox_permissions": "require_escalated"',
+            codex_protocol,
+        )
+        self.assertIn('"git",\n    "ls-remote",\n    "--"', codex_protocol)
+        self.assertIn("Approve for me", codex_protocol)
+        self.assertIn("Ask for approval", codex_protocol)
+        self.assertIn("Always allow", codex_protocol)
+        self.assertIn("~/.codex/rules/default.rules", codex_protocol)
+        self.assertIn("plugin_update_permission", shared_protocol)
+        self.assertIn("为 Anchises Analysis 启用永久版本检查", codex_protocol)
+        self.assertIn("must never create, edit,", codex_protocol)
         for command in (
             "codex plugin list --json",
             "codex plugin marketplace list --json",
             "codex plugin marketplace upgrade Anchises-Analysis --json",
             "codex plugin add anchises-analysis@Anchises-Analysis --json",
         ):
-            self.assertIn(command, protocol)
+            self.assertIn(command, codex_protocol)
+        for command in (
+            "claude plugin list --json",
+            "claude plugin marketplace list --json",
+            "claude plugin marketplace update anchises-capital",
+            "claude plugin update anchises-analysis@anchises-capital",
+        ):
+            self.assertIn(command, claude_protocol)
+        self.assertIn("Customize → Plugins → Anchises Analysis → Update", claude_protocol)
+        self.assertIn("此处尚未执行或确认安装", claude_protocol)
         for forbidden_method in (
             "`git pull`",
             "`git clone`",
@@ -330,7 +356,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "`config.toml`",
             "rollback",
         ):
-            self.assertIn(forbidden_method, protocol)
+            self.assertIn(forbidden_method, codex_protocol)
 
         finalizer = (
             SKILL_ROOT / "references" / "response-finalization.md"
@@ -341,7 +367,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
 
     def test_release_check_approval_contract_is_narrow_and_nonpersistent_by_default(self) -> None:
         protocol = (
-            SKILL_ROOT / "references" / "plugin-update.md"
+            SKILL_ROOT / "references" / "plugin-update-codex.md"
         ).read_text(encoding="utf-8")
         network_lines = [
             line.strip()
@@ -360,7 +386,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             self.assertNotIn(">", git_segment)
         self.assertNotIn('"prefix_rule": [\n    "python3"', protocol)
         self.assertNotIn('"prefix_rule": [\n    "bash"', protocol)
-        self.assertIn("does not by itself create a persistent", protocol)
+        self.assertIn("does not itself create a persistent", protocol)
 
     def test_plugin_release_metadata_is_closed_and_distribution_allowlisted(self) -> None:
         release = json.loads(
@@ -393,7 +419,7 @@ class SkillHostedWorkflowTest(unittest.TestCase):
             "https://github.com/2026Allin/anchises-stock-qa.git",
         )
         protocol = (
-            SKILL_ROOT / "references" / "plugin-update.md"
+            SKILL_ROOT / "references" / "plugin-update-codex.md"
         ).read_text(encoding="utf-8")
         self.assertIn(release["repository"], protocol)
         self.assertIn(release["tag_prefix"], protocol)

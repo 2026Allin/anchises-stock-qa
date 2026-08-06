@@ -1,6 +1,6 @@
 # Anchises Analysis Plugin Directory Listing
 
-Current Codex release copy for `Anchises Analysis 0.6.0-dev.8`.
+Shared Codex and Claude release copy for `Anchises Analysis 0.6.0-dev.8`.
 
 ## Identity
 
@@ -76,12 +76,12 @@ Custom UI: None. Screenshots: None. Do not submit placeholder screenshots.
 - Public noauth access has no account-linked cross-session cumulative budget;
   shared short-term service limits still apply.
 - Temporary CSV links default to 60 minutes and are bearer capabilities.
-- Each selected Anchises Skill checks the Codex Git tag namespace once. A
-  cache miss uses one directly approved, fixed-repository `git ls-remote --`;
-  Python parses the captured refs without network access. No-update, unknown,
-  and failed checks are silent; installation requires an explicit named
-  authorization and supports only the allowlisted Git Marketplace source on
-  `main`. A reusable rule may cover only that exact read-only Git prefix.
+- Each selected Anchises Skill checks exactly one host-specific Git Tag
+  namespace once. A cache miss uses one directly approved, fixed-repository
+  `git ls-remote --`; Python parses the captured refs without network access.
+  No-update, unknown, and failed checks are silent; installation requires an
+  explicit named authorization and supports only the allowlisted Git
+  Marketplace source on `main`. Codex and Claude Tags never cross-trigger.
 - Reports and market analysis are analytical information, not investment advice
   or official company disclosure.
 
